@@ -1,0 +1,13 @@
+{
+  "priority": 3000,
+  "title": {
+    "text": {
+      "translate": "create_nautilus.simulated_section.submarine"
+    },
+    "background": "#aa123a45",
+    "color": "#ffe0ffff",
+    "secondary_color": "#ff88cbd1"
+  },
+  "sprite": "aeronautics:banner",
+  "only_animate_on_hover": true
+}

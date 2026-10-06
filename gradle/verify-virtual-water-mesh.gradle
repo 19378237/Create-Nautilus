@@ -1,0 +1,398 @@
+tasks.register('verifyVirtualWaterMesh') {
+    group = 'verification'
+    description = 'Checks clipped virtual-water face topology, winding and local UV mapping.'
+    dependsOn tasks.named('classes')
+    doLast {
+        final URLClassLoader loader = new URLClassLoader(
+                sourceSets.main.runtimeClasspath.files.collect { it.toURI().toURL() } as URL[],
+                (ClassLoader) null)
+        try {
+            final Class<?> rendererType = Class.forName(
+                    'com.create.nautilus.client.render.FloodedChamberRenderer', false, loader)
+            final Class<?> aabbType = Class.forName(
+                    'net.minecraft.world.phys.AABB', false, loader)
+            final Class<?> directionType = Class.forName(
+                    'net.minecraft.core.Direction', false, loader)
+            final Class<?> vectorType = Class.forName('org.joml.Vector3d', false, loader)
+            final Class<?> vectorArrayType = Class.forName('[Lorg.joml.Vector3d;', false, loader)
+            final def orderedCorners = rendererType.getDeclaredMethod(
+                    'orderedLocalFaceCorners', aabbType, directionType, Double.TYPE)
+            final def clipBelow = rendererType.getDeclaredMethod(
+                    'clipBelowPlane', List.class, Double.TYPE)
+            final def surfaceCoplanar = rendererType.getDeclaredMethod(
+                    'isSurfaceCoplanar', List.class, Double.TYPE)
+            final def surfacePolygon = rendererType.getDeclaredMethod(
+                    'surfacePolygon', vectorArrayType, Double.TYPE)
+            final def surfaceUvAxis = rendererType.getDeclaredMethod(
+                    'surfaceUvAxis', vectorArrayType)
+            orderedCorners.accessible = true
+            clipBelow.accessible = true
+            surfaceCoplanar.accessible = true
+            surfacePolygon.accessible = true
+            surfaceUvAxis.accessible = true
+
+            final def cell = aabbType.getConstructor(
+                    Double.TYPE, Double.TYPE, Double.TYPE,
+                    Double.TYPE, Double.TYPE, Double.TYPE)
+                    .newInstance(0.0D, 0.0D, 0.0D, 1.0D, 1.0D, 1.0D)
+            final def direction = { String name ->
+                directionType.enumConstants.find { ((Enum) it).name() == name }
+            }
+            final def xyz = { point ->
+                [
+                        (double) point.getClass().getMethod('x').invoke(point),
+                        (double) point.getClass().getMethod('y').invoke(point),
+                        (double) point.getClass().getMethod('z').invoke(point)
+                ]
+            }
+            final def subtract = { List<Double> a, List<Double> b ->
+                [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
+            }
+            final def cross = { List<Double> a, List<Double> b ->
+                [
+                        a[1] * b[2] - a[2] * b[1],
+                        a[2] * b[0] - a[0] * b[2],
+                        a[0] * b[1] - a[1] * b[0]
+                ]
+            }
+            final def dot = { List<Double> a, List<Double> b ->
+                a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+            }
+            final def uniqueCoordinates = { List<?> points ->
+                points.collect { xyz(it).collect { value ->
+                    String.format(java.util.Locale.ROOT, '%.9f', value)
+                }.join(',') }.toSet().size() == points.size()
+            }
+            final def polygonNormal = { List<?> points ->
+                final List<Double> normal = [0.0D, 0.0D, 0.0D]
+                for (int index = 0; index < points.size(); index++) {
+                    final List<Double> current = xyz(points[index])
+                    final List<Double> next = xyz(points[(index + 1) % points.size()])
+                    normal[0] += (current[1] - next[1]) * (current[2] + next[2])
+                    normal[1] += (current[2] - next[2]) * (current[0] + next[0])
+                    normal[2] += (current[0] - next[0]) * (current[1] + next[1])
+                }
+                normal
+            }
+            final def fanHasArea = { List<?> points ->
+                final List<Double> center = [0.0D, 0.0D, 0.0D]
+                points.each {
+                    final List<Double> point = xyz(it)
+                    for (int axis = 0; axis < 3; axis++) center[axis] += point[axis]
+                }
+                for (int axis = 0; axis < 3; axis++) center[axis] /= points.size()
+                for (int index = 0; index < points.size(); index++) {
+                    final List<Double> current = xyz(points[index])
+                    final List<Double> next = xyz(points[(index + 1) % points.size()])
+                    final List<Double> areaVector = cross(
+                            subtract(current, center), subtract(next, center))
+                    if (dot(areaVector, areaVector) <= 1.0E-18D) return false
+                }
+                true
+            }
+            final Map<String, List<Double>> outwardNormals = [
+                    EAST: [1.0D, 0.0D, 0.0D],
+                    WEST: [-1.0D, 0.0D, 0.0D],
+                    SOUTH: [0.0D, 0.0D, 1.0D],
+                    NORTH: [0.0D, 0.0D, -1.0D],
+                    DOWN: [0.0D, -1.0D, 0.0D],
+                    UP: [0.0D, 1.0D, 0.0D]
+            ]
+            outwardNormals.each { String name, List<Double> expected ->
+                final double inset = name == 'DOWN' || name == 'UP' ? 0.0D : 0.02D
+                final List<?> corners = (List<?>) orderedCorners.invoke(
+                        null, cell, direction(name), inset)
+                assert corners.size() == 4
+                assert dot(polygonNormal(corners), expected) > 1.999999D:
+                        name + ' face is not wound toward its declared outward normal'
+
+                // A full room has no free surface, so all six clipped shell faces remain and
+                // keep their outward winding, including the newly emitted local UP boundary.
+                final List<?> flooded = (List<?>) clipBelow.invoke(null, corners, 2.0D)
+                assert flooded.size() == 4
+                assert uniqueCoordinates(flooded)
+                assert fanHasArea(flooded)
+                assert dot(polygonNormal(flooded), expected) > 1.999999D:
+                        name + ' fully flooded face lost its outward winding'
+            }
+
+            // The former nested (a,y) loop made a bow-tie. At y=0.5 its two fake diagonal
+            // edges both create the same z=0.5 intersection, producing the repeated cell spikes.
+            final List<List<Double>> formerBowTie = [
+                    [0.0D, 0.0D], [0.0D, 1.0D],
+                    [1.0D, 0.0D], [1.0D, 1.0D]
+            ]
+            final def clip2d = { List<List<Double>> input, double plane ->
+                final List<List<Double>> output = []
+                for (int index = 0; index < input.size(); index++) {
+                    final List<Double> current = input[index]
+                    final List<Double> next = input[(index + 1) % input.size()]
+                    final boolean currentBelow = current[1] <= plane
+                    final boolean nextBelow = next[1] <= plane
+                    if (currentBelow) output.add(current)
+                    if (currentBelow != nextBelow) {
+                        final double t = (plane - current[1]) / (next[1] - current[1])
+                        output.add([
+                                current[0] + (next[0] - current[0]) * t,
+                                current[1] + (next[1] - current[1]) * t
+                        ])
+                    }
+                }
+                output
+            }
+            final List<List<Double>> formerClipped = clip2d(formerBowTie, 0.5D)
+            assert formerClipped.size() == 6
+            assert formerClipped.count {
+                Math.abs(it[0] - 0.5D) < 1.0E-9D && Math.abs(it[1] - 0.5D) < 1.0E-9D
+            } == 2
+
+            final List<?> eastCorners = (List<?>) orderedCorners.invoke(
+                    null, cell, direction('EAST'), 0.02D)
+            final List<?> eastClipped = (List<?>) clipBelow.invoke(null, eastCorners, 0.5D)
+            assert eastClipped.size() == 4
+            assert eastClipped.every {
+                final List<Double> point = xyz(it)
+                point[1] <= 0.5D + 1.0E-9D
+                        && (Math.abs(point[2]) < 1.0E-9D
+                        || Math.abs(point[2] - 1.0D) < 1.0E-9D)
+            }
+            assert eastClipped.collect { xyz(it).collect { value ->
+                String.format(java.util.Locale.ROOT, '%.9f', value)
+            }.join(',') }.toSet().size() == eastClipped.size()
+
+            final def vector = { Number x, Number y, Number z ->
+                vectorType.getConstructor(Double.TYPE, Double.TYPE, Double.TYPE)
+                        .newInstance(x.doubleValue(), y.doubleValue(), z.doubleValue())
+            }
+            final def rotateZ = { point, Number degrees ->
+                final double radians = Math.toRadians(degrees.doubleValue())
+                final double cosineAngle = Math.cos(radians)
+                final double sineAngle = Math.sin(radians)
+                final List<Double> coordinate = xyz(point)
+                vector(coordinate[0] * cosineAngle - coordinate[1] * sineAngle,
+                        coordinate[0] * sineAngle + coordinate[1] * cosineAngle,
+                        coordinate[2])
+            }
+            final def vectorArray = { List<?> points ->
+                final Object array = java.lang.reflect.Array.newInstance(vectorType, points.size())
+                for (int index = 0; index < points.size(); index++) {
+                    java.lang.reflect.Array.set(array, index, points[index])
+                }
+                array
+            }
+            // A +X face rotated 30 degrees about Z remains a convex, ordered four-sided clip.
+            final double cosine = Math.sqrt(3.0D) / 2.0D
+            final double sine = 0.5D
+            final List<Object> rotatedSide = [
+                    vector(cosine, sine, 0.0D),
+                    vector(cosine - sine, sine + cosine, 0.0D),
+                    vector(cosine - sine, sine + cosine, 1.0D),
+                    vector(cosine, sine, 1.0D)
+            ]
+            final List<?> rotatedClipped = (List<?>) clipBelow.invoke(null, rotatedSide, 0.8D)
+            assert rotatedClipped.size() == 4
+            assert rotatedClipped.every { xyz(it)[1] <= 0.8D + 1.0E-9D }
+            assert rotatedClipped.collect { xyz(it).collect { value ->
+                String.format(java.util.Locale.ROOT, '%.9f', value)
+            }.join(',') }.toSet().size() == rotatedClipped.size()
+            final List<Double> rotatedFirst = xyz(rotatedClipped[0])
+            final List<Double> rotatedSecond = xyz(rotatedClipped[1])
+            final List<Double> rotatedThird = xyz(rotatedClipped[2])
+            assert dot(cross(subtract(rotatedSecond, rotatedFirst),
+                    subtract(rotatedThird, rotatedFirst)), [cosine, sine, 0.0D]) > 0.0D
+
+            // The UP shell is required even when local UP is tilted or fully side-on in world
+            // space. Clip the wet part at five representative rotations and retain a real,
+            // outward polygon entirely below the world-horizontal surface.
+            final List<?> localUp = (List<?>) orderedCorners.invoke(
+                    null, cell, direction('UP'), 0.0D)
+            final Map<Integer, String> expectedSurfaceAxes = [
+                    0: 'Y', 30: 'Y', 90: 'X', 150: 'Y', 180: 'Y'
+            ]
+            expectedSurfaceAxes.each { Number degrees, String expectedAxis ->
+                final List<?> rotatedUp = localUp.collect { rotateZ(it, degrees) }
+                final List<Double> worldYs = rotatedUp.collect { xyz(it)[1] }
+                final double span = worldYs.max() - worldYs.min()
+                final double surface = span > 1.0E-9D
+                        ? worldYs.max() - span * 0.25D : worldYs.max() + 0.125D
+                final List<?> wetUp = (List<?>) clipBelow.invoke(null, rotatedUp, surface)
+                assert wetUp.size() >= 3: degrees + '-degree UP face disappeared below water'
+                assert uniqueCoordinates(wetUp)
+                assert fanHasArea(wetUp)
+                assert wetUp.every { xyz(it)[1] <= surface + 1.0E-9D }
+                final double radians = Math.toRadians(degrees.doubleValue())
+                final List<Double> expectedNormal = [
+                        -Math.sin(radians), Math.cos(radians), 0.0D]
+                assert dot(polygonNormal(wetUp), expectedNormal) > 0.0D:
+                        degrees + '-degree UP clip lost its outward winding'
+
+                final Object rotatedCellCorners = vectorArray([
+                        vector(0.0D, 0.0D, 0.0D), vector(1.0D, 0.0D, 0.0D),
+                        vector(0.0D, 1.0D, 0.0D), vector(1.0D, 1.0D, 0.0D),
+                        vector(0.0D, 0.0D, 1.0D), vector(1.0D, 0.0D, 1.0D),
+                        vector(0.0D, 1.0D, 1.0D), vector(1.0D, 1.0D, 1.0D)
+                ].collect { rotateZ(it, degrees) })
+                final double centerSurface = 0.5D * (
+                        Math.sin(radians) + Math.cos(radians))
+                final List<?> freeSurface = (List<?>) surfacePolygon.invoke(
+                        null, ([rotatedCellCorners, Double.valueOf(centerSurface)] as Object[]))
+                assert freeSurface.size() >= 3:
+                        degrees + '-degree free surface became degenerate'
+                assert uniqueCoordinates(freeSurface)
+                assert fanHasArea(freeSurface)
+                assert freeSurface.every {
+                    Math.abs(xyz(it)[1] - centerSurface) <= 1.0E-7D
+                }
+                assert dot(polygonNormal(freeSurface), [0.0D, 1.0D, 0.0D]) > 0.0D:
+                        degrees + '-degree free surface is not wound toward world UP'
+                final Object uvAxis = surfaceUvAxis.invoke(
+                        null, ([rotatedCellCorners] as Object[]))
+                assert ((Enum) uvAxis).name() == expectedAxis:
+                        degrees + '-degree free surface selected the wrong local UV plane'
+            }
+
+            // A partial room suppresses an exactly coincident UP shell in favour of its free
+            // surface. The same helper must tolerate its declared epsilon, but no more.
+            final List<?> coincidentUp = localUp.collect { point ->
+                final List<Double> coordinate = xyz(point)
+                vector(coordinate[0], 0.5D, coordinate[2])
+            }
+            assert (boolean) surfaceCoplanar.invoke(null, coincidentUp, 0.5D)
+            final List<Object> epsilonUp = []
+            final List<Object> separatedUp = []
+            coincidentUp.eachWithIndex { point, index ->
+                final List<Double> coordinate = xyz(point)
+                epsilonUp.add(vector(coordinate[0],
+                        coordinate[1] + (index == 0 ? 0.999E-6D : 0.0D), coordinate[2]))
+                separatedUp.add(vector(coordinate[0],
+                        coordinate[1] + (index == 0 ? 1.001E-6D : 0.0D), coordinate[2]))
+            }
+            assert (boolean) surfaceCoplanar.invoke(null, epsilonUp, 0.5D)
+            assert !(boolean) surfaceCoplanar.invoke(null, separatedUp, 0.5D)
+
+            // A tilted DOWN face straddles the water plane. The clipped result must retain only
+            // the wet half instead of submitting the complete one-block underside.
+            final List<Object> tiltedBottom = [
+                    vector(0.0D, -0.25D, 0.0D),
+                    vector(1.0D, 0.25D, 0.0D),
+                    vector(1.0D, 0.25D, 1.0D),
+                    vector(0.0D, -0.25D, 1.0D)
+            ]
+            final List<?> bottomClipped = (List<?>) clipBelow.invoke(null, tiltedBottom, 0.0D)
+            assert tiltedBottom.any { xyz(it)[1] > 0.0D }
+            assert bottomClipped.size() == 4
+            assert bottomClipped.every { xyz(it)[1] <= 1.0E-9D }
+            assert bottomClipped.count { Math.abs(xyz(it)[1]) < 1.0E-9D } == 2
+
+            // The plane goes through two opposite face corners. The two t=0/t=1 intersections
+            // must collapse onto those corners, leaving one real triangle rather than duplicates.
+            final List<Object> exactCorners = [
+                    vector(0.0D, 0.0D, 0.0D),
+                    vector(0.0D, 1.0D, 1.0D),
+                    vector(1.0D, 0.0D, 1.0D),
+                    vector(1.0D, -1.0D, 0.0D)
+            ]
+            final List<?> exactCornerClip = (List<?>) clipBelow.invoke(null, exactCorners, 0.0D)
+            assert exactCornerClip.size() == 3
+            assert uniqueCoordinates(exactCornerClip)
+            assert exactCornerClip.every { xyz(it)[1] <= 0.0D }
+            assert fanHasArea(exactCornerClip)
+
+            // A complete edge on the plane is retained once, and all four centroid-fan
+            // triangles remain non-degenerate.
+            final List<Object> exactEdge = [
+                    vector(0.0D, 0.0D, 0.0D),
+                    vector(0.0D, 0.0D, 1.0D),
+                    vector(1.0D, -1.0D, 1.0D),
+                    vector(1.0D, -1.0D, 0.0D)
+            ]
+            final List<?> exactEdgeClip = (List<?>) clipBelow.invoke(null, exactEdge, 0.0D)
+            assert exactEdgeClip.size() == 4
+            assert uniqueCoordinates(exactEdgeClip)
+            assert exactEdgeClip.every { xyz(it)[1] <= 0.0D }
+            assert fanHasArea(exactEdgeClip)
+        } finally {
+            loader.close()
+        }
+
+        final String renderer = file('src/main/java/com/create/nautilus/client/render/'
+                + 'FloodedChamberRenderer.java').getText('UTF-8')
+        final int roomStart = renderer.indexOf('private static void renderRoom(')
+        final int cellGeometryStart = renderer.indexOf('private record CellGeometry(', roomStart)
+        final int surfaceStart = renderer.indexOf('static List<Vector3d> surfacePolygon(', cellGeometryStart)
+        final int boundaryStart = renderer.indexOf(
+                'private static void renderRoomBoundaryFaces(', surfaceStart)
+        final int coplanarStart = renderer.indexOf(
+                'static boolean isSurfaceCoplanar(', boundaryStart)
+        final int emitterStart = renderer.indexOf('private static void emitWaterPolygon(', coplanarStart)
+        final int uvStart = renderer.indexOf('private static void putWaterUv(', emitterStart)
+        final int orderedStart = renderer.indexOf(
+                'static List<Vector3d> orderedLocalFaceCorners', uvStart)
+        assert roomStart >= 0 && cellGeometryStart > roomStart && surfaceStart > cellGeometryStart
+        assert boundaryStart > surfaceStart && coplanarStart > boundaryStart
+        assert emitterStart > coplanarStart && uvStart > emitterStart && orderedStart > uvStart
+
+        final String roomMesh = renderer.substring(roomStart, cellGeometryStart)
+        final String boundaryMesh = renderer.substring(boundaryStart, coplanarStart)
+        final String emitter = renderer.substring(emitterStart, uvStart)
+        final String uv = renderer.substring(uvStart, orderedStart)
+
+        // One insertion-ordered per-cell cache supplies all transformed corners and Y ranges.
+        // This keeps translucent draw order stable while avoiding repeated neighbour transforms.
+        assert roomMesh.contains('Long2ObjectLinkedOpenHashMap<CellGeometry> cells')
+        assert roomMesh.contains('for (final BlockPos cell : room.cells())')
+        assert roomMesh.contains('final Vector3d[] corners = localBoxCorners(bounds)')
+        assert roomMesh.count('carrier.renderPose().transformPosition(corners[index])') == 1
+        assert roomMesh.contains('new CellGeometry(bounds, corners, minimumY, maximumY)')
+        assert roomMesh.contains('surfacePolygon(cell.corners(), worldSurfaceY)')
+        assert roomMesh.contains('surfaceUvAxis(cell.corners())')
+        assert roomMesh.contains('renderRoomBoundaryFaces(vertices, matrix, sprite, carrier, cells,')
+        assert !renderer.contains('private static double[] yRange(')
+
+        // The shell uses all six directions. Any adjacent room cell owns the same continuous
+        // clipped half-space, so its shared face is internal even when that neighbour is dry.
+        final int directionsStart = renderer.indexOf(
+                'private static final Direction[] WATER_BOUNDARY_DIRECTIONS')
+        final String directions = renderer.substring(directionsStart,
+                renderer.indexOf('private static final int[][] FACE_CORNER_INDICES', directionsStart))
+        ['EAST', 'WEST', 'SOUTH', 'NORTH', 'DOWN', 'UP'].each { String name ->
+            assert directions.count('Direction.' + name) == 1
+        }
+        assert boundaryMesh.contains('Long2ObjectLinkedOpenHashMap<CellGeometry> cells')
+        assert boundaryMesh.contains('for (final Direction direction : WATER_BOUNDARY_DIRECTIONS)')
+        assert boundaryMesh.contains('if (cells.containsKey(neighbour.asLong())) continue;')
+        assert boundaryMesh.contains('getBlockState(neighbour).canOcclude()) continue;')
+        assert boundaryMesh.contains(
+                'if (!fullyFlooded && isSurfaceCoplanar(face, worldSurfaceY)) continue;')
+        assert boundaryMesh.count('clipBelowPlane(face, worldSurfaceY)') == 1
+        assert boundaryMesh.count('emitWaterPolygon(') == 1
+
+        // The common emitter inverse-transforms the center once and every unique perimeter point
+        // once before the fan loop; the fan reuses the resulting packed UV array.
+        assert emitter.count('transformPositionInverse(') == 2
+        assert emitter.count('putWaterUv(') == 2
+        assert emitter.contains('new float[(polygon.size() + 1) * 2]')
+        assert emitter.indexOf('for (int index = 0; index < polygon.size(); index++)')
+                < emitter.indexOf('IrisWaterMaterialBridge.begin(')
+        assert emitter.contains('center, uv[0], uv[1]')
+        assert emitter.contains('polygon.get(index), uv[(index + 1) * 2]')
+        assert uv.count('transformPositionInverse(') == 0
+        assert uv.contains('axis == Direction.Axis.X ? local.z - cell.minZ : local.x - cell.minX')
+        assert uv.contains('axis == Direction.Axis.Y ? local.z - cell.minZ : local.y - cell.minY')
+        assert !uv.contains('Math.floor')
+
+        assert renderer.count('polygon.sort(Comparator.comparingDouble') == 1
+        assert renderer.indexOf('polygon.sort(Comparator.comparingDouble')
+                < boundaryStart
+        assert renderer.substring(surfaceStart, boundaryStart).contains('.reversed()')
+        assert renderer.count('= clipBelowPlane(') == 1
+        assert renderer.count('? roomWaterLight(carrier,') == 1
+        assert !renderer.contains('private static void emitSideFace(')
+        assert !renderer.contains('private static void emitBottomFace(')
+        assert !renderer.contains('private static float sideU(')
+        assert !renderer.contains('private static float bottomU(')
+        assert !renderer.contains('VirtualWaterVolume')
+        logger.lifecycle('Virtual water mesh passed: six outward shell faces, rotated UP coverage, '
+                + 'world-horizontal caps, exact clips, shared-cell culling and cached local UVs')
+    }
+}

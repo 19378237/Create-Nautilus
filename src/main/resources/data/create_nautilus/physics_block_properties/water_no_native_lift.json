@@ -1,0 +1,7 @@
+{
+  "priority": 2000,
+  "selector": "minecraft:water",
+  "properties": {
+    "sable:volume": 0.0
+  }
+}

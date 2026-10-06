@@ -1,0 +1,774 @@
+import java.nio.charset.StandardCharsets
+import java.util.regex.Matcher
+import java.util.regex.Pattern
+import java.util.zip.ZipFile
+
+def fogVerificationOutput = layout.buildDirectory.dir('fog-shader-verification')
+
+tasks.register('verifyFogShaderCompatibility') {
+    group = 'verification'
+    description = 'Preprocesses and AST-validates Nautilus fog patches against installed packs.'
+    dependsOn tasks.named('classes')
+    outputs.dir(fogVerificationOutput)
+    outputs.upToDateWhen { false }
+
+    doLast {
+        final File shaderpackDir = project.file(project.findProperty('fogShaderpackDir')
+                ?: 'dev-inputs/shaderpacks')
+        final File blissArchive = project.file(project.findProperty('fogBlissPack')
+                ?: new File(shaderpackDir,
+                'Bliss_v2.1.2_(Chocapic13_Shaders_edit) + Clrwl_1.0.5.zip'))
+        final File complementaryArchive = project.file(
+                project.findProperty('fogComplementaryPack')
+                        ?: new File(shaderpackDir, 'ComplementaryUnbound_r5.8.1.zip'))
+        final File photonArchive = project.file(project.findProperty('materialPhotonPack')
+                ?: new File(shaderpackDir, 'photon_v1.3a + Clrwl_1.0.5.zip'))
+        final boolean materialOnly = project.findProperty('materialOnly') == 'true'
+        final File irisJar = project.file(project.findProperty('fogIrisJar')
+                ?: 'dev-inputs/mods/'
+                        + 'iris-neoforge-1.8.14-beta.1+mc1.21.1.jar')
+        final File irisJarjarDir = project.file(project.findProperty('fogIrisJarjarDir')
+                ?: 'dev-inputs/iris/META-INF/jarjar')
+        (materialOnly ? [photonArchive, irisJar]
+                : [blissArchive, complementaryArchive, photonArchive, irisJar]).each { File required ->
+            if (!required.isFile()) {
+                throw new GradleException("Fog verification input is missing: ${required}")
+            }
+        }
+        if (!irisJarjarDir.isDirectory()) {
+            throw new GradleException("Iris jarjar directory is missing: ${irisJarjarDir}")
+        }
+
+        final Map<String, File> classpathFiles = new LinkedHashMap<>()
+        Closure<Void> addClasspath = { Collection<File> files ->
+            files.each { File entry ->
+                if (entry.exists()) classpathFiles.put(entry.canonicalPath, entry)
+            }
+        }
+        addClasspath(sourceSets.main.runtimeClasspath.files)
+        addClasspath(sourceSets.main.compileClasspath.files)
+        addClasspath([irisJar])
+        addClasspath(project.fileTree(irisJar.parentFile) {
+            include 'sodium-*.jar'
+        }.files)
+        addClasspath(project.fileTree(project.findProperty('fogSodiumJarjarDir')
+                ?: 'dev-inputs/sodium/META-INF/jarjar') {
+            include '*.jar'
+        }.files)
+
+        final List<File> embeddedDependencies = []
+        new ZipFile(irisJar).withCloseable { ZipFile archive ->
+            final List entries = Collections.list(archive.entries()).findAll {
+                it.name.startsWith('META-INF/jarjar/') && it.name.endsWith('.jar')
+            }
+            if (!entries.any { it.name.contains('jcpp-1.4.14.jar') }
+                    || !entries.any { it.name.contains('glsl-transformer-3.0.0-pre3.jar') }) {
+                throw new GradleException('The selected Iris jar does not contain the locked '
+                        + 'JCPP and GLSL-transformer versions')
+            }
+            entries.each { embedded ->
+                final File expanded = new File(irisJarjarDir, new File(embedded.name).name)
+                if (!expanded.isFile() || expanded.length() != embedded.size) {
+                    throw new GradleException("Missing or mismatched Iris jarjar: ${expanded}")
+                }
+                embeddedDependencies.add(expanded)
+            }
+        }
+        addClasspath(embeddedDependencies)
+
+        final URLClassLoader loader = new URLClassLoader(
+                classpathFiles.values().collect { it.toURI().toURL() } as URL[],
+                ClassLoader.getPlatformClassLoader())
+        final ClassLoader previousContextLoader = Thread.currentThread().contextClassLoader
+        Thread.currentThread().contextClassLoader = loader
+        Class<?> glfw = null
+        long verificationWindow = 0L
+        try {
+            final Class<?> adapter = Class.forName(
+                    'com.create.nautilus.client.render.IrisCompositeShaderSource', true, loader)
+            final Class<?> materialAdapter = Class.forName(
+                    'com.create.nautilus.client.render.PhotonVirtualWaterShaderSource', true, loader)
+            final def patchMaterial = materialAdapter.getMethod('patchFragment', String.class)
+            final Class<?> stringPair = Class.forName(
+                    'net.irisshaders.iris.helpers.StringPair', true, loader)
+            final Class<?> jcpp = Class.forName(
+                    'net.irisshaders.iris.shaderpack.preprocessor.JcppProcessor', true, loader)
+            // Use Iris' actual parser and core composite transforms without starting its
+            // Minecraft/NeoForge platform.
+            final Class<?> parserClass = Class.forName(
+                    'io.github.douira.glsl_transformer.ast.transform.ASTParser', true, loader)
+            final Class<?> rootSupplierClass = Class.forName(
+                    'io.github.douira.glsl_transformer.ast.query.RootSupplier', true, loader)
+            final Class<?> rootClass = Class.forName(
+                    'io.github.douira.glsl_transformer.ast.query.Root', true, loader)
+            final Class<?> nodeClass = Class.forName(
+                    'io.github.douira.glsl_transformer.ast.node.abstract_node.ASTNode', true, loader)
+            final Class<?> translationUnitClass = Class.forName(
+                    'io.github.douira.glsl_transformer.ast.node.TranslationUnit', true, loader)
+            final Class<?> versionStatementClass = Class.forName(
+                    'io.github.douira.glsl_transformer.ast.node.VersionStatement', true, loader)
+            final Class<?> versionClass = Class.forName(
+                    'io.github.douira.glsl_transformer.ast.node.Version', true, loader)
+            final Class<?> profileClass = Class.forName(
+                    'io.github.douira.glsl_transformer.ast.node.Profile', true, loader)
+            final Class<?> outputOptionsClass = Class.forName(
+                    'io.github.douira.glsl_transformer.ast.print.OutputOptions', true, loader)
+            final Class<?> printerClass = Class.forName(
+                    'io.github.douira.glsl_transformer.ast.print.ASTPrinter', true, loader)
+            final Class<?> patchClass = Class.forName(
+                    'net.irisshaders.iris.pipeline.transform.Patch', true, loader)
+            final Class<?> transformCacheKeyClass = Class.forName(
+                    'net.irisshaders.iris.pipeline.transform.TransformPatcher$CacheKey',
+                    true, loader)
+            final Class<?> patchShaderTypeClass = Class.forName(
+                    'net.irisshaders.iris.pipeline.transform.PatchShaderType', true, loader)
+            final Class<?> textureStageClass = Class.forName(
+                    'net.irisshaders.iris.shaderpack.texture.TextureStage', true, loader)
+            final Class<?> objectMapClass = Class.forName(
+                    'it.unimi.dsi.fastutil.objects.Object2ObjectMap', true, loader)
+            final Class<?> objectHashMapClass = Class.forName(
+                    'it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap', true, loader)
+            final Class<?> parametersClass = Class.forName(
+                    'net.irisshaders.iris.pipeline.transform.parameter.Parameters', true, loader)
+            final def transformCacheKeyConstructor = transformCacheKeyClass.getDeclaredConstructor(
+                    parametersClass, String.class, String.class, String.class,
+                    String.class, String.class)
+            transformCacheKeyConstructor.setAccessible(true)
+            final Class<?> textureParametersClass = Class.forName(
+                    'net.irisshaders.iris.pipeline.transform.parameter.TextureStageParameters',
+                    true, loader)
+            final Class<?> compositeTransformerClass = Class.forName(
+                    'net.irisshaders.iris.pipeline.transform.transformer.CompositeTransformer',
+                    true, loader)
+            final Class<?> vanillaParametersClass = Class.forName(
+                    'net.irisshaders.iris.pipeline.transform.parameter.VanillaParameters', true, loader)
+            final Class<?> shaderInputsClass = Class.forName(
+                    'net.irisshaders.iris.gl.state.ShaderAttributeInputs', true, loader)
+            final Class<?> alphaTestClass = Class.forName(
+                    'net.irisshaders.iris.gl.blending.AlphaTest', true, loader)
+            final Object noAlphaTest = Class.forName(
+                    'net.irisshaders.iris.gl.blending.AlphaTests', true, loader).getField('OFF').get(null)
+            final Class<?> vanillaTransformerClass = Class.forName(
+                    'net.irisshaders.iris.pipeline.transform.transformer.VanillaTransformer', true, loader)
+            final def vanillaTransform = vanillaTransformerClass.getMethod(
+                    'transform', parserClass, translationUnitClass, rootClass, vanillaParametersClass)
+            final Class<?> textureTransformerClass = Class.forName(
+                    'net.irisshaders.iris.pipeline.transform.transformer.TextureTransformer',
+                    true, loader)
+            final Class<?> compatibilityTransformerClass = Class.forName(
+                    'net.irisshaders.iris.pipeline.transform.transformer.CompatibilityTransformer',
+                    true, loader)
+            final Object parser = parserClass.getConstructor().newInstance()
+            parserClass.getMethod('setThrowParseErrors', Boolean.TYPE).invoke(parser, true)
+            final def parseTranslationUnit = parserClass.getMethod(
+                    'parseTranslationUnit', rootSupplierClass, String.class)
+            final Object productionRoots = rootSupplierClass
+                    .getField('PREFIX_UNORDERED_ED_EXACT').get(null)
+            final def enablePrintInfo = outputOptionsClass.getMethod('enablePrintInfo')
+            final def printTree = printerClass.getMethod('printSimple', nodeClass)
+            final def compositeTransform = compositeTransformerClass.getMethod(
+                    'transform', parserClass, translationUnitClass, rootClass, parametersClass)
+            final def textureTransform = textureTransformerClass.getMethod(
+                    'transform', parserClass, translationUnitClass, rootClass,
+                    textureStageClass, objectMapClass)
+            final def groupedTransform = compatibilityTransformerClass.getMethod(
+                    'transformGrouped', parserClass, Map.class, parametersClass)
+            final Object compositePatch = patchClass.getMethod('valueOf', String.class)
+                    .invoke(null, 'COMPOSITE')
+            final Object vertexType = patchShaderTypeClass.getMethod('valueOf', String.class)
+                    .invoke(null, 'VERTEX')
+            final Object fragmentType = patchShaderTypeClass.getMethod('valueOf', String.class)
+                    .invoke(null, 'FRAGMENT')
+            final Object deferredStage = textureStageClass.getMethod('valueOf', String.class)
+                    .invoke(null, 'DEFERRED')
+            final Object compositeStage = textureStageClass.getMethod('valueOf', String.class)
+                    .invoke(null, 'COMPOSITE_AND_FINAL')
+            final Object glsl33 = versionClass.getField('GLSL33').get(null)
+            final Object coreProfile = profileClass.getField('CORE').get(null)
+            final Pattern astSourceVersion = Pattern.compile(
+                    '(?m)^\\s*#\\s*version\\s+(\\d+)')
+
+            final def pairConstructor = stringPair.getConstructor(String.class, String.class)
+            final List environmentDefines = [
+                    pairConstructor.newInstance('MC_VERSION', '12101'),
+                    pairConstructor.newInstance('MC_HAND_DEPTH', '0.125'),
+                    pairConstructor.newInstance('MC_SHADOW_QUALITY', '1.0'),
+                    pairConstructor.newInstance('MC_RENDER_QUALITY', '1.0'),
+                    pairConstructor.newInstance('IS_IRIS', '1')
+            ]
+            final def preprocessMethod = jcpp.getMethod(
+                    'glslPreprocessSource', String.class, Iterable.class)
+            final def beginReload = adapter.getMethod('beginShaderReload',
+                    Integer.TYPE, Integer.TYPE, Integer.TYPE, Integer.TYPE,
+                    Integer.TYPE, Float.TYPE, Float.TYPE)
+            final def patchFragment = adapter.getMethod(
+                    'patchFragment', String.class, String.class)
+            final def finishReload = adapter.getMethod('finishShaderReload')
+            final def adapterReady = adapter.getMethod('adapterReady')
+            final def adapterGeneration = adapter.getMethod('adapterGeneration')
+            final def currentBuildGeneration = adapter.getMethod('currentBuildGeneration')
+            final def confirmLinked = adapter.getMethod('confirmLinkedConsumer', Integer.TYPE)
+            final def depthTransform = adapter.getMethod('sceneDepthTransform',
+                    Integer.TYPE, Integer.TYPE, Integer.TYPE, Integer.TYPE)
+            final int unknown = adapter.getField('UNKNOWN_SHADER_OPTION').getInt(null)
+
+            Closure<Void> compileOpenGL = { String name, String vertex, String fragment -> }
+            if (project.findProperty('fogOpenGL') == 'true') {
+                glfw = Class.forName('org.lwjgl.glfw.GLFW', true, loader)
+                if (!(Boolean) glfw.getMethod('glfwInit').invoke(null)) {
+                    throw new GradleException('GLFW could not initialize the shader compiler context')
+                }
+                final def hint = glfw.getMethod('glfwWindowHint', Integer.TYPE, Integer.TYPE)
+                hint.invoke(null, 0x00020004, 0) // GLFW_VISIBLE=false: never opens a visible window.
+                hint.invoke(null, 0x00022002, 4)
+                hint.invoke(null, 0x00022003, 3)
+                hint.invoke(null, 0x00022008, 0x00032002) // Compatibility profile for native packs.
+                verificationWindow = (Long) glfw.getMethod('glfwCreateWindow',
+                        Integer.TYPE, Integer.TYPE, CharSequence.class, Long.TYPE, Long.TYPE)
+                        .invoke(null, 16, 16, 'Nautilus fog shader verification', 0L, 0L)
+                if (verificationWindow == 0L) throw new GradleException('Hidden OpenGL context unavailable')
+                glfw.getMethod('glfwMakeContextCurrent', Long.TYPE).invoke(null, verificationWindow)
+                Class.forName('org.lwjgl.opengl.GL', true, loader).getMethod('createCapabilities').invoke(null)
+                final Class<?> gl = Class.forName('org.lwjgl.opengl.GL20C', true, loader)
+                final def createShader = gl.getMethod('glCreateShader', Integer.TYPE)
+                final def shaderSource = gl.getMethod('glShaderSource', Integer.TYPE, CharSequence.class)
+                final def compileShader = gl.getMethod('glCompileShader', Integer.TYPE)
+                final def shaderStatus = gl.getMethod('glGetShaderi', Integer.TYPE, Integer.TYPE)
+                final def shaderLog = gl.getMethod('glGetShaderInfoLog', Integer.TYPE)
+                final def deleteShader = gl.getMethod('glDeleteShader', Integer.TYPE)
+                final def createProgram = gl.getMethod('glCreateProgram')
+                final def attach = gl.getMethod('glAttachShader', Integer.TYPE, Integer.TYPE)
+                final def link = gl.getMethod('glLinkProgram', Integer.TYPE)
+                final def programStatus = gl.getMethod('glGetProgrami', Integer.TYPE, Integer.TYPE)
+                final def programLog = gl.getMethod('glGetProgramInfoLog', Integer.TYPE)
+                final def uniformLocation = gl.getMethod('glGetUniformLocation', Integer.TYPE, CharSequence.class)
+                final def deleteProgram = gl.getMethod('glDeleteProgram', Integer.TYPE)
+                compileOpenGL = { String name, String vertex, String fragment ->
+                    final List<Integer> shaderIds = []
+                    int programId = 0
+                    try {
+                        [[35633, vertex], [35632, fragment]].each { List stage ->
+                            final int shaderId = (Integer) createShader.invoke(null, stage[0])
+                            shaderIds.add(shaderId)
+                            shaderSource.invoke(null, shaderId, stage[1])
+                            compileShader.invoke(null, shaderId)
+                            if ((Integer) shaderStatus.invoke(null, shaderId, 35713) == 0) {
+                                throw new GradleException("${name} OpenGL compile failed: "
+                                        + shaderLog.invoke(null, shaderId))
+                            }
+                        }
+                        programId = (Integer) createProgram.invoke(null)
+                        shaderIds.each { attach.invoke(null, programId, it) }
+                        link.invoke(null, programId)
+                        if ((Integer) programStatus.invoke(null, programId, 35714) == 0) {
+                            throw new GradleException("${name} OpenGL link failed: "
+                                    + programLog.invoke(null, programId))
+                        }
+                        if (fragment.contains('NautilusWaterAdapterGenerationExpected')) {
+                            ['NautilusWaterEntryDepth', 'NautilusWaterEntryDirection',
+                             'NautilusWaterVoxelAtlas', 'NautilusWaterVoxelAtlasSize',
+                             'NautilusWaterVoxelCarrierCount', 'NautilusWaterEntryReady',
+                             'NautilusWaterEntryGeneration', 'NautilusWaterEntrySize',
+                             'NautilusWaterEntryBounds', 'NautilusWaterEntryDepthReversed',
+                             'NautilusWaterEntryClearReversed', 'NautilusWaterEntryCameraWater',
+                             'NautilusWaterAdapterGeneration',
+                             'NautilusWaterAdapterGenerationExpected'].each { String uniform ->
+                                if ((Integer) uniformLocation.invoke(null, programId, uniform) < 0) {
+                                    throw new GradleException("${name} fog consumer lost required uniform ${uniform}")
+                                }
+                            }
+                        }
+                        if (fragment.contains('NautilusVirtualWater')
+                                && (Integer) uniformLocation.invoke(null, programId, 'NautilusVirtualWater') < 0) {
+                            throw new GradleException("${name} lost the virtual-only material switch")
+                        }
+                        logger.lifecycle('OpenGL compile/link passed: {}', name)
+                    } finally {
+                        if (programId != 0) deleteProgram.invoke(null, programId)
+                        shaderIds.each { deleteShader.invoke(null, it) }
+                    }
+                }
+            }
+
+            Closure<String> preprocess = { String source ->
+                (String) preprocessMethod.invoke(null, [source, environmentDefines] as Object[])
+            }
+            Closure<Map<String, String>> astTransform = {
+                    String name, String vertex, String fragment, boolean deferred, boolean material = false ->
+                final Object textureMap = objectHashMapClass.getConstructor().newInstance()
+                final Object stage = material ? textureStageClass.getField('GBUFFERS_AND_SHADOW').get(null)
+                        : deferred ? deferredStage : compositeStage
+                final Object parameters = material ? vanillaParametersClass.getConstructor(
+                        patchClass, objectMapClass, alphaTestClass, Boolean.TYPE, Boolean.TYPE,
+                        shaderInputsClass, Boolean.TYPE, Boolean.TYPE).newInstance(
+                        patchClass.getField('VANILLA').get(null), textureMap, noAlphaTest, false, true,
+                        shaderInputsClass.getConstructor(Boolean.TYPE, Boolean.TYPE, Boolean.TYPE,
+                                Boolean.TYPE, Boolean.TYPE).newInstance(true, true, false, true, true),
+                        false, false) : textureParametersClass.getConstructor(
+                        patchClass, textureStageClass, objectMapClass)
+                        .newInstance(compositePatch, stage, textureMap)
+                parametersClass.getField('name').set(parameters, name)
+                final Map trees = new EnumMap((Class) patchShaderTypeClass)
+
+                Closure<Object> transformStage = { Object type, String source ->
+                    final Matcher sourceVersion = astSourceVersion.matcher(source)
+                    if (!sourceVersion.find()) {
+                        throw new GradleException("Missing GLSL version for ${name}:${type}")
+                    }
+                    final Object lexer = parserClass.getMethod('getLexer').invoke(parser)
+                    lexer.class.getField('version').set(lexer,
+                            versionClass.getMethod('fromNumber', Integer.TYPE).invoke(
+                                    null, Integer.parseInt(sourceVersion.group(1))))
+                    final Object tree = parseTranslationUnit.invoke(
+                            parser, productionRoots, source)
+                    final Object root = nodeClass.getMethod('getRoot').invoke(tree)
+                    enablePrintInfo.invoke(
+                            translationUnitClass.getField('outputOptions').get(tree))
+                    parametersClass.getField('type').set(parameters, type)
+                    rootClass.getMethod('indexBuildSession', Runnable.class).invoke(root, ({
+                        final Object version = translationUnitClass
+                                .getMethod('getVersionStatement').invoke(tree)
+                        if (Integer.parseInt(sourceVersion.group(1)) < 330) {
+                            versionStatementClass.getField('version').set(version, glsl33)
+                        }
+                        versionStatementClass.getField('profile').set(version, coreProfile)
+                        (material ? vanillaTransform : compositeTransform).invoke(null,
+                                [parser, tree, root, parameters] as Object[])
+                        textureTransform.invoke(null,
+                                [parser, tree, root, stage, textureMap] as Object[])
+                        // CompatibilityTransformer.transformEach reads Iris' global config and
+                        // would bootstrap the unstarted platform. This intentionally validates
+                        // the production core composite transform, not the full wrapper cleanup.
+                    } as Runnable))
+                    trees.put(type, tree)
+                    tree
+                }
+
+                final Object vertexTree = transformStage(vertexType, vertex)
+                final Object fragmentTree = transformStage(fragmentType, fragment)
+                groupedTransform.invoke(null, [parser, trees, parameters] as Object[])
+                final String astFragment = (String) printTree.invoke(null, fragmentTree)
+                final String astVertex = (String) printTree.invoke(null, vertexTree)
+                if (!astFragment || !astVertex) {
+                    throw new GradleException("Iris AST omitted a shader stage for ${name}")
+                }
+                [fragment: astFragment, vertex: astVertex]
+            }
+
+            final File outputDir = fogVerificationOutput.get().asFile
+            outputDir.mkdirs()
+            final Pattern includeDirective = Pattern.compile(
+                    '(?m)^\\s*#\\s*include\\s+["<]([^">]+)[">][^\\r\\n]*(?:\\r?\\n)?')
+            final Pattern remainingDirective = Pattern.compile(
+                    '(?m)^\\s*#\\s*(?:if|ifdef|ifndef|elif|else|endif|include)\\b')
+            final Pattern versionDirective = Pattern.compile('(?m)^\\s*#\\s*version\\s+\\d+')
+            final List<String> oldBoundaryApi = [
+                    'NautilusBoundaryGateDepth', 'NautilusWaterBoundaryDepth',
+                    'NautilusWaterBoundaryStatus', 'nautilus_decode_boundary('
+            ]
+            final List<String> summary = []
+            final List<Map> frozenTransforms = []
+
+            Closure<Void> verifyPack = { Map spec ->
+                final boolean material = spec.kind == 'material'
+                if (materialOnly && !material) return
+                new ZipFile(spec.archive as File).withCloseable { ZipFile archive ->
+                    Closure<String> preprocessVariant = { String source ->
+                        String configured = source
+                        (spec.overrides ?: [:]).each { String option, Object value ->
+                            final Pattern definition = Pattern.compile('(?m)^\\s*(?://\\s*)?'
+                                    + '#\\s*define\\s+' + Pattern.quote(option) + '\\b[^\\r\\n]*')
+                            final String replacement = value == false ? '// #define ' + option
+                                    : '#define ' + option + (value == true ? '' : ' ' + value)
+                            configured = definition.matcher(configured)
+                                    .replaceAll(Matcher.quoteReplacement(replacement))
+                        }
+                        preprocess(configured)
+                    }
+                    final Map<String, String> expandedCache = [:]
+                    final LinkedHashSet<String> activeIncludes = new LinkedHashSet<>()
+                    Closure<String> normalizeInclude = { String owner, String include ->
+                        final String raw = include.replace('\\', '/')
+                        final String joined = raw.startsWith('/')
+                                ? 'shaders' + raw
+                                : owner.substring(0, owner.lastIndexOf('/') + 1) + raw
+                        final List<String> parts = []
+                        joined.split('/').each { String part ->
+                            if (!part || part == '.') return
+                            if (part == '..') {
+                                if (parts.isEmpty()) {
+                                    throw new GradleException(
+                                            "Include escapes archive root: ${owner} -> ${include}")
+                                }
+                                parts.remove(parts.size() - 1)
+                            } else {
+                                parts.add(part)
+                            }
+                        }
+                        final String normalized = parts.join('/')
+                        if (!normalized.startsWith('shaders/')) {
+                            throw new GradleException(
+                                    "Include escapes shader root: ${owner} -> ${include}")
+                        }
+                        normalized
+                    }
+                    Closure<String> expandEntry
+                    expandEntry = { String path ->
+                        final String normalized = path.replace('\\', '/').replaceFirst('^/+', '')
+                        if (expandedCache.containsKey(normalized)) {
+                            return expandedCache.get(normalized)
+                        }
+                        if (!activeIncludes.add(normalized)) {
+                            throw new GradleException("Cyclic shader include: ${activeIncludes}"
+                                    + " -> ${normalized}")
+                        }
+                        try {
+                            final def entry = archive.getEntry(normalized)
+                            if (entry == null || entry.directory) {
+                                throw new GradleException(
+                                        "Missing shader include in ${spec.archive.name}: ${normalized}")
+                            }
+                            final InputStream stream = archive.getInputStream(entry)
+                            final String raw = stream.withCloseable {
+                                it.getText(StandardCharsets.UTF_8.name())
+                            }
+                            final Matcher matcher = includeDirective.matcher(raw)
+                            final StringBuffer expanded = new StringBuffer()
+                            while (matcher.find()) {
+                                final String child = normalizeInclude(normalized, matcher.group(1))
+                                matcher.appendReplacement(expanded,
+                                        Matcher.quoteReplacement(expandEntry(child) + '\n'))
+                            }
+                            matcher.appendTail(expanded)
+                            final String result = expanded.toString()
+                            expandedCache.put(normalized, result)
+                            result
+                        } finally {
+                            activeIncludes.remove(normalized)
+                        }
+                    }
+
+                    if (!material) beginReload.invoke(null, spec.options as Object[])
+                    final Set<String> patchedPrograms = new LinkedHashSet<>()
+                    final Map<String, Map<String, String>> repeatedReloadStages =
+                            new LinkedHashMap<>()
+                    final List<String> programs = material ? ['gbuffers_water'] : Collections.list(archive.entries())
+                            .collect { it.name }
+                            .findAll { it ==~ /shaders\/world0\/(?:composite\d*|deferred1)\.fsh/ }
+                            .collect { it.substring(it.lastIndexOf('/') + 1, it.length() - 4) }
+                            .sort()
+                    programs.each { String program ->
+                        if (!(spec.artifacts as Set).contains(program)) return
+                        final String fragmentPath = "shaders/world0/${program}.fsh"
+                        final String vertexPath = "shaders/world0/${program}.vsh"
+                        final String preprocessedFragment = preprocessVariant(expandEntry(fragmentPath))
+                        final String preprocessedVertex = preprocessVariant(expandEntry(vertexPath))
+                        new File(outputDir, "${spec.id}-${program}.preprocessed.fsh")
+                                .setText(preprocessedFragment, StandardCharsets.UTF_8.name())
+                        new File(outputDir, "${spec.id}-${program}.preprocessed.vsh")
+                                .setText(preprocessedVertex, StandardCharsets.UTF_8.name())
+                        // Option-disabled programs may preprocess to an empty source in Iris.
+                        if (!preprocessedFragment.contains('void main')
+                                || !preprocessedVertex.contains('void main')) {
+                            if ((spec.expected as Set).contains(program)) {
+                                throw new GradleException("Required fog program was disabled: ${spec.id}:${program}")
+                            }
+                            return
+                        }
+                        if (!versionDirective.matcher(preprocessedFragment).find()
+                                || !versionDirective.matcher(preprocessedVertex).find()
+                                || remainingDirective.matcher(preprocessedFragment.replaceAll(
+                                        '(?s)/\\*.*?\\*/|//[^\\r\\n]*', '')).find()
+                                || remainingDirective.matcher(preprocessedVertex.replaceAll(
+                                        '(?s)/\\*.*?\\*/|//[^\\r\\n]*', '')).find()) {
+                            throw new GradleException(
+                                    "JCPP left an invalid preprocessed source for ${spec.id}:${program}")
+                        }
+                        final long patchStarted = System.nanoTime()
+                        final String patched = material
+                                ? (String) patchMaterial.invoke(null, preprocessedFragment)
+                                : (String) patchFragment.invoke(null, preprocessedFragment, program)
+                        final double patchMillis = (System.nanoTime() - patchStarted) / 1.0E6D
+                        if (!material && patched != preprocessedFragment) {
+                            logger.lifecycle('Shader source patch: {}:{} in {} ms', spec.id, program,
+                                    String.format(Locale.ROOT, '%.3f', patchMillis))
+                        }
+                        if (material && patchMaterial.invoke(null, patched) != patched) {
+                            throw new GradleException('Virtual-water material patch was applied more than once')
+                        }
+                        if (patched != preprocessedFragment) patchedPrograms.add(program)
+                        if (spec.repeatReload && (spec.expected as Set).contains(program)) {
+                            repeatedReloadStages.put(program, [
+                                    vertex: preprocessedVertex,
+                                    fragment: preprocessedFragment,
+                                    patched: patched
+                            ])
+                        }
+                        oldBoundaryApi.each { String legacy ->
+                            if (patched.contains(legacy)) {
+                                throw new GradleException(
+                                        "Legacy boundary API ${legacy} survived in ${spec.id}:${program}")
+                            }
+                        }
+
+                        if ((spec.artifacts as Set).contains(program)) {
+                            final Map<String, String> ast = astTransform(
+                                    program, preprocessedVertex, patched,
+                                    program == 'deferred1', material)
+                            final String expectedMarker = material ? 'NautilusVirtualWater'
+                                    : 'NautilusWaterAdapterGenerationExpected'
+                            if ((spec.expected as Set).contains(program)
+                                    && (!patched.contains(expectedMarker)
+                                    || !ast.fragment.contains(expectedMarker))) {
+                                throw new GradleException(
+                                        "Nautilus marker was lost for ${spec.id}:${program}")
+                            }
+                            oldBoundaryApi.each { String legacy ->
+                                if (ast.fragment.contains(legacy)) {
+                                    throw new GradleException(
+                                            "Iris AST retained legacy API ${legacy} in "
+                                                    + "${spec.id}:${program}")
+                                }
+                            }
+                            final String stem = "${spec.id}-${program}"
+                            new File(outputDir, "${stem}.preprocessed.fsh")
+                                    .setText(preprocessedFragment, StandardCharsets.UTF_8.name())
+                            new File(outputDir, "${stem}.preprocessed.vsh")
+                                    .setText(preprocessedVertex, StandardCharsets.UTF_8.name())
+                            new File(outputDir, "${stem}.patched.fsh")
+                                    .setText(patched, StandardCharsets.UTF_8.name())
+                            new File(outputDir, "${stem}.ast.fsh")
+                                    .setText(ast.fragment, StandardCharsets.UTF_8.name())
+                            new File(outputDir, "${stem}.ast.vsh")
+                                    .setText(ast.vertex, StandardCharsets.UTF_8.name())
+                            compileOpenGL(stem, ast.vertex, ast.fragment)
+                        }
+                    }
+                    if (!material) finishReload.invoke(null)
+                    if (patchedPrograms != (spec.expected as Set)) {
+                        throw new GradleException("Unexpected ${spec.id} fog stages: "
+                                + "patched=${patchedPrograms}, expected=${spec.expected}")
+                    }
+                    if (material) {
+                        summary.add("${spec.id}: material patch=${!patchedPrograms.isEmpty()}, compiled native water program")
+                        return
+                    }
+                    if (spec.adapterDisabled) {
+                        if ((Boolean) adapterReady.invoke(null)) {
+                            throw new GradleException("${spec.id} unexpectedly enabled an incomplete fog adapter")
+                        }
+                        summary.add("${spec.id}: incomplete adapter remains disabled; native fallback preserved")
+                        return
+                    }
+                    if (!(Boolean) adapterReady.invoke(null)) {
+                        throw new GradleException(
+                                "${spec.id} did not publish a complete fog adapter")
+                    }
+                    final int generation = (Integer) adapterGeneration.invoke(null)
+                    confirmLinked.invoke(null, generation)
+                    final List<List<Number>> jitter = spec.id.startsWith('bliss')
+                            ? [[1,-3],[-1,3],[5,1],[-3,-5],[-5,5],[-7,-1],[3,7],[7,7]]
+                            : [[1,-3],[-1,3],[5,1],[3,-5],[-5,5],[-7,-1],[3,-7],[7,7]]
+                    for (int frame = 0; frame < 8; frame++) {
+                        final Object transform = depthTransform.invoke(null, generation, frame, 854, 480)
+                        if (transform == null) throw new GradleException("Missing ${spec.id} depth transform")
+                        final float scale = (Float) transform.class.getMethod('scale').invoke(transform)
+                        final float u = (Float) transform.class.getMethod('offsetU').invoke(transform)
+                        final float v = (Float) transform.class.getMethod('offsetV').invoke(transform)
+                        final boolean photon = spec.id.startsWith('photon')
+                        final boolean bliss = spec.id.startsWith('bliss')
+                        if (photon) {
+                            final boolean temporal = spec.options[2] == 1
+                            final boolean taau = temporal && spec.options[3] == 1
+                            final double jitterX = !temporal ? 0.0D
+                                    : ((1.3247179572D * frame + 0.5D) % 1.0D * 2.0D - 1.0D) / 854
+                            final double jitterY = !temporal ? 0.0D
+                                    : ((1.7548776662D * frame + 0.5D) % 1.0D * 2.0D - 1.0D) / 854
+                            assert Math.abs(scale - (taau ? spec.options[5] : 1.0F)) < 1.0E-6
+                            assert Math.abs(u - (taau ? 0.5D : 0.33D) * jitterX) < 1.0E-9
+                            assert Math.abs(v - (taau ? 0.5D : 0.33D) * jitterY) < 1.0E-9
+                        } else {
+                            final boolean temporal = bliss
+                                    ? spec.options[2] == 1 : spec.options[4] == 1
+                            final double strength = !temporal ? 0.0D : bliss ? 1.0D
+                                    : [0.0D, 0.125D, 0.33D, 1.0D][spec.options[1] as int]
+                            assert Math.abs(scale - (bliss ? spec.options[6] : 1.0F)) < 1.0E-6
+                            assert Math.abs(u - 0.5D * strength * jitter[frame][0] / 8.0D / 854) < 1.0E-9
+                            assert Math.abs(v - 0.5D * strength * jitter[frame][1] / 8.0D / 480) < 1.0E-9
+                        }
+                        frozenTransforms.add([generation: generation, frame: frame, scale: scale, u: u, v: v])
+                    }
+                    if (spec.repeatReload) {
+                        beginReload.invoke(null, spec.options as Object[])
+                        final int repeatedGeneration =
+                                (Integer) currentBuildGeneration.invoke(null)
+                        final long repeatStarted = System.nanoTime()
+                        repeatedReloadStages.each { String program, Map<String, String> stage ->
+                            final String repeated = (String) patchFragment.invoke(
+                                    null, stage.fragment, program)
+                            if (repeated != stage.patched) {
+                                throw new GradleException("Repeated ${spec.id}:${program} reload "
+                                        + 'changed its generated GLSL and defeated Iris source caching')
+                            }
+                        }
+                        finishReload.invoke(null)
+                        final double repeatMillis = (System.nanoTime() - repeatStarted) / 1.0E6D
+                        logger.lifecycle('Repeated source patch: {} in {} ms', spec.id,
+                                String.format(Locale.ROOT, '%.3f', repeatMillis))
+                        if (repeatedGeneration <= generation
+                                || !(Boolean) adapterReady.invoke(null)
+                                || (Integer) adapterGeneration.invoke(null) != repeatedGeneration) {
+                            throw new GradleException("Repeated ${spec.id} reload did not publish "
+                                    + 'a distinct ready adapter generation')
+                        }
+
+                        final Map.Entry<String, Map<String, String>> cacheProbe =
+                                repeatedReloadStages.entrySet().iterator().next()
+                        final Object firstTextureMap =
+                                objectHashMapClass.getConstructor().newInstance()
+                        final Object secondTextureMap =
+                                objectHashMapClass.getConstructor().newInstance()
+                        final Object firstParameters = textureParametersClass.getConstructor(
+                                patchClass, textureStageClass, objectMapClass)
+                                .newInstance(compositePatch, compositeStage, firstTextureMap)
+                        final Object secondParameters = textureParametersClass.getConstructor(
+                                patchClass, textureStageClass, objectMapClass)
+                                .newInstance(compositePatch, compositeStage, secondTextureMap)
+                        final Object firstCacheKey = transformCacheKeyConstructor.newInstance(
+                                firstParameters, cacheProbe.value.vertex, null, null, null,
+                                cacheProbe.value.patched)
+                        final Object secondCacheKey = transformCacheKeyConstructor.newInstance(
+                                secondParameters, cacheProbe.value.vertex, null, null, null,
+                                cacheProbe.value.patched)
+                        if (!firstCacheKey.equals(secondCacheKey)
+                                || firstCacheKey.hashCode() != secondCacheKey.hashCode()) {
+                            throw new GradleException("Repeated ${spec.id} sources did not produce "
+                                    + 'the same real Iris TransformPatcher cache key')
+                        }
+                        summary.add("${spec.id}: repeated reload kept identical GLSL/Iris cache key "
+                                + "and advanced generation ${generation}->${repeatedGeneration}; "
+                                + String.format(Locale.ROOT, 'source patch %.3f ms', repeatMillis))
+                    }
+                    summary.add("${spec.id}: ${patchedPrograms.join(', ')}")
+                }
+            }
+
+            verifyPack([
+                    // Photon defaults: VL and TAA enabled, TAAU disabled, scale 0.75.
+                    id: 'photon-default', archive: photonArchive,
+                    options: [-1, unknown, 1, 0, unknown, 0.75F, Float.NaN],
+                    expected: ['composite', 'composite1'] as LinkedHashSet,
+                    artifacts: ['composite', 'composite1'] as LinkedHashSet,
+                    repeatReload: true
+            ])
+            verifyPack([
+                    // This installed Photon variant keeps c1's blend signature with VL off.
+                    // As in 0.4.329, the missing c0 stage must leave the adapter disabled;
+                    // the reload-performance change must not turn that native fallback on.
+                    id: 'photon-vl-off', archive: photonArchive, overrides: [VL: false],
+                    options: [-1, unknown, 1, 0, unknown, 0.75F, Float.NaN],
+                    expected: ['composite1'] as LinkedHashSet,
+                    artifacts: ['composite', 'composite1'] as LinkedHashSet,
+                    adapterDisabled: true
+            ])
+            verifyPack([
+                    id: 'bliss', archive: blissArchive,
+                    options: [-1, unknown, 1, unknown, unknown, Float.NaN, 1.0F],
+                    expected: ['composite', 'composite2'] as LinkedHashSet,
+                    artifacts: ['composite', 'composite2', 'composite4'] as LinkedHashSet
+            ])
+            verifyPack([
+                    id: 'complementary', archive: complementaryArchive,
+                    options: [unknown, 1, unknown, unknown, 1, Float.NaN, Float.NaN],
+                    expected: ['deferred1', 'composite1'] as LinkedHashSet,
+                    artifacts: ['deferred1', 'composite1', 'composite'] as LinkedHashSet
+            ])
+            verifyPack([
+                    id: 'bliss-no-taa', archive: blissArchive, overrides: [TAA: false],
+                    options: [-1, unknown, 0, unknown, unknown, Float.NaN, 1.0F],
+                    expected: ['composite', 'composite2'] as Set,
+                    artifacts: ['composite', 'composite2'] as Set
+            ])
+            verifyPack([
+                    id: 'bliss-upscale', archive: blissArchive,
+                    overrides: [TAA_UPSCALING: true, SCALE_FACTOR: '0.75'],
+                    options: [-1, unknown, 1, unknown, unknown, Float.NaN, 0.75F],
+                    expected: ['composite', 'composite2'] as Set,
+                    artifacts: ['composite', 'composite2'] as Set
+            ])
+            verifyPack([
+                    id: 'bliss-quarter-vl', archive: blissArchive,
+                    overrides: [VL_RENDER_RESOLUTION: '0.25'],
+                    options: [-1, unknown, 1, unknown, unknown, Float.NaN, 1.0F],
+                    expected: ['composite', 'composite2'] as Set,
+                    artifacts: ['composite', 'composite2'] as Set
+            ])
+            verifyPack([
+                    id: 'complementary-low-detail', archive: complementaryArchive,
+                    overrides: [DETAIL_QUALITY: '0'],
+                    options: [unknown, 1, unknown, unknown, 0, Float.NaN, Float.NaN],
+                    expected: ['deferred1', 'composite1'] as Set,
+                    artifacts: ['deferred1', 'composite1'] as Set
+            ])
+            verifyPack([
+                    id: 'complementary-jitter3', archive: complementaryArchive,
+                    overrides: [TAA_JITTER: '3'],
+                    options: [unknown, 3, unknown, unknown, 1, Float.NaN, Float.NaN],
+                    expected: ['deferred1', 'composite1'] as Set,
+                    artifacts: ['deferred1', 'composite1'] as Set
+            ])
+            ['WATER_TEXTURE_HIGHLIGHT_UNDERGROUND', 'WATER_TEXTURE_OFF',
+             'WATER_TEXTURE_HIGHLIGHT', 'WATER_TEXTURE_VANILLA'].each { String mode ->
+                verifyPack([
+                        id: 'photon-material-' + mode.toLowerCase(Locale.ROOT), kind: 'material',
+                        archive: photonArchive, overrides: [WATER_TEXTURE: mode],
+                        expected: ['gbuffers_water'] as Set,
+                        artifacts: ['gbuffers_water'] as Set
+                ])
+            }
+            final File blissSettings = new File(blissArchive.path + '.txt')
+            if (blissSettings.isFile()) {
+                final Properties settings = new Properties()
+                blissSettings.withInputStream { settings.load(it) }
+                final Map currentOptions = settings.stringPropertyNames().collectEntries { String option ->
+                    final String value = settings.getProperty(option)
+                    [option, value == 'true' ? true : value == 'false' ? false : value]
+                }
+                verifyPack([
+                        id: 'bliss-user-settings', archive: blissArchive, overrides: currentOptions,
+                        options: [-1, unknown, 1, unknown, unknown, Float.NaN, 1.0F],
+                        expected: ['composite', 'composite2'] as Set,
+                        artifacts: ['composite', 'composite2'] as Set
+                ])
+            }
+            frozenTransforms.each { Map frozen ->
+                final Object transform = depthTransform.invoke(null, frozen.generation, frozen.frame, 854, 480)
+                assert transform != null
+                assert transform.class.getMethod('scale').invoke(transform) == frozen.scale
+                assert transform.class.getMethod('offsetU').invoke(transform) == frozen.u
+                assert transform.class.getMethod('offsetV').invoke(transform) == frozen.v
+            }
+            if (!materialOnly) summary.add('Eight-frame depth transforms and cached-generation isolation passed.')
+            new File(outputDir, materialOnly ? 'material-summary.txt' : 'summary.txt').setText(
+                    summary.join(System.lineSeparator()) + System.lineSeparator(),
+                    StandardCharsets.UTF_8.name())
+        } catch (java.lang.reflect.InvocationTargetException failure) {
+            final List<String> causes = []
+            Throwable detail = failure.cause
+            while (detail != null) {
+                causes.add(detail.toString())
+                detail = detail.cause
+            }
+            throw new GradleException('Fog shader verification failed: '
+                    + causes.join(' -> '), failure.cause)
+        } finally {
+            if (verificationWindow != 0L) {
+                glfw.getMethod('glfwMakeContextCurrent', Long.TYPE).invoke(null, 0L)
+                glfw.getMethod('glfwDestroyWindow', Long.TYPE).invoke(null, verificationWindow)
+            }
+            if (glfw != null) glfw.getMethod('glfwTerminate').invoke(null)
+            Thread.currentThread().contextClassLoader = previousContextLoader
+            loader.close()
+        }
+    }
+}

@@ -1,0 +1,4570 @@
+{
+  "textures": {
+    "t0": "create_nautilus:block/exported/gas_pipe/texture_0",
+    "particle": "create_nautilus:block/exported/gas_pipe/texture_0"
+  },
+  "display": {
+    "gui": {
+      "rotation": [
+        30,
+        135,
+        0
+      ],
+      "scale": [
+        0.625,
+        0.625,
+        0.625
+      ]
+    },
+    "ground": {
+      "translation": [
+        0,
+        3,
+        0
+      ],
+      "scale": [
+        0.25,
+        0.25,
+        0.25
+      ]
+    },
+    "fixed": {
+      "scale": [
+        0.5,
+        0.5,
+        0.5
+      ]
+    },
+    "thirdperson_righthand": {
+      "rotation": [
+        75,
+        45,
+        0
+      ],
+      "translation": [
+        0,
+        2.5,
+        0
+      ],
+      "scale": [
+        0.375,
+        0.375,
+        0.375
+      ]
+    },
+    "firstperson_righthand": {
+      "rotation": [
+        0,
+        45,
+        0
+      ],
+      "scale": [
+        0.4,
+        0.4,
+        0.4
+      ]
+    }
+  },
+  "render_type": "minecraft:cutout",
+  "parent": "minecraft:block/block",
+  "elements": [
+    {
+      "name": "junction/arm/north/straight/copper/045",
+      "from": [
+        5.5,
+        5.5,
+        3
+      ],
+      "to": [
+        10.5,
+        10.5,
+        5.5
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "east": {
+          "uv": [
+            2.5,
+            1.5,
+            5.0,
+            2.75
+          ],
+          "texture": "#t0",
+          "rotation": 90
+        },
+        "west": {
+          "uv": [
+            2.5,
+            2.75,
+            5.0,
+            1.5
+          ],
+          "texture": "#t0",
+          "rotation": 90
+        },
+        "up": {
+          "uv": [
+            0.0,
+            1.5,
+            2.5,
+            2.75
+          ],
+          "texture": "#t0"
+        },
+        "down": {
+          "uv": [
+            5.0,
+            2.75,
+            7.5,
+            1.5
+          ],
+          "texture": "#t0"
+        }
+      }
+    },
+    {
+      "name": "junction/arm/north/straight/wall_repair/copper_bridge_z1_3_to_3",
+      "from": [
+        5.5,
+        5.5,
+        1.3
+      ],
+      "to": [
+        10.5,
+        10.5,
+        3
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "west": {
+          "uv": [
+            2.5,
+            1.5,
+            5.0,
+            0.65
+          ],
+          "rotation": 90,
+          "texture": "#t0"
+        },
+        "east": {
+          "uv": [
+            2.5,
+            0.65,
+            5.0,
+            1.5
+          ],
+          "rotation": 90,
+          "texture": "#t0"
+        },
+        "down": {
+          "uv": [
+            5.0,
+            1.5,
+            7.5,
+            0.65
+          ],
+          "rotation": 0,
+          "texture": "#t0"
+        },
+        "up": {
+          "uv": [
+            0.0,
+            0.65,
+            2.5,
+            1.5
+          ],
+          "rotation": 0,
+          "texture": "#t0"
+        }
+      }
+    },
+    {
+      "name": "junction/arm/north/straight/body_continuation/north",
+      "from": [
+        5.5,
+        5.5,
+        0
+      ],
+      "to": [
+        10.5,
+        10.5,
+        1.3
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "west": {
+          "uv": [
+            2.5,
+            0.65,
+            5.0,
+            0.0
+          ],
+          "rotation": 90,
+          "texture": "#t0"
+        },
+        "east": {
+          "uv": [
+            2.5,
+            0.0,
+            5.0,
+            0.65
+          ],
+          "rotation": 90,
+          "texture": "#t0"
+        },
+        "down": {
+          "uv": [
+            5.0,
+            0.65,
+            7.5,
+            0.0
+          ],
+          "rotation": 0,
+          "texture": "#t0"
+        },
+        "up": {
+          "uv": [
+            0.0,
+            0.0,
+            2.5,
+            0.65
+          ],
+          "rotation": 0,
+          "texture": "#t0"
+        }
+      }
+    },
+    {
+      "name": "junction/arm/east/straight/copper/045",
+      "from": [
+        10.5,
+        5.5,
+        5.5
+      ],
+      "to": [
+        14.1,
+        10.5,
+        10.5
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            2.5,
+            5.25,
+            5.0,
+            7.05
+          ],
+          "texture": "#t0",
+          "rotation": 90
+        },
+        "south": {
+          "uv": [
+            2.5,
+            7.05,
+            5.0,
+            5.25
+          ],
+          "texture": "#t0",
+          "rotation": 90
+        },
+        "up": {
+          "uv": [
+            0.0,
+            5.25,
+            2.5,
+            7.05
+          ],
+          "texture": "#t0",
+          "rotation": 270
+        },
+        "down": {
+          "uv": [
+            5.0,
+            7.05,
+            7.5,
+            5.25
+          ],
+          "texture": "#t0",
+          "rotation": 90
+        }
+      }
+    },
+    {
+      "name": "junction/arm/east/straight/body_continuation/south",
+      "from": [
+        14.1,
+        5.5,
+        5.5
+      ],
+      "to": [
+        16.0,
+        10.5,
+        10.5
+      ],
+      "faces": {
+        "south": {
+          "uv": [
+            2.5,
+            8.0,
+            5.0,
+            7.05
+          ],
+          "rotation": 90,
+          "texture": "#t0"
+        },
+        "north": {
+          "uv": [
+            2.5,
+            7.05,
+            5.0,
+            8.0
+          ],
+          "rotation": 90,
+          "texture": "#t0"
+        },
+        "down": {
+          "uv": [
+            5.0,
+            8.0,
+            7.5,
+            7.05
+          ],
+          "rotation": 90,
+          "texture": "#t0"
+        },
+        "up": {
+          "uv": [
+            0.0,
+            7.05,
+            2.5,
+            8.0
+          ],
+          "rotation": 270,
+          "texture": "#t0"
+        }
+      }
+    },
+    {
+      "name": "junction/arm/up/vertical/copper/040",
+      "from": [
+        5.5,
+        10.5,
+        5.5
+      ],
+      "to": [
+        10.5,
+        13.9,
+        10.5
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0.0,
+            5.25,
+            2.5,
+            6.95
+          ],
+          "texture": "#t0",
+          "rotation": 180
+        },
+        "east": {
+          "uv": [
+            2.5,
+            5.25,
+            5.0,
+            6.95
+          ],
+          "texture": "#t0",
+          "rotation": 180
+        },
+        "south": {
+          "uv": [
+            5.0,
+            6.95,
+            7.5,
+            5.25
+          ],
+          "texture": "#t0"
+        },
+        "west": {
+          "uv": [
+            0.0,
+            6.95,
+            2.5,
+            5.25
+          ],
+          "texture": "#t0"
+        }
+      }
+    },
+    {
+      "name": "junction/arm/up/vertical/body_continuation/up",
+      "from": [
+        5.5,
+        13.9,
+        5.5
+      ],
+      "to": [
+        10.5,
+        16,
+        10.5
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "west": {
+          "uv": [
+            0.0,
+            8.0,
+            2.5,
+            6.95
+          ],
+          "rotation": 0,
+          "texture": "#t0"
+        },
+        "east": {
+          "uv": [
+            2.5,
+            6.95,
+            5.0,
+            8.0
+          ],
+          "rotation": 180,
+          "texture": "#t0"
+        },
+        "north": {
+          "uv": [
+            0.0,
+            6.95,
+            2.5,
+            8.0
+          ],
+          "rotation": 180,
+          "texture": "#t0"
+        },
+        "south": {
+          "uv": [
+            5.0,
+            8.0,
+            7.5,
+            6.95
+          ],
+          "rotation": 0,
+          "texture": "#t0"
+        }
+      }
+    },
+    {
+      "name": "junction/arm/down/vertical/copper/040",
+      "from": [
+        5.5,
+        2.1,
+        5.5
+      ],
+      "to": [
+        10.5,
+        5.5,
+        10.5
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0.0,
+            1.05,
+            2.5,
+            2.75
+          ],
+          "texture": "#t0",
+          "rotation": 180
+        },
+        "east": {
+          "uv": [
+            2.5,
+            1.05,
+            5.0,
+            2.75
+          ],
+          "texture": "#t0",
+          "rotation": 180
+        },
+        "south": {
+          "uv": [
+            5.0,
+            2.75,
+            7.5,
+            1.05
+          ],
+          "texture": "#t0"
+        },
+        "west": {
+          "uv": [
+            0.0,
+            2.75,
+            2.5,
+            1.05
+          ],
+          "texture": "#t0"
+        }
+      }
+    },
+    {
+      "name": "junction/arm/down/vertical/body_continuation/down",
+      "from": [
+        5.5,
+        0,
+        5.5
+      ],
+      "to": [
+        10.5,
+        2.1,
+        10.5
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "west": {
+          "uv": [
+            0.0,
+            1.05,
+            2.5,
+            0.0
+          ],
+          "rotation": 0,
+          "texture": "#t0"
+        },
+        "east": {
+          "uv": [
+            2.5,
+            0.0,
+            5.0,
+            1.05
+          ],
+          "rotation": 180,
+          "texture": "#t0"
+        },
+        "north": {
+          "uv": [
+            0.0,
+            0.0,
+            2.5,
+            1.05
+          ],
+          "rotation": 180,
+          "texture": "#t0"
+        },
+        "south": {
+          "uv": [
+            5.0,
+            1.05,
+            7.5,
+            0.0
+          ],
+          "rotation": 0,
+          "texture": "#t0"
+        }
+      }
+    },
+    {
+      "name": "junction/core/south/vertical/copper/040",
+      "from": [
+        5.5,
+        5.5,
+        5.5
+      ],
+      "to": [
+        10.5,
+        10.5,
+        10.5
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "south": {
+          "uv": [
+            5.0,
+            5.25,
+            7.5,
+            2.75
+          ],
+          "texture": "#t0"
+        }
+      }
+    },
+    {
+      "name": "junction/core/west/vertical/copper/040",
+      "from": [
+        5.5,
+        5.5,
+        5.5
+      ],
+      "to": [
+        10.5,
+        10.5,
+        10.5
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "west": {
+          "uv": [
+            0.0,
+            5.25,
+            2.5,
+            2.75
+          ],
+          "texture": "#t0"
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/080/coupling_north",
+      "from": [
+        5,
+        5,
+        0
+      ],
+      "to": [
+        11,
+        5.5,
+        0.5
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            8.02459,
+            2.97541,
+            10.97541,
+            2.72951
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65540
+        },
+        "east": {
+          "uv": [
+            0.025,
+            8.333335,
+            0.275,
+            8.0
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65540
+        },
+        "west": {
+          "uv": [
+            0.025,
+            8.0,
+            0.275,
+            8.333335
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65540
+        },
+        "down": {
+          "uv": [
+            0.025,
+            8.333335,
+            3.025,
+            8.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65540
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/082/coupling_north",
+      "from": [
+        5.0,
+        10.5,
+        0.0
+      ],
+      "to": [
+        11.0,
+        11,
+        0.5
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            8.02459,
+            0.27049,
+            10.97541,
+            0.02459
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65540
+        },
+        "east": {
+          "uv": [
+            2.775,
+            8.333335,
+            3.025,
+            8.0
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65540
+        },
+        "west": {
+          "uv": [
+            2.775,
+            8.0,
+            3.025,
+            8.333335
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65540
+        },
+        "up": {
+          "uv": [
+            0.025,
+            8.0,
+            3.025,
+            8.333335
+          ],
+          "texture": "#t0",
+          "tintindex": 65540
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/084/coupling_north",
+      "from": [
+        5.0,
+        5.0,
+        0.5
+      ],
+      "to": [
+        11.0,
+        6.25,
+        0.75
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            0.025,
+            8.5,
+            0.65,
+            8.333335
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65540
+        },
+        "west": {
+          "uv": [
+            0.025,
+            8.333335,
+            0.65,
+            8.5
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65540
+        },
+        "down": {
+          "uv": [
+            0.025,
+            8.5,
+            3.025,
+            8.333335
+          ],
+          "texture": "#t0",
+          "tintindex": 65540
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/086/coupling_north",
+      "from": [
+        5.0,
+        9.75,
+        0.5
+      ],
+      "to": [
+        11.0,
+        11.0,
+        0.75
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            2.4,
+            8.5,
+            3.025,
+            8.333335
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65540
+        },
+        "west": {
+          "uv": [
+            2.4,
+            8.333335,
+            3.025,
+            8.5
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65540
+        },
+        "up": {
+          "uv": [
+            0.025,
+            8.333335,
+            3.025,
+            8.5
+          ],
+          "texture": "#t0",
+          "tintindex": 65540
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/088/coupling_north",
+      "from": [
+        5.0,
+        5.0,
+        0.75
+      ],
+      "to": [
+        11.0,
+        5.05,
+        1.5
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            0.025,
+            9.0,
+            0.05,
+            8.5
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65540
+        },
+        "south": {
+          "uv": [
+            0.025,
+            15.0,
+            3.025,
+            15.025
+          ],
+          "texture": "#t0",
+          "tintindex": 65540
+        },
+        "west": {
+          "uv": [
+            0.025,
+            8.5,
+            0.05,
+            9.0
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65540
+        },
+        "down": {
+          "uv": [
+            0.025,
+            9.0,
+            3.025,
+            8.5
+          ],
+          "texture": "#t0",
+          "tintindex": 65540
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/090/coupling_north",
+      "from": [
+        5.0,
+        10.95,
+        0.75
+      ],
+      "to": [
+        11.0,
+        11.0,
+        1.5
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            3.0,
+            9.0,
+            3.025,
+            8.5
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65540
+        },
+        "south": {
+          "uv": [
+            0.025,
+            12.025,
+            3.025,
+            12.05
+          ],
+          "texture": "#t0",
+          "tintindex": 65540
+        },
+        "west": {
+          "uv": [
+            3.0,
+            8.5,
+            3.025,
+            9.0
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65540
+        },
+        "up": {
+          "uv": [
+            0.025,
+            8.5,
+            3.025,
+            9.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65540
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/092/coupling_north",
+      "from": [
+        5.0,
+        5.05,
+        0.75
+      ],
+      "to": [
+        5.05,
+        10.95,
+        1.5
+      ],
+      "faces": {
+        "south": {
+          "uv": [
+            0.025,
+            12.05,
+            0.05,
+            15.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65540
+        },
+        "west": {
+          "uv": [
+            0.05,
+            8.5,
+            3.0,
+            9.0
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65540
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/094/coupling_north",
+      "from": [
+        10.95,
+        5.05,
+        0.75
+      ],
+      "to": [
+        11.0,
+        10.95,
+        1.5
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            0.05,
+            9.0,
+            3.0,
+            8.5
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65540
+        },
+        "south": {
+          "uv": [
+            3.0,
+            12.05,
+            3.025,
+            15.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65540
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/096/coupling_north",
+      "from": [
+        5.0,
+        5.5,
+        0.0
+      ],
+      "to": [
+        6.25,
+        6.25,
+        0.5
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            8.02459,
+            2.72951,
+            8.639345,
+            2.360655
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65540
+        },
+        "west": {
+          "uv": [
+            0.275,
+            8.0,
+            0.65,
+            8.333335
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65540
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/098/coupling_north",
+      "from": [
+        5.0,
+        9.75,
+        0.0
+      ],
+      "to": [
+        6.25,
+        10.5,
+        0.5
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            8.02459,
+            0.639345,
+            8.639345,
+            0.27049
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65540
+        },
+        "west": {
+          "uv": [
+            2.4,
+            8.0,
+            2.775,
+            8.333335
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65540
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/100/coupling_north",
+      "from": [
+        9.75,
+        5.5,
+        0.0
+      ],
+      "to": [
+        11.0,
+        6.25,
+        0.5
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            10.360655,
+            2.72951,
+            10.97541,
+            2.360655
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65540
+        },
+        "east": {
+          "uv": [
+            0.275,
+            8.333335,
+            0.65,
+            8.0
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65540
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/102/coupling_north",
+      "from": [
+        9.75,
+        9.75,
+        0.0
+      ],
+      "to": [
+        11.0,
+        10.5,
+        0.5
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            10.360655,
+            0.639345,
+            10.97541,
+            0.27049
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65540
+        },
+        "east": {
+          "uv": [
+            2.4,
+            8.333335,
+            2.775,
+            8.0
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65540
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/104/coupling_north",
+      "from": [
+        5.0,
+        6.25,
+        0.0
+      ],
+      "to": [
+        6.25,
+        9.75,
+        0.5
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            8.02459,
+            2.360655,
+            8.639345,
+            0.639345
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65540
+        },
+        "east": {
+          "uv": [
+            12.625,
+            1.0,
+            14.375,
+            0.0
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65540
+        },
+        "west": {
+          "uv": [
+            0.65,
+            8.0,
+            2.4,
+            8.333335
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65540
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/106/coupling_north",
+      "from": [
+        9.75,
+        6.25,
+        0.0
+      ],
+      "to": [
+        11.0,
+        9.75,
+        0.5
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            10.360655,
+            2.360655,
+            10.97541,
+            0.639345
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65540
+        },
+        "east": {
+          "uv": [
+            0.65,
+            8.333335,
+            2.4,
+            8.0
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65540
+        },
+        "west": {
+          "uv": [
+            12.625,
+            0.0,
+            14.375,
+            1.0
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65540
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/108/coupling_north",
+      "from": [
+        5.0,
+        6.25,
+        0.5
+      ],
+      "to": [
+        6.25,
+        9.75,
+        0.75
+      ],
+      "faces": {
+        "west": {
+          "uv": [
+            0.65,
+            8.333335,
+            2.4,
+            8.5
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65540
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/110/coupling_north",
+      "from": [
+        9.75,
+        6.25,
+        0.5
+      ],
+      "to": [
+        11.0,
+        9.75,
+        0.75
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            0.65,
+            8.5,
+            2.4,
+            8.333335
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65540
+        }
+      }
+    },
+    {
+      "name": "six_way/charcoal/120/coupling_north",
+      "from": [
+        5.05,
+        5.05,
+        1.5
+      ],
+      "to": [
+        10.95,
+        5.5,
+        2.0999999999999996
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            8.05,
+            8.5,
+            8.275,
+            8.0
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65540
+        },
+        "south": {
+          "uv": [
+            8.05,
+            14.775,
+            11.0,
+            15.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65540
+        },
+        "west": {
+          "uv": [
+            8.05,
+            8.0,
+            8.275,
+            8.5
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65540
+        },
+        "down": {
+          "uv": [
+            8.05,
+            8.5,
+            11.0,
+            8.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65540
+        }
+      }
+    },
+    {
+      "name": "six_way/charcoal/122/coupling_north",
+      "from": [
+        5.05,
+        10.5,
+        1.5
+      ],
+      "to": [
+        10.95,
+        10.95,
+        2.0999999999999996
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            10.775,
+            8.5,
+            11.0,
+            8.0
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65540
+        },
+        "south": {
+          "uv": [
+            8.05,
+            12.05,
+            11.0,
+            12.275
+          ],
+          "texture": "#t0",
+          "tintindex": 65540
+        },
+        "west": {
+          "uv": [
+            10.775,
+            8.0,
+            11.0,
+            8.5
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65540
+        },
+        "up": {
+          "uv": [
+            8.05,
+            8.0,
+            11.0,
+            8.5
+          ],
+          "texture": "#t0",
+          "tintindex": 65540
+        }
+      }
+    },
+    {
+      "name": "six_way/charcoal/124/coupling_north",
+      "from": [
+        5.05,
+        5.5,
+        1.5
+      ],
+      "to": [
+        5.5,
+        10.5,
+        2.0999999999999996
+      ],
+      "faces": {
+        "south": {
+          "uv": [
+            8.05,
+            12.275,
+            8.275,
+            14.775
+          ],
+          "texture": "#t0",
+          "tintindex": 65540
+        },
+        "west": {
+          "uv": [
+            8.275,
+            8.0,
+            10.775,
+            8.5
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65540
+        }
+      }
+    },
+    {
+      "name": "six_way/charcoal/126/coupling_north",
+      "from": [
+        10.5,
+        5.5,
+        1.5
+      ],
+      "to": [
+        10.95,
+        10.5,
+        2.0999999999999996
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            8.275,
+            8.5,
+            10.775,
+            8.0
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65540
+        },
+        "south": {
+          "uv": [
+            10.775,
+            12.275,
+            11.0,
+            14.775
+          ],
+          "texture": "#t0",
+          "tintindex": 65540
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/136/coupling_north",
+      "from": [
+        6.25,
+        5.5,
+        0.0
+      ],
+      "to": [
+        9.75,
+        6.25,
+        0.5
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            8.639345,
+            2.72951,
+            10.360655,
+            2.360655
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65540
+        },
+        "up": {
+          "uv": [
+            12.625,
+            0.0,
+            14.375,
+            1.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65540
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/138/coupling_north",
+      "from": [
+        6.25,
+        9.75,
+        0.0
+      ],
+      "to": [
+        9.75,
+        10.5,
+        0.5
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            8.639345,
+            0.639345,
+            10.360655,
+            0.27049
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65540
+        },
+        "down": {
+          "uv": [
+            12.625,
+            1.0,
+            14.375,
+            0.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65540
+        }
+      }
+    },
+    {
+      "name": "six_way/copper/143/cap_north",
+      "from": [
+        6.25,
+        6.25,
+        0.5
+      ],
+      "to": [
+        9.75,
+        9.75,
+        2.0999999999999996
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            12.0,
+            5.75,
+            13.75,
+            4.0
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65540
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/080/coupling_north",
+      "from": [
+        5,
+        15.5,
+        5
+      ],
+      "to": [
+        11,
+        16,
+        5.5
+      ],
+      "faces": {
+        "up": {
+          "uv": [
+            8.02459,
+            2.97541,
+            10.97541,
+            2.72951
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "east": {
+          "uv": [
+            0.025,
+            8.333335,
+            0.275,
+            8.0
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65538
+        },
+        "west": {
+          "uv": [
+            0.025,
+            8.0,
+            0.275,
+            8.333335
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "north": {
+          "uv": [
+            0.025,
+            8.333335,
+            3.025,
+            8.0
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/082/coupling_north",
+      "from": [
+        5.0,
+        15.5,
+        10.5
+      ],
+      "to": [
+        11.0,
+        16.0,
+        11
+      ],
+      "faces": {
+        "up": {
+          "uv": [
+            8.02459,
+            0.27049,
+            10.97541,
+            0.02459
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "east": {
+          "uv": [
+            2.775,
+            8.333335,
+            3.025,
+            8.0
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65538
+        },
+        "west": {
+          "uv": [
+            2.775,
+            8.0,
+            3.025,
+            8.333335
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "south": {
+          "uv": [
+            0.025,
+            8.0,
+            3.025,
+            8.333335
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/084/coupling_north",
+      "from": [
+        5.0,
+        15.25,
+        5.0
+      ],
+      "to": [
+        11.0,
+        15.5,
+        6.25
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            0.025,
+            8.5,
+            0.65,
+            8.333335
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65538
+        },
+        "west": {
+          "uv": [
+            0.025,
+            8.333335,
+            0.65,
+            8.5
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "north": {
+          "uv": [
+            0.025,
+            8.5,
+            3.025,
+            8.333335
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/086/coupling_north",
+      "from": [
+        5.0,
+        15.25,
+        9.75
+      ],
+      "to": [
+        11.0,
+        15.5,
+        11.0
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            2.4,
+            8.5,
+            3.025,
+            8.333335
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65538
+        },
+        "west": {
+          "uv": [
+            2.4,
+            8.333335,
+            3.025,
+            8.5
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "south": {
+          "uv": [
+            0.025,
+            8.333335,
+            3.025,
+            8.5
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/088/coupling_north",
+      "from": [
+        5.0,
+        14.5,
+        5.0
+      ],
+      "to": [
+        11.0,
+        15.25,
+        5.05
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            0.025,
+            9.0,
+            0.05,
+            8.5
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65538
+        },
+        "down": {
+          "uv": [
+            0.025,
+            15.0,
+            3.025,
+            15.025
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "west": {
+          "uv": [
+            0.025,
+            8.5,
+            0.05,
+            9.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "north": {
+          "uv": [
+            0.025,
+            9.0,
+            3.025,
+            8.5
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/090/coupling_north",
+      "from": [
+        5.0,
+        14.5,
+        10.95
+      ],
+      "to": [
+        11.0,
+        15.25,
+        11.0
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            3.0,
+            9.0,
+            3.025,
+            8.5
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65538
+        },
+        "down": {
+          "uv": [
+            0.025,
+            12.025,
+            3.025,
+            12.05
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "west": {
+          "uv": [
+            3.0,
+            8.5,
+            3.025,
+            9.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "south": {
+          "uv": [
+            0.025,
+            8.5,
+            3.025,
+            9.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/092/coupling_north",
+      "from": [
+        5.0,
+        14.5,
+        5.05
+      ],
+      "to": [
+        5.05,
+        15.25,
+        10.95
+      ],
+      "faces": {
+        "down": {
+          "uv": [
+            0.025,
+            12.05,
+            0.05,
+            15.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "west": {
+          "uv": [
+            0.05,
+            8.5,
+            3.0,
+            9.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/094/coupling_north",
+      "from": [
+        10.95,
+        14.5,
+        5.05
+      ],
+      "to": [
+        11.0,
+        15.25,
+        10.95
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            0.05,
+            9.0,
+            3.0,
+            8.5
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65538
+        },
+        "down": {
+          "uv": [
+            3.0,
+            12.05,
+            3.025,
+            15.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/096/coupling_north",
+      "from": [
+        5.0,
+        15.5,
+        5.5
+      ],
+      "to": [
+        6.25,
+        16.0,
+        6.25
+      ],
+      "faces": {
+        "up": {
+          "uv": [
+            8.02459,
+            2.72951,
+            8.639345,
+            2.360655
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "west": {
+          "uv": [
+            0.275,
+            8.0,
+            0.65,
+            8.333335
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/098/coupling_north",
+      "from": [
+        5.0,
+        15.5,
+        9.75
+      ],
+      "to": [
+        6.25,
+        16.0,
+        10.5
+      ],
+      "faces": {
+        "up": {
+          "uv": [
+            8.02459,
+            0.639345,
+            8.639345,
+            0.27049
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "west": {
+          "uv": [
+            2.4,
+            8.0,
+            2.775,
+            8.333335
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/100/coupling_north",
+      "from": [
+        9.75,
+        15.5,
+        5.5
+      ],
+      "to": [
+        11.0,
+        16.0,
+        6.25
+      ],
+      "faces": {
+        "up": {
+          "uv": [
+            10.360655,
+            2.72951,
+            10.97541,
+            2.360655
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "east": {
+          "uv": [
+            0.275,
+            8.333335,
+            0.65,
+            8.0
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/102/coupling_north",
+      "from": [
+        9.75,
+        15.5,
+        9.75
+      ],
+      "to": [
+        11.0,
+        16.0,
+        10.5
+      ],
+      "faces": {
+        "up": {
+          "uv": [
+            10.360655,
+            0.639345,
+            10.97541,
+            0.27049
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "east": {
+          "uv": [
+            2.4,
+            8.333335,
+            2.775,
+            8.0
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/104/coupling_north",
+      "from": [
+        5.0,
+        15.5,
+        6.25
+      ],
+      "to": [
+        6.25,
+        16.0,
+        9.75
+      ],
+      "faces": {
+        "up": {
+          "uv": [
+            8.02459,
+            2.360655,
+            8.639345,
+            0.639345
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "east": {
+          "uv": [
+            12.625,
+            1.0,
+            14.375,
+            0.0
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65538
+        },
+        "west": {
+          "uv": [
+            0.65,
+            8.0,
+            2.4,
+            8.333335
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/106/coupling_north",
+      "from": [
+        9.75,
+        15.5,
+        6.25
+      ],
+      "to": [
+        11.0,
+        16.0,
+        9.75
+      ],
+      "faces": {
+        "up": {
+          "uv": [
+            10.360655,
+            2.360655,
+            10.97541,
+            0.639345
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "east": {
+          "uv": [
+            0.65,
+            8.333335,
+            2.4,
+            8.0
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65538
+        },
+        "west": {
+          "uv": [
+            12.625,
+            0.0,
+            14.375,
+            1.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/108/coupling_north",
+      "from": [
+        5.0,
+        15.25,
+        6.25
+      ],
+      "to": [
+        6.25,
+        15.5,
+        9.75
+      ],
+      "faces": {
+        "west": {
+          "uv": [
+            0.65,
+            8.333335,
+            2.4,
+            8.5
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/110/coupling_north",
+      "from": [
+        9.75,
+        15.25,
+        6.25
+      ],
+      "to": [
+        11.0,
+        15.5,
+        9.75
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            0.65,
+            8.5,
+            2.4,
+            8.333335
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "six_way/charcoal/120/coupling_north",
+      "from": [
+        5.05,
+        13.9,
+        5.05
+      ],
+      "to": [
+        10.95,
+        14.5,
+        5.5
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            8.05,
+            8.5,
+            8.275,
+            8.0
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65538
+        },
+        "down": {
+          "uv": [
+            8.05,
+            14.775,
+            11.0,
+            15.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "west": {
+          "uv": [
+            8.05,
+            8.0,
+            8.275,
+            8.5
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "north": {
+          "uv": [
+            8.05,
+            8.5,
+            11.0,
+            8.0
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "six_way/charcoal/122/coupling_north",
+      "from": [
+        5.05,
+        13.9,
+        10.5
+      ],
+      "to": [
+        10.95,
+        14.5,
+        10.95
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            10.775,
+            8.5,
+            11.0,
+            8.0
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65538
+        },
+        "down": {
+          "uv": [
+            8.05,
+            12.05,
+            11.0,
+            12.275
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "west": {
+          "uv": [
+            10.775,
+            8.0,
+            11.0,
+            8.5
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "south": {
+          "uv": [
+            8.05,
+            8.0,
+            11.0,
+            8.5
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "six_way/charcoal/124/coupling_north",
+      "from": [
+        5.05,
+        13.9,
+        5.5
+      ],
+      "to": [
+        5.5,
+        14.5,
+        10.5
+      ],
+      "faces": {
+        "down": {
+          "uv": [
+            8.05,
+            12.275,
+            8.275,
+            14.775
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "west": {
+          "uv": [
+            8.275,
+            8.0,
+            10.775,
+            8.5
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "six_way/charcoal/126/coupling_north",
+      "from": [
+        10.5,
+        13.9,
+        5.5
+      ],
+      "to": [
+        10.95,
+        14.5,
+        10.5
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            8.275,
+            8.5,
+            10.775,
+            8.0
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65538
+        },
+        "down": {
+          "uv": [
+            10.775,
+            12.275,
+            11.0,
+            14.775
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/136/coupling_north",
+      "from": [
+        6.25,
+        15.5,
+        5.5
+      ],
+      "to": [
+        9.75,
+        16.0,
+        6.25
+      ],
+      "faces": {
+        "up": {
+          "uv": [
+            8.639345,
+            2.72951,
+            10.360655,
+            2.360655
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "south": {
+          "uv": [
+            12.625,
+            0.0,
+            14.375,
+            1.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/138/coupling_north",
+      "from": [
+        6.25,
+        15.5,
+        9.75
+      ],
+      "to": [
+        9.75,
+        16.0,
+        10.5
+      ],
+      "faces": {
+        "up": {
+          "uv": [
+            8.639345,
+            0.639345,
+            10.360655,
+            0.27049
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "north": {
+          "uv": [
+            12.625,
+            1.0,
+            14.375,
+            0.0
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "six_way/copper/143/cap_north",
+      "from": [
+        6.25,
+        13.9,
+        6.25
+      ],
+      "to": [
+        9.75,
+        15.5,
+        9.75
+      ],
+      "faces": {
+        "up": {
+          "uv": [
+            12.0,
+            5.75,
+            13.75,
+            4.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/080/coupling_north",
+      "from": [
+        15.5,
+        5,
+        10.5
+      ],
+      "to": [
+        16,
+        11,
+        11
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            8.02459,
+            2.97541,
+            10.97541,
+            2.72951
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65568
+        },
+        "up": {
+          "uv": [
+            0.025,
+            8.333335,
+            0.275,
+            8.0
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65568
+        },
+        "down": {
+          "uv": [
+            0.025,
+            8.0,
+            0.275,
+            8.333335
+          ],
+          "texture": "#t0",
+          "rotation": 90,
+          "tintindex": 65568
+        },
+        "south": {
+          "uv": [
+            0.025,
+            8.333335,
+            3.025,
+            8.0
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65568
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/082/coupling_north",
+      "from": [
+        15.5,
+        5.0,
+        5
+      ],
+      "to": [
+        16.0,
+        11.0,
+        5.5
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            8.02459,
+            0.27049,
+            10.97541,
+            0.02459
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65568
+        },
+        "up": {
+          "uv": [
+            2.775,
+            8.333335,
+            3.025,
+            8.0
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65568
+        },
+        "down": {
+          "uv": [
+            2.775,
+            8.0,
+            3.025,
+            8.333335
+          ],
+          "texture": "#t0",
+          "rotation": 90,
+          "tintindex": 65568
+        },
+        "north": {
+          "uv": [
+            0.025,
+            8.0,
+            3.025,
+            8.333335
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65568
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/084/coupling_north",
+      "from": [
+        15.25,
+        5.0,
+        9.75
+      ],
+      "to": [
+        15.5,
+        11.0,
+        11.0
+      ],
+      "faces": {
+        "up": {
+          "uv": [
+            0.025,
+            8.5,
+            0.65,
+            8.333335
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65568
+        },
+        "down": {
+          "uv": [
+            0.025,
+            8.333335,
+            0.65,
+            8.5
+          ],
+          "texture": "#t0",
+          "rotation": 90,
+          "tintindex": 65568
+        },
+        "south": {
+          "uv": [
+            0.025,
+            8.5,
+            3.025,
+            8.333335
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65568
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/086/coupling_north",
+      "from": [
+        15.25,
+        5.0,
+        5.0
+      ],
+      "to": [
+        15.5,
+        11.0,
+        6.25
+      ],
+      "faces": {
+        "up": {
+          "uv": [
+            2.4,
+            8.5,
+            3.025,
+            8.333335
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65568
+        },
+        "down": {
+          "uv": [
+            2.4,
+            8.333335,
+            3.025,
+            8.5
+          ],
+          "texture": "#t0",
+          "rotation": 90,
+          "tintindex": 65568
+        },
+        "north": {
+          "uv": [
+            0.025,
+            8.333335,
+            3.025,
+            8.5
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65568
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/088/coupling_north",
+      "from": [
+        14.5,
+        5.0,
+        10.95
+      ],
+      "to": [
+        15.25,
+        11.0,
+        11.0
+      ],
+      "faces": {
+        "up": {
+          "uv": [
+            0.025,
+            9.0,
+            0.05,
+            8.5
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65568
+        },
+        "west": {
+          "uv": [
+            0.025,
+            15.0,
+            3.025,
+            15.025
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65568
+        },
+        "down": {
+          "uv": [
+            0.025,
+            8.5,
+            0.05,
+            9.0
+          ],
+          "texture": "#t0",
+          "rotation": 90,
+          "tintindex": 65568
+        },
+        "south": {
+          "uv": [
+            0.025,
+            9.0,
+            3.025,
+            8.5
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65568
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/090/coupling_north",
+      "from": [
+        14.5,
+        5.0,
+        5.0
+      ],
+      "to": [
+        15.25,
+        11.0,
+        5.050000000000001
+      ],
+      "faces": {
+        "up": {
+          "uv": [
+            3.0,
+            9.0,
+            3.025,
+            8.5
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65568
+        },
+        "west": {
+          "uv": [
+            0.025,
+            12.025,
+            3.025,
+            12.05
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65568
+        },
+        "down": {
+          "uv": [
+            3.0,
+            8.5,
+            3.025,
+            9.0
+          ],
+          "texture": "#t0",
+          "rotation": 90,
+          "tintindex": 65568
+        },
+        "north": {
+          "uv": [
+            0.025,
+            8.5,
+            3.025,
+            9.0
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65568
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/092/coupling_north",
+      "from": [
+        14.5,
+        5.0,
+        5.050000000000001
+      ],
+      "to": [
+        15.25,
+        5.05,
+        10.95
+      ],
+      "faces": {
+        "west": {
+          "uv": [
+            0.025,
+            12.05,
+            0.05,
+            15.0
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65568
+        },
+        "down": {
+          "uv": [
+            0.05,
+            8.5,
+            3.0,
+            9.0
+          ],
+          "texture": "#t0",
+          "rotation": 90,
+          "tintindex": 65568
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/094/coupling_north",
+      "from": [
+        14.5,
+        10.95,
+        5.050000000000001
+      ],
+      "to": [
+        15.25,
+        11.0,
+        10.95
+      ],
+      "faces": {
+        "up": {
+          "uv": [
+            0.05,
+            9.0,
+            3.0,
+            8.5
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65568
+        },
+        "west": {
+          "uv": [
+            3.0,
+            12.05,
+            3.025,
+            15.0
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65568
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/096/coupling_north",
+      "from": [
+        15.5,
+        5.0,
+        9.75
+      ],
+      "to": [
+        16.0,
+        6.25,
+        10.5
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            8.02459,
+            2.72951,
+            8.639345,
+            2.360655
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65568
+        },
+        "down": {
+          "uv": [
+            0.275,
+            8.0,
+            0.65,
+            8.333335
+          ],
+          "texture": "#t0",
+          "rotation": 90,
+          "tintindex": 65568
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/098/coupling_north",
+      "from": [
+        15.5,
+        5.0,
+        5.5
+      ],
+      "to": [
+        16.0,
+        6.25,
+        6.25
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            8.02459,
+            0.639345,
+            8.639345,
+            0.27049
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65568
+        },
+        "down": {
+          "uv": [
+            2.4,
+            8.0,
+            2.775,
+            8.333335
+          ],
+          "texture": "#t0",
+          "rotation": 90,
+          "tintindex": 65568
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/100/coupling_north",
+      "from": [
+        15.5,
+        9.75,
+        9.75
+      ],
+      "to": [
+        16.0,
+        11.0,
+        10.5
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            10.360655,
+            2.72951,
+            10.97541,
+            2.360655
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65568
+        },
+        "up": {
+          "uv": [
+            0.275,
+            8.333335,
+            0.65,
+            8.0
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65568
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/102/coupling_north",
+      "from": [
+        15.5,
+        9.75,
+        5.5
+      ],
+      "to": [
+        16.0,
+        11.0,
+        6.25
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            10.360655,
+            0.639345,
+            10.97541,
+            0.27049
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65568
+        },
+        "up": {
+          "uv": [
+            2.4,
+            8.333335,
+            2.775,
+            8.0
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65568
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/104/coupling_north",
+      "from": [
+        15.5,
+        5.0,
+        6.25
+      ],
+      "to": [
+        16.0,
+        6.25,
+        9.75
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            8.02459,
+            2.360655,
+            8.639345,
+            0.639345
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65568
+        },
+        "up": {
+          "uv": [
+            12.625,
+            1.0,
+            14.375,
+            0.0
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65568
+        },
+        "down": {
+          "uv": [
+            0.65,
+            8.0,
+            2.4,
+            8.333335
+          ],
+          "texture": "#t0",
+          "rotation": 90,
+          "tintindex": 65568
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/106/coupling_north",
+      "from": [
+        15.5,
+        9.75,
+        6.25
+      ],
+      "to": [
+        16.0,
+        11.0,
+        9.75
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            10.360655,
+            2.360655,
+            10.97541,
+            0.639345
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65568
+        },
+        "up": {
+          "uv": [
+            0.65,
+            8.333335,
+            2.4,
+            8.0
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65568
+        },
+        "down": {
+          "uv": [
+            12.625,
+            0.0,
+            14.375,
+            1.0
+          ],
+          "texture": "#t0",
+          "rotation": 90,
+          "tintindex": 65568
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/108/coupling_north",
+      "from": [
+        15.25,
+        5.0,
+        6.25
+      ],
+      "to": [
+        15.5,
+        6.25,
+        9.75
+      ],
+      "faces": {
+        "down": {
+          "uv": [
+            0.65,
+            8.333335,
+            2.4,
+            8.5
+          ],
+          "texture": "#t0",
+          "rotation": 90,
+          "tintindex": 65568
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/110/coupling_north",
+      "from": [
+        15.25,
+        9.75,
+        6.25
+      ],
+      "to": [
+        15.5,
+        11.0,
+        9.75
+      ],
+      "faces": {
+        "up": {
+          "uv": [
+            0.65,
+            8.5,
+            2.4,
+            8.333335
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65568
+        }
+      }
+    },
+    {
+      "name": "six_way/charcoal/120/coupling_north",
+      "from": [
+        13.9,
+        5.05,
+        10.5
+      ],
+      "to": [
+        14.5,
+        10.95,
+        10.95
+      ],
+      "faces": {
+        "up": {
+          "uv": [
+            8.05,
+            8.5,
+            8.275,
+            8.0
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65568
+        },
+        "west": {
+          "uv": [
+            8.05,
+            14.775,
+            11.0,
+            15.0
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65568
+        },
+        "down": {
+          "uv": [
+            8.05,
+            8.0,
+            8.275,
+            8.5
+          ],
+          "texture": "#t0",
+          "rotation": 90,
+          "tintindex": 65568
+        },
+        "south": {
+          "uv": [
+            8.05,
+            8.5,
+            11.0,
+            8.0
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65568
+        }
+      }
+    },
+    {
+      "name": "six_way/charcoal/122/coupling_north",
+      "from": [
+        13.9,
+        5.05,
+        5.050000000000001
+      ],
+      "to": [
+        14.5,
+        10.95,
+        5.5
+      ],
+      "faces": {
+        "up": {
+          "uv": [
+            10.775,
+            8.5,
+            11.0,
+            8.0
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65568
+        },
+        "west": {
+          "uv": [
+            8.05,
+            12.05,
+            11.0,
+            12.275
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65568
+        },
+        "down": {
+          "uv": [
+            10.775,
+            8.0,
+            11.0,
+            8.5
+          ],
+          "texture": "#t0",
+          "rotation": 90,
+          "tintindex": 65568
+        },
+        "north": {
+          "uv": [
+            8.05,
+            8.0,
+            11.0,
+            8.5
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65568
+        }
+      }
+    },
+    {
+      "name": "six_way/charcoal/124/coupling_north",
+      "from": [
+        13.9,
+        5.05,
+        5.5
+      ],
+      "to": [
+        14.5,
+        5.5,
+        10.5
+      ],
+      "faces": {
+        "west": {
+          "uv": [
+            8.05,
+            12.275,
+            8.275,
+            14.775
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65568
+        },
+        "down": {
+          "uv": [
+            8.275,
+            8.0,
+            10.775,
+            8.5
+          ],
+          "texture": "#t0",
+          "rotation": 90,
+          "tintindex": 65568
+        }
+      }
+    },
+    {
+      "name": "six_way/charcoal/126/coupling_north",
+      "from": [
+        13.9,
+        10.5,
+        5.5
+      ],
+      "to": [
+        14.5,
+        10.95,
+        10.5
+      ],
+      "faces": {
+        "up": {
+          "uv": [
+            8.275,
+            8.5,
+            10.775,
+            8.0
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65568
+        },
+        "west": {
+          "uv": [
+            10.775,
+            12.275,
+            11.0,
+            14.775
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65568
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/136/coupling_north",
+      "from": [
+        15.5,
+        6.25,
+        9.75
+      ],
+      "to": [
+        16.0,
+        9.75,
+        10.5
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            8.639345,
+            2.72951,
+            10.360655,
+            2.360655
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65568
+        },
+        "north": {
+          "uv": [
+            12.625,
+            0.0,
+            14.375,
+            1.0
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65568
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/138/coupling_north",
+      "from": [
+        15.5,
+        6.25,
+        5.5
+      ],
+      "to": [
+        16.0,
+        9.75,
+        6.25
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            8.639345,
+            0.639345,
+            10.360655,
+            0.27049
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65568
+        },
+        "south": {
+          "uv": [
+            12.625,
+            1.0,
+            14.375,
+            0.0
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65568
+        }
+      }
+    },
+    {
+      "name": "six_way/copper/143/cap_north",
+      "from": [
+        13.9,
+        6.25,
+        6.25
+      ],
+      "to": [
+        15.5,
+        9.75,
+        9.75
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            12.0,
+            5.75,
+            13.75,
+            4.0
+          ],
+          "texture": "#t0",
+          "rotation": 270,
+          "tintindex": 65568
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/080/coupling_north",
+      "from": [
+        5,
+        0,
+        10.5
+      ],
+      "to": [
+        11,
+        0.5,
+        11
+      ],
+      "faces": {
+        "down": {
+          "uv": [
+            8.02459,
+            2.97541,
+            10.97541,
+            2.72951
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        },
+        "east": {
+          "uv": [
+            0.025,
+            8.333335,
+            0.275,
+            8.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        },
+        "west": {
+          "uv": [
+            0.025,
+            8.0,
+            0.275,
+            8.333335
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65537
+        },
+        "south": {
+          "uv": [
+            0.025,
+            8.333335,
+            3.025,
+            8.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/082/coupling_north",
+      "from": [
+        5.0,
+        0.0,
+        5
+      ],
+      "to": [
+        11.0,
+        0.5,
+        5.5
+      ],
+      "faces": {
+        "down": {
+          "uv": [
+            8.02459,
+            0.27049,
+            10.97541,
+            0.02459
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        },
+        "east": {
+          "uv": [
+            2.775,
+            8.333335,
+            3.025,
+            8.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        },
+        "west": {
+          "uv": [
+            2.775,
+            8.0,
+            3.025,
+            8.333335
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65537
+        },
+        "north": {
+          "uv": [
+            0.025,
+            8.0,
+            3.025,
+            8.333335
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65537
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/084/coupling_north",
+      "from": [
+        5.0,
+        0.5,
+        9.75
+      ],
+      "to": [
+        11.0,
+        0.75,
+        11.0
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            0.025,
+            8.5,
+            0.65,
+            8.333335
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        },
+        "west": {
+          "uv": [
+            0.025,
+            8.333335,
+            0.65,
+            8.5
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65537
+        },
+        "south": {
+          "uv": [
+            0.025,
+            8.5,
+            3.025,
+            8.333335
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/086/coupling_north",
+      "from": [
+        5.0,
+        0.5,
+        5.0
+      ],
+      "to": [
+        11.0,
+        0.75,
+        6.25
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            2.4,
+            8.5,
+            3.025,
+            8.333335
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        },
+        "west": {
+          "uv": [
+            2.4,
+            8.333335,
+            3.025,
+            8.5
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65537
+        },
+        "north": {
+          "uv": [
+            0.025,
+            8.333335,
+            3.025,
+            8.5
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65537
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/088/coupling_north",
+      "from": [
+        5.0,
+        0.75,
+        10.95
+      ],
+      "to": [
+        11.0,
+        1.5,
+        11.0
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            0.025,
+            9.0,
+            0.05,
+            8.5
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        },
+        "up": {
+          "uv": [
+            0.025,
+            15.0,
+            3.025,
+            15.025
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        },
+        "west": {
+          "uv": [
+            0.025,
+            8.5,
+            0.05,
+            9.0
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65537
+        },
+        "south": {
+          "uv": [
+            0.025,
+            9.0,
+            3.025,
+            8.5
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/090/coupling_north",
+      "from": [
+        5.0,
+        0.75,
+        5.0
+      ],
+      "to": [
+        11.0,
+        1.5,
+        5.050000000000001
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            3.0,
+            9.0,
+            3.025,
+            8.5
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        },
+        "up": {
+          "uv": [
+            0.025,
+            12.025,
+            3.025,
+            12.05
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        },
+        "west": {
+          "uv": [
+            3.0,
+            8.5,
+            3.025,
+            9.0
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65537
+        },
+        "north": {
+          "uv": [
+            0.025,
+            8.5,
+            3.025,
+            9.0
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65537
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/092/coupling_north",
+      "from": [
+        5.0,
+        0.75,
+        5.050000000000001
+      ],
+      "to": [
+        5.05,
+        1.5,
+        10.95
+      ],
+      "faces": {
+        "up": {
+          "uv": [
+            0.025,
+            12.05,
+            0.05,
+            15.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        },
+        "west": {
+          "uv": [
+            0.05,
+            8.5,
+            3.0,
+            9.0
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65537
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/094/coupling_north",
+      "from": [
+        10.95,
+        0.75,
+        5.050000000000001
+      ],
+      "to": [
+        11.0,
+        1.5,
+        10.95
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            0.05,
+            9.0,
+            3.0,
+            8.5
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        },
+        "up": {
+          "uv": [
+            3.0,
+            12.05,
+            3.025,
+            15.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/096/coupling_north",
+      "from": [
+        5.0,
+        0.0,
+        9.75
+      ],
+      "to": [
+        6.25,
+        0.5,
+        10.5
+      ],
+      "faces": {
+        "down": {
+          "uv": [
+            8.02459,
+            2.72951,
+            8.639345,
+            2.360655
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        },
+        "west": {
+          "uv": [
+            0.275,
+            8.0,
+            0.65,
+            8.333335
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65537
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/098/coupling_north",
+      "from": [
+        5.0,
+        0.0,
+        5.5
+      ],
+      "to": [
+        6.25,
+        0.5,
+        6.25
+      ],
+      "faces": {
+        "down": {
+          "uv": [
+            8.02459,
+            0.639345,
+            8.639345,
+            0.27049
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        },
+        "west": {
+          "uv": [
+            2.4,
+            8.0,
+            2.775,
+            8.333335
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65537
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/100/coupling_north",
+      "from": [
+        9.75,
+        0.0,
+        9.75
+      ],
+      "to": [
+        11.0,
+        0.5,
+        10.5
+      ],
+      "faces": {
+        "down": {
+          "uv": [
+            10.360655,
+            2.72951,
+            10.97541,
+            2.360655
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        },
+        "east": {
+          "uv": [
+            0.275,
+            8.333335,
+            0.65,
+            8.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/102/coupling_north",
+      "from": [
+        9.75,
+        0.0,
+        5.5
+      ],
+      "to": [
+        11.0,
+        0.5,
+        6.25
+      ],
+      "faces": {
+        "down": {
+          "uv": [
+            10.360655,
+            0.639345,
+            10.97541,
+            0.27049
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        },
+        "east": {
+          "uv": [
+            2.4,
+            8.333335,
+            2.775,
+            8.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/104/coupling_north",
+      "from": [
+        5.0,
+        0.0,
+        6.25
+      ],
+      "to": [
+        6.25,
+        0.5,
+        9.75
+      ],
+      "faces": {
+        "down": {
+          "uv": [
+            8.02459,
+            2.360655,
+            8.639345,
+            0.639345
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        },
+        "east": {
+          "uv": [
+            12.625,
+            1.0,
+            14.375,
+            0.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        },
+        "west": {
+          "uv": [
+            0.65,
+            8.0,
+            2.4,
+            8.333335
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65537
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/106/coupling_north",
+      "from": [
+        9.75,
+        0.0,
+        6.25
+      ],
+      "to": [
+        11.0,
+        0.5,
+        9.75
+      ],
+      "faces": {
+        "down": {
+          "uv": [
+            10.360655,
+            2.360655,
+            10.97541,
+            0.639345
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        },
+        "east": {
+          "uv": [
+            0.65,
+            8.333335,
+            2.4,
+            8.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        },
+        "west": {
+          "uv": [
+            12.625,
+            0.0,
+            14.375,
+            1.0
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65537
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/108/coupling_north",
+      "from": [
+        5.0,
+        0.5,
+        6.25
+      ],
+      "to": [
+        6.25,
+        0.75,
+        9.75
+      ],
+      "faces": {
+        "west": {
+          "uv": [
+            0.65,
+            8.333335,
+            2.4,
+            8.5
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65537
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/110/coupling_north",
+      "from": [
+        9.75,
+        0.5,
+        6.25
+      ],
+      "to": [
+        11.0,
+        0.75,
+        9.75
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            0.65,
+            8.5,
+            2.4,
+            8.333335
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        }
+      }
+    },
+    {
+      "name": "six_way/charcoal/120/coupling_north",
+      "from": [
+        5.05,
+        1.5,
+        10.5
+      ],
+      "to": [
+        10.95,
+        2.0999999999999996,
+        10.95
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            8.05,
+            8.5,
+            8.275,
+            8.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        },
+        "up": {
+          "uv": [
+            8.05,
+            14.775,
+            11.0,
+            15.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        },
+        "west": {
+          "uv": [
+            8.05,
+            8.0,
+            8.275,
+            8.5
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65537
+        },
+        "south": {
+          "uv": [
+            8.05,
+            8.5,
+            11.0,
+            8.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        }
+      }
+    },
+    {
+      "name": "six_way/charcoal/122/coupling_north",
+      "from": [
+        5.05,
+        1.5,
+        5.050000000000001
+      ],
+      "to": [
+        10.95,
+        2.0999999999999996,
+        5.5
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            10.775,
+            8.5,
+            11.0,
+            8.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        },
+        "up": {
+          "uv": [
+            8.05,
+            12.05,
+            11.0,
+            12.275
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        },
+        "west": {
+          "uv": [
+            10.775,
+            8.0,
+            11.0,
+            8.5
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65537
+        },
+        "north": {
+          "uv": [
+            8.05,
+            8.0,
+            11.0,
+            8.5
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65537
+        }
+      }
+    },
+    {
+      "name": "six_way/charcoal/124/coupling_north",
+      "from": [
+        5.05,
+        1.5,
+        5.5
+      ],
+      "to": [
+        5.5,
+        2.0999999999999996,
+        10.5
+      ],
+      "faces": {
+        "up": {
+          "uv": [
+            8.05,
+            12.275,
+            8.275,
+            14.775
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        },
+        "west": {
+          "uv": [
+            8.275,
+            8.0,
+            10.775,
+            8.5
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65537
+        }
+      }
+    },
+    {
+      "name": "six_way/charcoal/126/coupling_north",
+      "from": [
+        10.5,
+        1.5,
+        5.5
+      ],
+      "to": [
+        10.95,
+        2.0999999999999996,
+        10.5
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            8.275,
+            8.5,
+            10.775,
+            8.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        },
+        "up": {
+          "uv": [
+            10.775,
+            12.275,
+            11.0,
+            14.775
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/136/coupling_north",
+      "from": [
+        6.25,
+        0.0,
+        9.75
+      ],
+      "to": [
+        9.75,
+        0.5,
+        10.5
+      ],
+      "faces": {
+        "down": {
+          "uv": [
+            8.639345,
+            2.72951,
+            10.360655,
+            2.360655
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        },
+        "north": {
+          "uv": [
+            12.625,
+            0.0,
+            14.375,
+            1.0
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65537
+        }
+      }
+    },
+    {
+      "name": "six_way/brass/138/coupling_north",
+      "from": [
+        6.25,
+        0.0,
+        5.5
+      ],
+      "to": [
+        9.75,
+        0.5,
+        6.25
+      ],
+      "faces": {
+        "down": {
+          "uv": [
+            8.639345,
+            0.639345,
+            10.360655,
+            0.27049
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        },
+        "south": {
+          "uv": [
+            12.625,
+            1.0,
+            14.375,
+            0.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        }
+      }
+    },
+    {
+      "name": "six_way/copper/143/cap_north",
+      "from": [
+        6.25,
+        0.5,
+        6.25
+      ],
+      "to": [
+        9.75,
+        2.0999999999999996,
+        9.75
+      ],
+      "faces": {
+        "down": {
+          "uv": [
+            12.0,
+            5.75,
+            13.75,
+            4.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        }
+      }
+    }
+  ]
+}

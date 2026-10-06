@@ -1,0 +1,9 @@
+{
+  "replace": false,
+  "values": [
+    "create_nautilus:oxygen_gas",
+    "create_nautilus:hydrogen_gas",
+    "create_nautilus:compressed_oxygen_gas",
+    "create_nautilus:compressed_hydrogen_gas"
+  ]
+}

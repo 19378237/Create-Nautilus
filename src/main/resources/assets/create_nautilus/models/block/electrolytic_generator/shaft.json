@@ -1,0 +1,44 @@
+{
+  "credit": "Create: Nautilus - modeled in Blockbench on a 16x16 grid",
+  "parent": "minecraft:block/block",
+  "textures": {
+    "particle": "create_nautilus:block/electrolyzer/copper_plate",
+    "axis": "create:block/axis",
+    "axis_top": "create:block/axis_top"
+  },
+  "elements": [
+    {
+      "name": "Create half shaft guide",
+      "from": [
+        6,
+        0,
+        6
+      ],
+      "to": [
+        10,
+        8,
+        10
+      ],
+      "faces": {
+        "down": {
+          "texture": "#axis"
+        },
+        "up": {
+          "texture": "#axis"
+        },
+        "north": {
+          "texture": "#axis"
+        },
+        "south": {
+          "texture": "#axis"
+        },
+        "west": {
+          "texture": "#axis"
+        },
+        "east": {
+          "texture": "#axis"
+        }
+      }
+    }
+  ]
+}

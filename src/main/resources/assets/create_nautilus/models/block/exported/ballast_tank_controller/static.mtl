@@ -1,0 +1,24 @@
+# White, opaque material multiplier; texture pixels and alpha unchanged
+newmtl t0
+Kd 1 1 1 1
+map_Kd #t0
+
+newmtl t1
+Kd 1 1 1 1
+map_Kd #t1
+
+newmtl t2
+Kd 1 1 1 1
+map_Kd #t2
+
+newmtl t3
+Kd 1 1 1 1
+map_Kd #t3
+
+newmtl t4
+Kd 1 1 1 1
+map_Kd #t4
+
+newmtl t5
+Kd 1 1 1 1
+map_Kd #t5

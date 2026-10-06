@@ -1,0 +1,865 @@
+{
+  "textures": {
+    "t0": "create_nautilus:block/exported/snorkel/texture_0",
+    "t1": "create_nautilus:block/exported/snorkel/texture_1",
+    "t2": "create_nautilus:block/exported/snorkel/texture_2",
+    "t3": "create:block/axis",
+    "t4": "create:block/axis_top",
+    "particle": "create_nautilus:block/exported/snorkel/texture_0"
+  },
+  "elements": [
+    {
+      "name": "Fan blade -45 -1",
+      "from": [
+        7.5,
+        13.55,
+        2
+      ],
+      "to": [
+        8.5,
+        14,
+        7.35
+      ],
+      "rotation": {
+        "angle": -45,
+        "axis": "y",
+        "origin": [
+          8,
+          13.8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            8,
+            6,
+            8.5
+          ],
+          "texture": "#t1"
+        },
+        "east": {
+          "uv": [
+            0,
+            8,
+            6,
+            8.5
+          ],
+          "texture": "#t1"
+        },
+        "south": {
+          "uv": [
+            0,
+            8,
+            6,
+            8.5
+          ],
+          "texture": "#t1"
+        },
+        "west": {
+          "uv": [
+            0,
+            8,
+            6,
+            8.5
+          ],
+          "texture": "#t1"
+        },
+        "up": {
+          "uv": [
+            0,
+            14,
+            3,
+            14.5
+          ],
+          "rotation": 90,
+          "texture": "#t1"
+        },
+        "down": {
+          "uv": [
+            0,
+            8,
+            3,
+            8.5
+          ],
+          "rotation": 90,
+          "texture": "#t1"
+        }
+      }
+    },
+    {
+      "name": "Fan blade -45 +1",
+      "from": [
+        7.5,
+        13.55,
+        8.65
+      ],
+      "to": [
+        8.5,
+        14,
+        14
+      ],
+      "rotation": {
+        "angle": -45,
+        "axis": "y",
+        "origin": [
+          8,
+          13.8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            8,
+            6,
+            8.5
+          ],
+          "texture": "#t1"
+        },
+        "east": {
+          "uv": [
+            0,
+            8,
+            6,
+            8.5
+          ],
+          "texture": "#t1"
+        },
+        "south": {
+          "uv": [
+            0,
+            8,
+            6,
+            8.5
+          ],
+          "texture": "#t1"
+        },
+        "west": {
+          "uv": [
+            0,
+            8,
+            6,
+            8.5
+          ],
+          "texture": "#t1"
+        },
+        "up": {
+          "uv": [
+            0,
+            14,
+            3,
+            14.5
+          ],
+          "rotation": 90,
+          "texture": "#t1"
+        },
+        "down": {
+          "uv": [
+            0,
+            8,
+            3,
+            8.5
+          ],
+          "rotation": 90,
+          "texture": "#t1"
+        }
+      }
+    },
+    {
+      "name": "Fan blade +45 -1",
+      "from": [
+        7.5,
+        13.55,
+        2
+      ],
+      "to": [
+        8.5,
+        14,
+        7.35
+      ],
+      "rotation": {
+        "angle": 45,
+        "axis": "y",
+        "origin": [
+          8,
+          13.8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            8,
+            6,
+            8.5
+          ],
+          "texture": "#t1"
+        },
+        "east": {
+          "uv": [
+            0,
+            8,
+            6,
+            8.5
+          ],
+          "texture": "#t1"
+        },
+        "south": {
+          "uv": [
+            0,
+            8,
+            6,
+            8.5
+          ],
+          "texture": "#t1"
+        },
+        "west": {
+          "uv": [
+            0,
+            8,
+            6,
+            8.5
+          ],
+          "texture": "#t1"
+        },
+        "up": {
+          "uv": [
+            0,
+            14,
+            3,
+            14.5
+          ],
+          "rotation": 90,
+          "texture": "#t1"
+        },
+        "down": {
+          "uv": [
+            0,
+            8,
+            3,
+            8.5
+          ],
+          "rotation": 90,
+          "texture": "#t1"
+        }
+      }
+    },
+    {
+      "name": "Fan blade +45 +1",
+      "from": [
+        7.5,
+        13.55,
+        8.65
+      ],
+      "to": [
+        8.5,
+        14,
+        14
+      ],
+      "rotation": {
+        "angle": 45,
+        "axis": "y",
+        "origin": [
+          8,
+          13.8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            8,
+            6,
+            8.5
+          ],
+          "texture": "#t1"
+        },
+        "east": {
+          "uv": [
+            0,
+            8,
+            6,
+            8.5
+          ],
+          "texture": "#t1"
+        },
+        "south": {
+          "uv": [
+            0,
+            8,
+            6,
+            8.5
+          ],
+          "texture": "#t1"
+        },
+        "west": {
+          "uv": [
+            0,
+            8,
+            6,
+            8.5
+          ],
+          "texture": "#t1"
+        },
+        "up": {
+          "uv": [
+            0,
+            14,
+            3,
+            14.5
+          ],
+          "rotation": 90,
+          "texture": "#t1"
+        },
+        "down": {
+          "uv": [
+            0,
+            8,
+            3,
+            8.5
+          ],
+          "rotation": 90,
+          "texture": "#t1"
+        }
+      }
+    },
+    {
+      "name": "Fan central dark boss",
+      "from": [
+        6.6,
+        13.25,
+        6.6
+      ],
+      "to": [
+        9.4,
+        14.15,
+        9.4
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            11.5,
+            2,
+            13.5
+          ],
+          "texture": "#t1"
+        },
+        "east": {
+          "uv": [
+            0,
+            11.5,
+            2,
+            13.5
+          ],
+          "texture": "#t1"
+        },
+        "south": {
+          "uv": [
+            0,
+            11.5,
+            2,
+            13.5
+          ],
+          "texture": "#t1"
+        },
+        "west": {
+          "uv": [
+            0,
+            11.5,
+            2,
+            13.5
+          ],
+          "texture": "#t1"
+        },
+        "up": {
+          "uv": [
+            0,
+            11.5,
+            2,
+            13.5
+          ],
+          "texture": "#t1"
+        },
+        "down": {
+          "uv": [
+            0,
+            11.5,
+            2,
+            13.5
+          ],
+          "texture": "#t1"
+        }
+      }
+    },
+    {
+      "name": "Fan brass hub ring front",
+      "from": [
+        6.65,
+        14.12,
+        6.65
+      ],
+      "to": [
+        9.35,
+        14.72,
+        7.5
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            5,
+            10,
+            12,
+            12
+          ],
+          "texture": "#t2"
+        },
+        "east": {
+          "uv": [
+            5,
+            10,
+            12,
+            12
+          ],
+          "texture": "#t2"
+        },
+        "south": {
+          "uv": [
+            5,
+            10,
+            12,
+            12
+          ],
+          "texture": "#t2"
+        },
+        "west": {
+          "uv": [
+            5,
+            10,
+            12,
+            12
+          ],
+          "texture": "#t2"
+        },
+        "up": {
+          "uv": [
+            0,
+            10,
+            4,
+            11.25926
+          ],
+          "texture": "#t2"
+        },
+        "down": {
+          "uv": [
+            5,
+            10,
+            12,
+            12
+          ],
+          "texture": "#t2"
+        }
+      }
+    },
+    {
+      "name": "Fan brass hub ring rear",
+      "from": [
+        6.65,
+        14.12,
+        8.5
+      ],
+      "to": [
+        9.35,
+        14.72,
+        9.35
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            5,
+            10,
+            12,
+            12
+          ],
+          "texture": "#t2"
+        },
+        "east": {
+          "uv": [
+            5,
+            10,
+            12,
+            12
+          ],
+          "texture": "#t2"
+        },
+        "south": {
+          "uv": [
+            5,
+            10,
+            12,
+            12
+          ],
+          "texture": "#t2"
+        },
+        "west": {
+          "uv": [
+            5,
+            10,
+            12,
+            12
+          ],
+          "texture": "#t2"
+        },
+        "up": {
+          "uv": [
+            0,
+            12.74074,
+            4,
+            14
+          ],
+          "texture": "#t2"
+        },
+        "down": {
+          "uv": [
+            5,
+            10,
+            12,
+            12
+          ],
+          "texture": "#t2"
+        }
+      }
+    },
+    {
+      "name": "Fan brass hub ring left",
+      "from": [
+        6.65,
+        14.12,
+        7.5
+      ],
+      "to": [
+        7.5,
+        14.72,
+        8.5
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            5,
+            10,
+            12,
+            12
+          ],
+          "texture": "#t2"
+        },
+        "east": {
+          "uv": [
+            5,
+            10,
+            12,
+            12
+          ],
+          "texture": "#t2"
+        },
+        "south": {
+          "uv": [
+            5,
+            10,
+            12,
+            12
+          ],
+          "texture": "#t2"
+        },
+        "west": {
+          "uv": [
+            5,
+            10,
+            12,
+            12
+          ],
+          "texture": "#t2"
+        },
+        "up": {
+          "uv": [
+            0,
+            11.25926,
+            1.25926,
+            12.74074
+          ],
+          "texture": "#t2"
+        },
+        "down": {
+          "uv": [
+            5,
+            10,
+            12,
+            12
+          ],
+          "texture": "#t2"
+        }
+      }
+    },
+    {
+      "name": "Fan brass hub ring right",
+      "from": [
+        8.5,
+        14.12,
+        7.5
+      ],
+      "to": [
+        9.35,
+        14.72,
+        8.5
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            5,
+            10,
+            12,
+            12
+          ],
+          "texture": "#t2"
+        },
+        "east": {
+          "uv": [
+            5,
+            10,
+            12,
+            12
+          ],
+          "texture": "#t2"
+        },
+        "south": {
+          "uv": [
+            5,
+            10,
+            12,
+            12
+          ],
+          "texture": "#t2"
+        },
+        "west": {
+          "uv": [
+            5,
+            10,
+            12,
+            12
+          ],
+          "texture": "#t2"
+        },
+        "up": {
+          "uv": [
+            2.74074,
+            11.25926,
+            4,
+            12.74074
+          ],
+          "texture": "#t2"
+        },
+        "down": {
+          "uv": [
+            5,
+            10,
+            12,
+            12
+          ],
+          "texture": "#t2"
+        }
+      }
+    },
+    {
+      "name": "Fan hub inset square dark fastener",
+      "from": [
+        7.5,
+        14.13,
+        7.5
+      ],
+      "to": [
+        8.5,
+        14.61,
+        8.5
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            9.5,
+            1,
+            10.5
+          ],
+          "texture": "#t1"
+        },
+        "east": {
+          "uv": [
+            0,
+            9.5,
+            1,
+            10.5
+          ],
+          "texture": "#t1"
+        },
+        "south": {
+          "uv": [
+            0,
+            9.5,
+            1,
+            10.5
+          ],
+          "texture": "#t1"
+        },
+        "west": {
+          "uv": [
+            0,
+            9.5,
+            1,
+            10.5
+          ],
+          "texture": "#t1"
+        },
+        "up": {
+          "uv": [
+            0,
+            9.5,
+            1,
+            10.5
+          ],
+          "texture": "#t1"
+        },
+        "down": {
+          "uv": [
+            0,
+            9.5,
+            1,
+            10.5
+          ],
+          "texture": "#t1"
+        }
+      }
+    }
+  ],
+  "render_type": "minecraft:cutout",
+  "display": {
+    "gui": {
+      "rotation": [
+        30,
+        135,
+        0
+      ],
+      "scale": [
+        0.625,
+        0.625,
+        0.625
+      ]
+    },
+    "ground": {
+      "translation": [
+        0,
+        3,
+        0
+      ],
+      "scale": [
+        0.25,
+        0.25,
+        0.25
+      ]
+    },
+    "fixed": {
+      "scale": [
+        0.5,
+        0.5,
+        0.5
+      ]
+    },
+    "thirdperson_righthand": {
+      "rotation": [
+        75,
+        45,
+        0
+      ],
+      "translation": [
+        0,
+        2.5,
+        0
+      ],
+      "scale": [
+        0.375,
+        0.375,
+        0.375
+      ]
+    },
+    "firstperson_righthand": {
+      "rotation": [
+        0,
+        45,
+        0
+      ],
+      "scale": [
+        0.4,
+        0.4,
+        0.4
+      ]
+    }
+  },
+  "parent": "minecraft:block/block",
+  "credit": "Imported from user-exported Java JSON; texture bindings repaired without repainting"
+}

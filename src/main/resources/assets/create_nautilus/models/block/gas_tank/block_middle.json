@@ -1,0 +1,2194 @@
+{
+  "textures": {
+    "t0": "create_nautilus:block/exported/gas_tank/texture_0",
+    "t1": "create_nautilus:block/exported/gas_tank/texture_1",
+    "t2": "create_nautilus:block/exported/gas_tank/texture_2",
+    "t3": "create_nautilus:block/exported/gas_tank/texture_3",
+    "t4": "create_nautilus:block/exported/gas_tank/texture_4",
+    "t5": "create:block/fluid_tank_top",
+    "t6": "create:block/fluid_tank_inner",
+    "t7": "create:block/fluid_tank",
+    "t8": "create:block/fluid_tank_window",
+    "particle": "create_nautilus:block/exported/gas_tank/texture_0"
+  },
+  "display": {
+    "gui": {
+      "rotation": [
+        30,
+        135,
+        0
+      ],
+      "scale": [
+        0.625,
+        0.625,
+        0.625
+      ]
+    },
+    "ground": {
+      "translation": [
+        0,
+        3,
+        0
+      ],
+      "scale": [
+        0.25,
+        0.25,
+        0.25
+      ]
+    },
+    "fixed": {
+      "scale": [
+        0.5,
+        0.5,
+        0.5
+      ]
+    },
+    "thirdperson_righthand": {
+      "rotation": [
+        75,
+        45,
+        0
+      ],
+      "translation": [
+        0,
+        2.5,
+        0
+      ],
+      "scale": [
+        0.375,
+        0.375,
+        0.375
+      ]
+    },
+    "firstperson_righthand": {
+      "rotation": [
+        0,
+        45,
+        0
+      ],
+      "scale": [
+        0.4,
+        0.4,
+        0.4
+      ]
+    }
+  },
+  "render_type": "minecraft:cutout_mipped",
+  "parent": "minecraft:block/block",
+  "elements": [
+    {
+      "name": "铜柱00",
+      "from": [
+        0.3,
+        0,
+        0.3
+      ],
+      "to": [
+        2.9,
+        16,
+        2.9
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            0,
+            9.6,
+            2.6
+          ],
+          "rotation": 90,
+          "texture": "#t1",
+          "tintindex": 65556
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            9.6,
+            2.6
+          ],
+          "rotation": 90,
+          "texture": "#t1",
+          "tintindex": 65556
+        },
+        "south": {
+          "uv": [
+            0,
+            0,
+            9.6,
+            2.6
+          ],
+          "rotation": 90,
+          "texture": "#t1",
+          "tintindex": 65556
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            9.6,
+            2.6
+          ],
+          "rotation": 90,
+          "texture": "#t1",
+          "tintindex": 65556
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            2.6,
+            2.6
+          ],
+          "texture": "#t1",
+          "tintindex": 65556
+        },
+        "down": {
+          "uv": [
+            0,
+            12,
+            2.6,
+            14.6
+          ],
+          "texture": "#t1",
+          "tintindex": 65556
+        }
+      },
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      }
+    },
+    {
+      "name": "铜柱01",
+      "from": [
+        0.3,
+        0,
+        13.1
+      ],
+      "to": [
+        2.9,
+        16,
+        15.7
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            0,
+            9.6,
+            2.6
+          ],
+          "rotation": 90,
+          "texture": "#t1",
+          "tintindex": 65560
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            9.6,
+            2.6
+          ],
+          "rotation": 90,
+          "texture": "#t1",
+          "tintindex": 65560
+        },
+        "south": {
+          "uv": [
+            0,
+            0,
+            9.6,
+            2.6
+          ],
+          "rotation": 90,
+          "texture": "#t1",
+          "tintindex": 65560
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            9.6,
+            2.6
+          ],
+          "rotation": 90,
+          "texture": "#t1",
+          "tintindex": 65560
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            2.6,
+            2.6
+          ],
+          "texture": "#t1",
+          "tintindex": 65560
+        },
+        "down": {
+          "uv": [
+            0,
+            12,
+            2.6,
+            14.6
+          ],
+          "texture": "#t1",
+          "tintindex": 65560
+        }
+      },
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      }
+    },
+    {
+      "name": "铜柱10",
+      "from": [
+        13.1,
+        0,
+        0.3
+      ],
+      "to": [
+        15.7,
+        16,
+        2.9
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            0,
+            9.6,
+            2.6
+          ],
+          "rotation": 90,
+          "texture": "#t1",
+          "tintindex": 65572
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            9.6,
+            2.6
+          ],
+          "rotation": 90,
+          "texture": "#t1",
+          "tintindex": 65572
+        },
+        "south": {
+          "uv": [
+            0,
+            0,
+            9.6,
+            2.6
+          ],
+          "rotation": 90,
+          "texture": "#t1",
+          "tintindex": 65572
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            9.6,
+            2.6
+          ],
+          "rotation": 90,
+          "texture": "#t1",
+          "tintindex": 65572
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            2.6,
+            2.6
+          ],
+          "rotation": 90,
+          "texture": "#t1",
+          "tintindex": 65572
+        },
+        "down": {
+          "uv": [
+            0,
+            12,
+            2.6,
+            14.6
+          ],
+          "rotation": 90,
+          "texture": "#t1",
+          "tintindex": 65572
+        }
+      },
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      }
+    },
+    {
+      "name": "铜柱11",
+      "from": [
+        13.1,
+        0,
+        13.1
+      ],
+      "to": [
+        15.7,
+        16,
+        15.7
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            0,
+            9.6,
+            2.6
+          ],
+          "rotation": 90,
+          "texture": "#t1",
+          "tintindex": 65576
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            9.6,
+            2.6
+          ],
+          "rotation": 90,
+          "texture": "#t1",
+          "tintindex": 65576
+        },
+        "south": {
+          "uv": [
+            0,
+            0,
+            9.6,
+            2.6
+          ],
+          "rotation": 90,
+          "texture": "#t1",
+          "tintindex": 65576
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            9.6,
+            2.6
+          ],
+          "rotation": 90,
+          "texture": "#t1",
+          "tintindex": 65576
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            2.6,
+            2.6
+          ],
+          "texture": "#t1",
+          "tintindex": 65576
+        },
+        "down": {
+          "uv": [
+            0,
+            12,
+            2.6,
+            14.6
+          ],
+          "texture": "#t1",
+          "tintindex": 65576
+        }
+      },
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      }
+    },
+    {
+      "name": "正面/左铜窗边",
+      "from": [
+        2.9,
+        0,
+        0.38
+      ],
+      "to": [
+        3.72,
+        16,
+        1
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            0,
+            9.6,
+            0.82
+          ],
+          "rotation": 90,
+          "texture": "#t1",
+          "tintindex": 65556
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            9.6,
+            0.62
+          ],
+          "rotation": 90,
+          "texture": "#t1",
+          "tintindex": 65556
+        },
+        "south": {
+          "uv": [
+            0,
+            0,
+            9.6,
+            0.82
+          ],
+          "rotation": 90,
+          "texture": "#t1",
+          "tintindex": 65556
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            9.6,
+            0.62
+          ],
+          "rotation": 90,
+          "texture": "#t1",
+          "tintindex": 65556
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            0.82,
+            0.62
+          ],
+          "texture": "#t1",
+          "tintindex": 65556
+        },
+        "down": {
+          "uv": [
+            0,
+            12,
+            0.82,
+            12.62
+          ],
+          "texture": "#t1",
+          "tintindex": 65556
+        }
+      },
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      }
+    },
+    {
+      "name": "正面/右铜窗边",
+      "from": [
+        12.28,
+        0,
+        0.38
+      ],
+      "to": [
+        13.1,
+        16,
+        1
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            0,
+            9.6,
+            0.82
+          ],
+          "rotation": 90,
+          "texture": "#t1",
+          "tintindex": 65572
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            9.6,
+            0.62
+          ],
+          "rotation": 90,
+          "texture": "#t1",
+          "tintindex": 65572
+        },
+        "south": {
+          "uv": [
+            0,
+            0,
+            9.6,
+            0.82
+          ],
+          "rotation": 90,
+          "texture": "#t1",
+          "tintindex": 65572
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            9.6,
+            0.62
+          ],
+          "rotation": 90,
+          "texture": "#t1",
+          "tintindex": 65572
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            0.82,
+            0.62
+          ],
+          "texture": "#t1",
+          "tintindex": 65572
+        },
+        "down": {
+          "uv": [
+            0,
+            12,
+            0.82,
+            12.62
+          ],
+          "texture": "#t1",
+          "tintindex": 65572
+        }
+      },
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      }
+    },
+    {
+      "name": "正面/左深灰竖边",
+      "from": [
+        2.9,
+        0,
+        0.19
+      ],
+      "to": [
+        3.27,
+        16,
+        0.38
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            7,
+            9.6,
+            7.37
+          ],
+          "rotation": 90,
+          "texture": "#t3",
+          "tintindex": 65556
+        },
+        "east": {
+          "uv": [
+            0,
+            7,
+            9.6,
+            7.25
+          ],
+          "rotation": 90,
+          "texture": "#t3",
+          "tintindex": 65556
+        },
+        "south": {
+          "uv": [
+            0,
+            7,
+            9.6,
+            7.37
+          ],
+          "rotation": 90,
+          "texture": "#t3",
+          "tintindex": 65556
+        },
+        "west": {
+          "uv": [
+            0,
+            7,
+            9.6,
+            7.25
+          ],
+          "rotation": 90,
+          "texture": "#t3",
+          "tintindex": 65556
+        },
+        "up": {
+          "uv": [
+            0,
+            7,
+            0.37,
+            7.25
+          ],
+          "texture": "#t3",
+          "tintindex": 65556
+        },
+        "down": {
+          "uv": [
+            0,
+            7,
+            0.37,
+            7.25
+          ],
+          "texture": "#t3",
+          "tintindex": 65556
+        }
+      },
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      }
+    },
+    {
+      "name": "正面/右深灰竖边",
+      "from": [
+        12.73,
+        0,
+        0.19
+      ],
+      "to": [
+        13.1,
+        16,
+        0.38
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            7,
+            9.6,
+            7.37
+          ],
+          "rotation": 90,
+          "texture": "#t3",
+          "tintindex": 65572
+        },
+        "east": {
+          "uv": [
+            0,
+            7,
+            9.6,
+            7.25
+          ],
+          "rotation": 90,
+          "texture": "#t3",
+          "tintindex": 65572
+        },
+        "south": {
+          "uv": [
+            0,
+            7,
+            9.6,
+            7.37
+          ],
+          "rotation": 90,
+          "texture": "#t3",
+          "tintindex": 65572
+        },
+        "west": {
+          "uv": [
+            0,
+            7,
+            9.6,
+            7.25
+          ],
+          "rotation": 90,
+          "texture": "#t3",
+          "tintindex": 65572
+        },
+        "up": {
+          "uv": [
+            0,
+            7,
+            0.37,
+            7.25
+          ],
+          "texture": "#t3",
+          "tintindex": 65572
+        },
+        "down": {
+          "uv": [
+            0,
+            7,
+            0.37,
+            7.25
+          ],
+          "texture": "#t3",
+          "tintindex": 65572
+        }
+      },
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      }
+    },
+    {
+      "name": "正面/Opaque copper wall",
+      "from": [
+        0,
+        0,
+        0.76
+      ],
+      "to": [
+        16,
+        16,
+        1.06
+      ],
+      "faces": {
+        "north": {
+          "texture": "#t7",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "tintindex": 65540
+        },
+        "east": {
+          "texture": "#t7",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "tintindex": 65540
+        },
+        "south": {
+          "texture": "#t7",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "tintindex": 65540
+        },
+        "west": {
+          "texture": "#t7",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "tintindex": 65540
+        },
+        "up": {
+          "texture": "#t7",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "tintindex": 65540
+        },
+        "down": {
+          "texture": "#t7",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "tintindex": 65540
+        }
+      },
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      }
+    },
+    {
+      "name": "右侧/左铜窗边",
+      "from": [
+        15,
+        0,
+        2.9
+      ],
+      "to": [
+        15.62,
+        16,
+        3.72
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            0,
+            9.6,
+            0.62
+          ],
+          "rotation": 90,
+          "texture": "#t1",
+          "tintindex": 65572
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            9.6,
+            0.82
+          ],
+          "rotation": 90,
+          "texture": "#t1",
+          "tintindex": 65572
+        },
+        "south": {
+          "uv": [
+            0,
+            0,
+            9.6,
+            0.62
+          ],
+          "rotation": 90,
+          "texture": "#t1",
+          "tintindex": 65572
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            9.6,
+            0.82
+          ],
+          "rotation": 90,
+          "texture": "#t1",
+          "tintindex": 65572
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            0.82,
+            0.62
+          ],
+          "rotation": 90,
+          "texture": "#t1",
+          "tintindex": 65572
+        },
+        "down": {
+          "uv": [
+            0,
+            12,
+            0.82,
+            12.62
+          ],
+          "rotation": 90,
+          "texture": "#t1",
+          "tintindex": 65572
+        }
+      },
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      }
+    },
+    {
+      "name": "右侧/右铜窗边",
+      "from": [
+        15,
+        0,
+        12.28
+      ],
+      "to": [
+        15.62,
+        16,
+        13.1
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            0,
+            9.6,
+            0.62
+          ],
+          "rotation": 90,
+          "texture": "#t1",
+          "tintindex": 65576
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            9.6,
+            0.82
+          ],
+          "rotation": 90,
+          "texture": "#t1",
+          "tintindex": 65576
+        },
+        "south": {
+          "uv": [
+            0,
+            0,
+            9.6,
+            0.62
+          ],
+          "rotation": 90,
+          "texture": "#t1",
+          "tintindex": 65576
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            9.6,
+            0.82
+          ],
+          "rotation": 90,
+          "texture": "#t1",
+          "tintindex": 65576
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            0.82,
+            0.62
+          ],
+          "rotation": 90,
+          "texture": "#t1",
+          "tintindex": 65576
+        },
+        "down": {
+          "uv": [
+            0,
+            12,
+            0.82,
+            12.62
+          ],
+          "rotation": 90,
+          "texture": "#t1",
+          "tintindex": 65576
+        }
+      },
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      }
+    },
+    {
+      "name": "右侧/左深灰竖边",
+      "from": [
+        15.62,
+        0,
+        2.9
+      ],
+      "to": [
+        15.81,
+        16,
+        3.27
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            7,
+            9.6,
+            7.25
+          ],
+          "rotation": 90,
+          "texture": "#t3",
+          "tintindex": 65572
+        },
+        "east": {
+          "uv": [
+            0,
+            7,
+            9.6,
+            7.37
+          ],
+          "rotation": 90,
+          "texture": "#t3",
+          "tintindex": 65572
+        },
+        "south": {
+          "uv": [
+            0,
+            7,
+            9.6,
+            7.25
+          ],
+          "rotation": 90,
+          "texture": "#t3",
+          "tintindex": 65572
+        },
+        "west": {
+          "uv": [
+            0,
+            7,
+            9.6,
+            7.37
+          ],
+          "rotation": 90,
+          "texture": "#t3",
+          "tintindex": 65572
+        },
+        "up": {
+          "uv": [
+            0,
+            7,
+            0.37,
+            7.25
+          ],
+          "rotation": 90,
+          "texture": "#t3",
+          "tintindex": 65572
+        },
+        "down": {
+          "uv": [
+            0,
+            7,
+            0.37,
+            7.25
+          ],
+          "rotation": 90,
+          "texture": "#t3",
+          "tintindex": 65572
+        }
+      },
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      }
+    },
+    {
+      "name": "右侧/右深灰竖边",
+      "from": [
+        15.62,
+        0,
+        12.73
+      ],
+      "to": [
+        15.81,
+        16,
+        13.1
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            7,
+            9.6,
+            7.25
+          ],
+          "rotation": 90,
+          "texture": "#t3",
+          "tintindex": 65576
+        },
+        "east": {
+          "uv": [
+            0,
+            7,
+            9.6,
+            7.37
+          ],
+          "rotation": 90,
+          "texture": "#t3",
+          "tintindex": 65576
+        },
+        "south": {
+          "uv": [
+            0,
+            7,
+            9.6,
+            7.25
+          ],
+          "rotation": 90,
+          "texture": "#t3",
+          "tintindex": 65576
+        },
+        "west": {
+          "uv": [
+            0,
+            7,
+            9.6,
+            7.37
+          ],
+          "rotation": 90,
+          "texture": "#t3",
+          "tintindex": 65576
+        },
+        "up": {
+          "uv": [
+            0,
+            7,
+            0.37,
+            7.25
+          ],
+          "rotation": 90,
+          "texture": "#t3",
+          "tintindex": 65576
+        },
+        "down": {
+          "uv": [
+            0,
+            7,
+            0.37,
+            7.25
+          ],
+          "rotation": 90,
+          "texture": "#t3",
+          "tintindex": 65576
+        }
+      },
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      }
+    },
+    {
+      "name": "右侧/Opaque copper wall",
+      "from": [
+        14.94,
+        0,
+        0
+      ],
+      "to": [
+        15.24,
+        16,
+        16
+      ],
+      "faces": {
+        "north": {
+          "texture": "#t7",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "tintindex": 65568
+        },
+        "east": {
+          "texture": "#t7",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "tintindex": 65568
+        },
+        "south": {
+          "texture": "#t7",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "tintindex": 65568
+        },
+        "west": {
+          "texture": "#t7",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "tintindex": 65568
+        },
+        "up": {
+          "texture": "#t7",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "tintindex": 65568
+        },
+        "down": {
+          "texture": "#t7",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "tintindex": 65568
+        }
+      },
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      }
+    },
+    {
+      "name": "背面_保守延续/左铜窗边",
+      "from": [
+        12.28,
+        0,
+        15
+      ],
+      "to": [
+        13.1,
+        16,
+        15.62
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            0,
+            9.6,
+            0.82
+          ],
+          "rotation": 90,
+          "texture": "#t1",
+          "tintindex": 65576
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            9.6,
+            0.62
+          ],
+          "rotation": 90,
+          "texture": "#t1",
+          "tintindex": 65576
+        },
+        "south": {
+          "uv": [
+            0,
+            0,
+            9.6,
+            0.82
+          ],
+          "rotation": 90,
+          "texture": "#t1",
+          "tintindex": 65576
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            9.6,
+            0.62
+          ],
+          "rotation": 90,
+          "texture": "#t1",
+          "tintindex": 65576
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            0.82,
+            0.62
+          ],
+          "texture": "#t1",
+          "tintindex": 65576
+        },
+        "down": {
+          "uv": [
+            0,
+            12,
+            0.82,
+            12.62
+          ],
+          "texture": "#t1",
+          "tintindex": 65576
+        }
+      },
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      }
+    },
+    {
+      "name": "背面_保守延续/右铜窗边",
+      "from": [
+        2.9,
+        0,
+        15
+      ],
+      "to": [
+        3.72,
+        16,
+        15.62
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            0,
+            9.6,
+            0.82
+          ],
+          "rotation": 90,
+          "texture": "#t1",
+          "tintindex": 65560
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            9.6,
+            0.62
+          ],
+          "rotation": 90,
+          "texture": "#t1",
+          "tintindex": 65560
+        },
+        "south": {
+          "uv": [
+            0,
+            0,
+            9.6,
+            0.82
+          ],
+          "rotation": 90,
+          "texture": "#t1",
+          "tintindex": 65560
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            9.6,
+            0.62
+          ],
+          "rotation": 90,
+          "texture": "#t1",
+          "tintindex": 65560
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            0.82,
+            0.62
+          ],
+          "texture": "#t1",
+          "tintindex": 65560
+        },
+        "down": {
+          "uv": [
+            0,
+            12,
+            0.82,
+            12.62
+          ],
+          "texture": "#t1",
+          "tintindex": 65560
+        }
+      },
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      }
+    },
+    {
+      "name": "背面_保守延续/左深灰竖边",
+      "from": [
+        12.73,
+        0,
+        15.62
+      ],
+      "to": [
+        13.1,
+        16,
+        15.81
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            7,
+            9.6,
+            7.37
+          ],
+          "rotation": 90,
+          "texture": "#t3",
+          "tintindex": 65576
+        },
+        "east": {
+          "uv": [
+            0,
+            7,
+            9.6,
+            7.25
+          ],
+          "rotation": 90,
+          "texture": "#t3",
+          "tintindex": 65576
+        },
+        "south": {
+          "uv": [
+            0,
+            7,
+            9.6,
+            7.37
+          ],
+          "rotation": 90,
+          "texture": "#t3",
+          "tintindex": 65576
+        },
+        "west": {
+          "uv": [
+            0,
+            7,
+            9.6,
+            7.25
+          ],
+          "rotation": 90,
+          "texture": "#t3",
+          "tintindex": 65576
+        },
+        "up": {
+          "uv": [
+            0,
+            7,
+            0.37,
+            7.25
+          ],
+          "texture": "#t3",
+          "tintindex": 65576
+        },
+        "down": {
+          "uv": [
+            0,
+            7,
+            0.37,
+            7.25
+          ],
+          "texture": "#t3",
+          "tintindex": 65576
+        }
+      },
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      }
+    },
+    {
+      "name": "背面_保守延续/右深灰竖边",
+      "from": [
+        2.9,
+        0,
+        15.62
+      ],
+      "to": [
+        3.27,
+        16,
+        15.81
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            7,
+            9.6,
+            7.37
+          ],
+          "rotation": 90,
+          "texture": "#t3",
+          "tintindex": 65560
+        },
+        "east": {
+          "uv": [
+            0,
+            7,
+            9.6,
+            7.25
+          ],
+          "rotation": 90,
+          "texture": "#t3",
+          "tintindex": 65560
+        },
+        "south": {
+          "uv": [
+            0,
+            7,
+            9.6,
+            7.37
+          ],
+          "rotation": 90,
+          "texture": "#t3",
+          "tintindex": 65560
+        },
+        "west": {
+          "uv": [
+            0,
+            7,
+            9.6,
+            7.25
+          ],
+          "rotation": 90,
+          "texture": "#t3",
+          "tintindex": 65560
+        },
+        "up": {
+          "uv": [
+            0,
+            7,
+            0.37,
+            7.25
+          ],
+          "texture": "#t3",
+          "tintindex": 65560
+        },
+        "down": {
+          "uv": [
+            0,
+            7,
+            0.37,
+            7.25
+          ],
+          "texture": "#t3",
+          "tintindex": 65560
+        }
+      },
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      }
+    },
+    {
+      "name": "背面_保守延续/Opaque copper wall",
+      "from": [
+        0,
+        0,
+        14.94
+      ],
+      "to": [
+        16,
+        16,
+        15.24
+      ],
+      "faces": {
+        "north": {
+          "texture": "#t7",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "tintindex": 65544
+        },
+        "east": {
+          "texture": "#t7",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "tintindex": 65544
+        },
+        "south": {
+          "texture": "#t7",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "tintindex": 65544
+        },
+        "west": {
+          "texture": "#t7",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "tintindex": 65544
+        },
+        "up": {
+          "texture": "#t7",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "tintindex": 65544
+        },
+        "down": {
+          "texture": "#t7",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "tintindex": 65544
+        }
+      },
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      }
+    },
+    {
+      "name": "左侧/左铜窗边",
+      "from": [
+        0.38,
+        0,
+        12.28
+      ],
+      "to": [
+        1,
+        16,
+        13.1
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            0,
+            9.6,
+            0.62
+          ],
+          "rotation": 90,
+          "texture": "#t1",
+          "tintindex": 65560
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            9.6,
+            0.82
+          ],
+          "rotation": 90,
+          "texture": "#t1",
+          "tintindex": 65560
+        },
+        "south": {
+          "uv": [
+            0,
+            0,
+            9.6,
+            0.62
+          ],
+          "rotation": 90,
+          "texture": "#t1",
+          "tintindex": 65560
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            9.6,
+            0.82
+          ],
+          "rotation": 90,
+          "texture": "#t1",
+          "tintindex": 65560
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            0.82,
+            0.62
+          ],
+          "rotation": 90,
+          "texture": "#t1",
+          "tintindex": 65560
+        },
+        "down": {
+          "uv": [
+            0,
+            12,
+            0.82,
+            12.62
+          ],
+          "rotation": 90,
+          "texture": "#t1",
+          "tintindex": 65560
+        }
+      },
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      }
+    },
+    {
+      "name": "左侧/右铜窗边",
+      "from": [
+        0.38,
+        0,
+        2.9
+      ],
+      "to": [
+        1,
+        16,
+        3.72
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            0,
+            9.6,
+            0.62
+          ],
+          "rotation": 90,
+          "texture": "#t1",
+          "tintindex": 65556
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            9.6,
+            0.82
+          ],
+          "rotation": 90,
+          "texture": "#t1",
+          "tintindex": 65556
+        },
+        "south": {
+          "uv": [
+            0,
+            0,
+            9.6,
+            0.62
+          ],
+          "rotation": 90,
+          "texture": "#t1",
+          "tintindex": 65556
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            9.6,
+            0.82
+          ],
+          "rotation": 90,
+          "texture": "#t1",
+          "tintindex": 65556
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            0.82,
+            0.62
+          ],
+          "rotation": 90,
+          "texture": "#t1",
+          "tintindex": 65556
+        },
+        "down": {
+          "uv": [
+            0,
+            12,
+            0.82,
+            12.62
+          ],
+          "rotation": 90,
+          "texture": "#t1",
+          "tintindex": 65556
+        }
+      },
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      }
+    },
+    {
+      "name": "左侧/左深灰竖边",
+      "from": [
+        0.19,
+        0,
+        12.73
+      ],
+      "to": [
+        0.38,
+        16,
+        13.1
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            7,
+            9.6,
+            7.25
+          ],
+          "rotation": 90,
+          "texture": "#t3",
+          "tintindex": 65560
+        },
+        "east": {
+          "uv": [
+            0,
+            7,
+            9.6,
+            7.37
+          ],
+          "rotation": 90,
+          "texture": "#t3",
+          "tintindex": 65560
+        },
+        "south": {
+          "uv": [
+            0,
+            7,
+            9.6,
+            7.25
+          ],
+          "rotation": 90,
+          "texture": "#t3",
+          "tintindex": 65560
+        },
+        "west": {
+          "uv": [
+            0,
+            7,
+            9.6,
+            7.37
+          ],
+          "rotation": 90,
+          "texture": "#t3",
+          "tintindex": 65560
+        },
+        "up": {
+          "uv": [
+            0,
+            7,
+            0.37,
+            7.25
+          ],
+          "rotation": 90,
+          "texture": "#t3",
+          "tintindex": 65560
+        },
+        "down": {
+          "uv": [
+            0,
+            7,
+            0.37,
+            7.25
+          ],
+          "rotation": 90,
+          "texture": "#t3",
+          "tintindex": 65560
+        }
+      },
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      }
+    },
+    {
+      "name": "左侧/右深灰竖边",
+      "from": [
+        0.19,
+        0,
+        2.9
+      ],
+      "to": [
+        0.38,
+        16,
+        3.27
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            7,
+            9.6,
+            7.25
+          ],
+          "rotation": 90,
+          "texture": "#t3",
+          "tintindex": 65556
+        },
+        "east": {
+          "uv": [
+            0,
+            7,
+            9.6,
+            7.37
+          ],
+          "rotation": 90,
+          "texture": "#t3",
+          "tintindex": 65556
+        },
+        "south": {
+          "uv": [
+            0,
+            7,
+            9.6,
+            7.25
+          ],
+          "rotation": 90,
+          "texture": "#t3",
+          "tintindex": 65556
+        },
+        "west": {
+          "uv": [
+            0,
+            7,
+            9.6,
+            7.37
+          ],
+          "rotation": 90,
+          "texture": "#t3",
+          "tintindex": 65556
+        },
+        "up": {
+          "uv": [
+            0,
+            7,
+            0.37,
+            7.25
+          ],
+          "rotation": 90,
+          "texture": "#t3",
+          "tintindex": 65556
+        },
+        "down": {
+          "uv": [
+            0,
+            7,
+            0.37,
+            7.25
+          ],
+          "rotation": 90,
+          "texture": "#t3",
+          "tintindex": 65556
+        }
+      },
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      }
+    },
+    {
+      "name": "左侧/Opaque copper wall",
+      "from": [
+        0.76,
+        0,
+        0
+      ],
+      "to": [
+        1.06,
+        16,
+        16
+      ],
+      "faces": {
+        "north": {
+          "texture": "#t7",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "tintindex": 65552
+        },
+        "east": {
+          "texture": "#t7",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "tintindex": 65552
+        },
+        "south": {
+          "texture": "#t7",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "tintindex": 65552
+        },
+        "west": {
+          "texture": "#t7",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "tintindex": 65552
+        },
+        "up": {
+          "texture": "#t7",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "tintindex": 65552
+        },
+        "down": {
+          "texture": "#t7",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "tintindex": 65552
+        }
+      },
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      }
+    }
+  ]
+}

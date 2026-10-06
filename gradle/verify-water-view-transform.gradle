@@ -1,0 +1,163 @@
+tasks.register('verifyWaterViewTransform') {
+    group = 'verification'
+    description = 'Checks the production water-mask view transform at large world coordinates.'
+    dependsOn tasks.named('classes')
+
+    doLast {
+        final URLClassLoader loader = new URLClassLoader(
+                sourceSets.main.runtimeClasspath.files.collect { it.toURI().toURL() } as URL[],
+                (ClassLoader) null)
+        try {
+            final Class<?> renderer = Class.forName(
+                    'com.create.nautilus.client.render.ApertureMediumMaskRenderer', false, loader)
+            final Class<?> matrix4f = Class.forName('org.joml.Matrix4f', false, loader)
+            final Class<?> matrix4d = Class.forName('org.joml.Matrix4d', false, loader)
+            final Class<?> vector3f = Class.forName('org.joml.Vector3f', false, loader)
+            final def compose = renderer.getDeclaredMethod(
+                    'cameraRelativeCarrierModelView', matrix4f, matrix4d,
+                    Integer.TYPE, Integer.TYPE, Integer.TYPE,
+                    Double.TYPE, Double.TYPE, Double.TYPE)
+            compose.accessible = true
+
+            final double poseX = 30_000_000.75D
+            final double poseY = 70.25D
+            final double poseZ = -30_000_000.125D
+            final double cameraX = 30_000_010.125D
+            final double cameraY = 70.5D
+            final double cameraZ = -30_000_006.625D
+            final int originX = 16
+            final int originY = 0
+            final int originZ = 13
+            final def pose = matrix4d.getConstructor().newInstance()
+                    .translation(poseX, poseY, poseZ)
+            final def view = matrix4f.getConstructor().newInstance()
+                    .rotationY(0.35F).translate(0.125F, -0.25F, 0.5F)
+            final def rotationOnly = matrix4f.getConstructor().newInstance()
+                    .rotationY(0.35F)
+            final def point = { Number x, Number y, Number z ->
+                vector3f.getConstructor(Float.TYPE, Float.TYPE, Float.TYPE)
+                        .newInstance(x.floatValue(), y.floatValue(), z.floatValue())
+            }
+            final def transform = { matrix -> matrix.transformPosition(point(0, 0, 0)) }
+            final def close = { actual, expected, String reason ->
+                assert Math.abs(actual.x - expected.x) < 1.0E-3F &&
+                        Math.abs(actual.y - expected.y) < 1.0E-3F &&
+                        Math.abs(actual.z - expected.z) < 1.0E-3F:
+                        "${reason}: actual=${actual}, expected=${expected}"
+            }
+
+            // Compose the same large, fractional plot pose used by the real renderer. Camera
+            // subtraction must happen in double before converting the small offset to float.
+            final def relative = point(
+                    poseX + originX - cameraX,
+                    poseY + originY - cameraY,
+                    poseZ + originZ - cameraZ)
+            final def actual = compose.invoke(null, view, pose,
+                    originX, originY, originZ, cameraX, cameraY, cameraZ)
+            close(transform(actual),
+                    view.transformPosition(point(relative.x, relative.y, relative.z)),
+                    'camera-relative plot origin or full view translation was lost')
+
+            final def withoutBob = compose.invoke(null, rotationOnly, pose,
+                    originX, originY, originZ, cameraX, cameraY, cameraZ)
+            final def withoutBobPoint = transform(withoutBob)
+            final def withBobPoint = transform(actual)
+            assert Math.abs(withBobPoint.x - withoutBobPoint.x) > 0.01F ||
+                    Math.abs(withBobPoint.y - withoutBobPoint.y) > 0.01F ||
+                    Math.abs(withBobPoint.z - withoutBobPoint.z) > 0.01F:
+                    'view-bob/hurt translation disappeared from the water mask'
+
+            final def shiftedCamera = compose.invoke(null, view, pose,
+                    originX, originY, originZ, cameraX + 1.0D, cameraY, cameraZ)
+            close(transform(shiftedCamera),
+                    view.transformPosition(point(relative.x - 1.0F, relative.y, relative.z)),
+                    'camera movement was added to the mask instead of subtracted once')
+
+            // The private D24S8 mask projects a camera-relative glass point with the full view,
+            // including bob/hurt translation. Its inverse must recover a point for voxel lookup
+            // but a direction and distance measured from the rendered eye for fog integration.
+            final Class<?> shaderSource = Class.forName(
+                    'com.create.nautilus.client.render.IrisCompositeShaderSource', false, loader)
+            final def helperMethod = shaderSource.getDeclaredMethod('opticalAtlasHelper')
+            helperMethod.accessible = true
+            final String opticalHelper = (String) helperMethod.invoke(null)
+            assert opticalHelper.contains('vec3 worldRay = mat3(gbufferModelViewInverse) * viewHit;')
+            assert opticalHelper.contains(
+                    'vec3 worldHit = worldRay + gbufferModelViewInverse[3].xyz;')
+            assert opticalHelper.contains('float worldLength = length(worldRay);')
+            assert opticalHelper.contains('vec3 worldDirection = worldRay / worldLength;')
+            assert opticalHelper.contains(
+                    'vec4 localH = inverseCarrier * vec4(worldHit, 1.0);')
+            assert opticalHelper.contains(
+                    'vec4 localDirectionH = inverseCarrier * vec4(worldDirection, 0.0);')
+            final def commonMethod = shaderSource.getDeclaredMethod('commonHelper')
+            commonMethod.accessible = true
+            final String commonShader = (String) commonMethod.invoke(null)
+            assert commonShader.contains('float distanceAlongRay = length(')
+            assert commonShader.contains('viewPosition.xyz / viewPosition.w')
+
+            final def glassHit = point(0.975F, 1.02F, 2.35F)
+            final List<List<Number>> walkingPhases = [
+                    [0.03F,  0.06F,  0.17F,  0.05F, -0.09F],
+                    [0.12F, -0.04F, -0.21F,  0.08F,  0.12F],
+                    [-0.18F, 0.09F,  0.15F, -0.16F,  0.04F],
+                    [0.37F, -0.13F, -0.11F, 0.19F, -0.07F]
+            ]
+            int formerFailureCount = 0
+            walkingPhases.eachWithIndex { List<Number> phase, int index ->
+                final def walkingView = matrix4f.getConstructor().newInstance()
+                        .rotationY(phase[0].floatValue())
+                        .rotateX(phase[1].floatValue())
+                        .translate(phase[2].floatValue(), phase[3].floatValue(),
+                                phase[4].floatValue())
+                final def inverse = matrix4f.getConstructor().newInstance()
+                        .set(walkingView).invert()
+                final def viewHit = walkingView.transformPosition(
+                        point(glassHit.x, glassHit.y, glassHit.z))
+                final def worldRay = inverse.transformDirection(
+                        point(viewHit.x, viewHit.y, viewHit.z))
+                final def renderedEye = inverse.getTranslation(point(0, 0, 0))
+                final def worldHit = point(worldRay.x + renderedEye.x,
+                        worldRay.y + renderedEye.y, worldRay.z + renderedEye.z)
+                close(worldHit, glassHit,
+                        "walking phase ${index} moved the real glass hit out of its voxel")
+                assert Math.floor(worldHit.x) == Math.floor(glassHit.x)
+                assert Math.floor(worldHit.y) == Math.floor(glassHit.y)
+                assert Math.floor(worldHit.z) == Math.floor(glassHit.z)
+                final float renderedDistance = viewHit.length()
+                final float worldDistance = worldRay.length()
+                assert Math.abs(renderedDistance - worldDistance) < 1.0E-4F:
+                        "walking phase ${index} changed the rendered-eye fog distance"
+                final def expectedDirection = point(glassHit.x - renderedEye.x,
+                        glassHit.y - renderedEye.y, glassHit.z - renderedEye.z).normalize()
+                close(point(worldRay.x, worldRay.y, worldRay.z).normalize(), expectedDirection,
+                        "walking phase ${index} aimed the ray from the logical eye")
+                final float formerError = point(worldRay.x - glassHit.x,
+                        worldRay.y - glassHit.y, worldRay.z - glassHit.z).length()
+                if (formerError > 0.05F
+                        || Math.floor(worldRay.x) != Math.floor(glassHit.x)
+                        || Math.floor(worldRay.y) != Math.floor(glassHit.y)
+                        || Math.floor(worldRay.z) != Math.floor(glassHit.z)) {
+                    formerFailureCount++
+                }
+            }
+            assert formerFailureCount > 0:
+                    'walking phases do not expose the old missing-view-translation bug'
+
+            // This second production path draws already camera-relative dry-hull vertices.
+            // Its direct copy must retain the complete Sodium view without a second camera move.
+            final String dryRegion = file('src/main/java/com/create/nautilus/client/render/'
+                    + 'ContinuousCompartmentOcclusionRegion.java').getText('UTF-8')
+            final String renderMethod = dryRegion.substring(
+                    dryRegion.indexOf('public void render(final Matrix4f modelView'),
+                    dryRegion.indexOf('private static void emitRoom('))
+            assert renderMethod.contains('final Matrix4f view = new Matrix4f(modelView);')
+            assert !renderMethod.contains('.translation(camera.')
+            assert !renderMethod.contains('.setTranslation(0.0F')
+        } finally {
+            loader.close()
+        }
+        logger.lifecycle('Water view transform passed: production matrix composition, '
+                + 'large-coordinate precision, view-bob preservation and single camera subtraction')
+    }
+}

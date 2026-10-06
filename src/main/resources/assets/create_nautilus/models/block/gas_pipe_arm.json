@@ -1,0 +1,408 @@
+{
+  "credit": "Create: Nautilus - modeled in Blockbench on a 16x16 grid",
+  "parent": "minecraft:block/block",
+  "textures": {
+    "body": "create:block/copper_casing",
+    "rim": "create:block/brass_casing",
+    "seal": "create:block/andesite_casing",
+    "particle": "create:block/copper_casing"
+  },
+  "elements": [
+    {
+      "name": "Brass gas connection collar left",
+      "from": [
+        4,
+        4,
+        0
+      ],
+      "to": [
+        5,
+        12,
+        2
+      ],
+      "faces": {
+        "down": {
+          "texture": "#rim"
+        },
+        "up": {
+          "texture": "#rim"
+        },
+        "north": {
+          "texture": "#rim"
+        },
+        "south": {
+          "texture": "#rim"
+        },
+        "west": {
+          "texture": "#rim"
+        },
+        "east": {
+          "texture": "#rim"
+        }
+      }
+    },
+    {
+      "name": "Brass gas connection collar right",
+      "from": [
+        11,
+        4,
+        0
+      ],
+      "to": [
+        12,
+        12,
+        2
+      ],
+      "faces": {
+        "down": {
+          "texture": "#rim"
+        },
+        "up": {
+          "texture": "#rim"
+        },
+        "north": {
+          "texture": "#rim"
+        },
+        "south": {
+          "texture": "#rim"
+        },
+        "west": {
+          "texture": "#rim"
+        },
+        "east": {
+          "texture": "#rim"
+        }
+      }
+    },
+    {
+      "name": "Brass gas connection collar lower",
+      "from": [
+        5,
+        4,
+        0
+      ],
+      "to": [
+        11,
+        5,
+        2
+      ],
+      "faces": {
+        "down": {
+          "texture": "#rim"
+        },
+        "up": {
+          "texture": "#rim"
+        },
+        "north": {
+          "texture": "#rim"
+        },
+        "south": {
+          "texture": "#rim"
+        },
+        "west": {
+          "texture": "#rim"
+        },
+        "east": {
+          "texture": "#rim"
+        }
+      }
+    },
+    {
+      "name": "Brass gas connection collar upper",
+      "from": [
+        5,
+        11,
+        0
+      ],
+      "to": [
+        11,
+        12,
+        2
+      ],
+      "faces": {
+        "down": {
+          "texture": "#rim"
+        },
+        "up": {
+          "texture": "#rim"
+        },
+        "north": {
+          "texture": "#rim"
+        },
+        "south": {
+          "texture": "#rim"
+        },
+        "west": {
+          "texture": "#rim"
+        },
+        "east": {
+          "texture": "#rim"
+        }
+      }
+    },
+    {
+      "name": "Black collar gasket left",
+      "from": [
+        5,
+        5,
+        2
+      ],
+      "to": [
+        6,
+        11,
+        3
+      ],
+      "faces": {
+        "down": {
+          "texture": "#seal"
+        },
+        "up": {
+          "texture": "#seal"
+        },
+        "north": {
+          "texture": "#seal"
+        },
+        "south": {
+          "texture": "#seal"
+        },
+        "west": {
+          "texture": "#seal"
+        },
+        "east": {
+          "texture": "#seal"
+        }
+      }
+    },
+    {
+      "name": "Black collar gasket right",
+      "from": [
+        10,
+        5,
+        2
+      ],
+      "to": [
+        11,
+        11,
+        3
+      ],
+      "faces": {
+        "down": {
+          "texture": "#seal"
+        },
+        "up": {
+          "texture": "#seal"
+        },
+        "north": {
+          "texture": "#seal"
+        },
+        "south": {
+          "texture": "#seal"
+        },
+        "west": {
+          "texture": "#seal"
+        },
+        "east": {
+          "texture": "#seal"
+        }
+      }
+    },
+    {
+      "name": "Black collar gasket lower",
+      "from": [
+        6,
+        5,
+        2
+      ],
+      "to": [
+        10,
+        6,
+        3
+      ],
+      "faces": {
+        "down": {
+          "texture": "#seal"
+        },
+        "up": {
+          "texture": "#seal"
+        },
+        "north": {
+          "texture": "#seal"
+        },
+        "south": {
+          "texture": "#seal"
+        },
+        "west": {
+          "texture": "#seal"
+        },
+        "east": {
+          "texture": "#seal"
+        }
+      }
+    },
+    {
+      "name": "Black collar gasket upper",
+      "from": [
+        6,
+        10,
+        2
+      ],
+      "to": [
+        10,
+        11,
+        3
+      ],
+      "faces": {
+        "down": {
+          "texture": "#seal"
+        },
+        "up": {
+          "texture": "#seal"
+        },
+        "north": {
+          "texture": "#seal"
+        },
+        "south": {
+          "texture": "#seal"
+        },
+        "west": {
+          "texture": "#seal"
+        },
+        "east": {
+          "texture": "#seal"
+        }
+      }
+    },
+    {
+      "name": "Copper gas pipe arm left",
+      "from": [
+        5,
+        5,
+        3
+      ],
+      "to": [
+        6,
+        11,
+        8
+      ],
+      "faces": {
+        "down": {
+          "texture": "#body"
+        },
+        "up": {
+          "texture": "#body"
+        },
+        "north": {
+          "texture": "#body"
+        },
+        "south": {
+          "texture": "#body"
+        },
+        "west": {
+          "texture": "#body"
+        },
+        "east": {
+          "texture": "#body"
+        }
+      }
+    },
+    {
+      "name": "Copper gas pipe arm right",
+      "from": [
+        10,
+        5,
+        3
+      ],
+      "to": [
+        11,
+        11,
+        8
+      ],
+      "faces": {
+        "down": {
+          "texture": "#body"
+        },
+        "up": {
+          "texture": "#body"
+        },
+        "north": {
+          "texture": "#body"
+        },
+        "south": {
+          "texture": "#body"
+        },
+        "west": {
+          "texture": "#body"
+        },
+        "east": {
+          "texture": "#body"
+        }
+      }
+    },
+    {
+      "name": "Copper gas pipe arm lower",
+      "from": [
+        6,
+        5,
+        3
+      ],
+      "to": [
+        10,
+        6,
+        8
+      ],
+      "faces": {
+        "down": {
+          "texture": "#body"
+        },
+        "up": {
+          "texture": "#body"
+        },
+        "north": {
+          "texture": "#body"
+        },
+        "south": {
+          "texture": "#body"
+        },
+        "west": {
+          "texture": "#body"
+        },
+        "east": {
+          "texture": "#body"
+        }
+      }
+    },
+    {
+      "name": "Copper gas pipe arm upper",
+      "from": [
+        6,
+        10,
+        3
+      ],
+      "to": [
+        10,
+        11,
+        8
+      ],
+      "faces": {
+        "down": {
+          "texture": "#body"
+        },
+        "up": {
+          "texture": "#body"
+        },
+        "north": {
+          "texture": "#body"
+        },
+        "south": {
+          "texture": "#body"
+        },
+        "west": {
+          "texture": "#body"
+        },
+        "east": {
+          "texture": "#body"
+        }
+      }
+    }
+  ]
+}

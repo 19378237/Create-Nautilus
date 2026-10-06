@@ -1,0 +1,10 @@
+{"variants":{
+  "facing=north,powered=false":{"model":"create_nautilus:block/emergency_vent"},
+  "facing=east,powered=false":{"model":"create_nautilus:block/emergency_vent","y":90},
+  "facing=south,powered=false":{"model":"create_nautilus:block/emergency_vent","y":180},
+  "facing=west,powered=false":{"model":"create_nautilus:block/emergency_vent","y":270},
+  "facing=north,powered=true":{"model":"create_nautilus:block/emergency_vent_powered"},
+  "facing=east,powered=true":{"model":"create_nautilus:block/emergency_vent_powered","y":90},
+  "facing=south,powered=true":{"model":"create_nautilus:block/emergency_vent_powered","y":180},
+  "facing=west,powered=true":{"model":"create_nautilus:block/emergency_vent_powered","y":270}
+}}

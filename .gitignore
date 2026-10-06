@@ -1,0 +1,15 @@
+.gradle/
+build/
+run/
+.idea/
+**/.idea/
+*.iml
+.vscode/
+.DS_Store
+Thumbs.db
+*.log
+crash-reports/
+.env
+.env.*
+!.env.example
+dev-inputs/

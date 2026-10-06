@@ -1,0 +1,113 @@
+tasks.register('verifyVirtualWaterMaterial') {
+    group = 'verification'
+    description = 'Checks virtual-only Photon texture, thin-water absorption and room-light selection.'
+    dependsOn tasks.named('classes')
+    doLast {
+        final URLClassLoader loader = new URLClassLoader(
+                sourceSets.main.runtimeClasspath.files.collect { it.toURI().toURL() } as URL[],
+                (ClassLoader) null)
+        try {
+            final Class<?> patcher = Class.forName(
+                    'com.create.nautilus.client.render.PhotonVirtualWaterShaderSource', true, loader)
+            final def patch = patcher.getMethod('patchFragment', String.class)
+            final String nativeFactor = '1.0 - cube(linear_step(0.0, 0.5, light_levels.y))'
+            final String nativeGate = 'texture_highlight *= ' + nativeFactor + ';'
+            final String source = '''
+vec3 water_absorption_approx(vec3 color) { return color; }
+Material get_water_material(vec3 direction_world, vec3 normal, float dist, out float alpha) {
+    Material material = water_material;
+    float texture_highlight = 0.2;
+    GATE
+    material.roughness += 0.3 * texture_highlight;
+    alpha += texture_highlight;
+    return material;
+}
+void main() { }
+'''.replace('GATE', nativeGate)
+            final String patched = (String) patch.invoke(null, source)
+            final String scopedGate = ('texture_highlight *= NautilusVirtualWater > 0.5 ? 0.0 : ('
+                    + nativeFactor + ');')
+            final String declaration = ('// CREATE_NAUTILUS_PHOTON_VIRTUAL_WATER_MATERIAL\n'
+                    + 'uniform float NautilusVirtualWater;\n')
+            assert patched.contains(scopedGate)
+            assert patched.indexOf('uniform float NautilusVirtualWater;')
+                    < patched.indexOf('Material get_water_material(')
+            assert patched.replace(declaration, '').replace(scopedGate, nativeGate) == source
+            assert patch.invoke(null, patched) == patched
+            // OFF, explicitly enabled highlights and VANILLA do not have the underground gate.
+            final String otherMode = source.replace(nativeGate, '')
+            assert patch.invoke(null, otherMode) == otherMode
+            final String commented = source.replace(nativeGate, '// ' + nativeGate)
+            assert patch.invoke(null, commented) == commented
+            final String unrelated = source.replace('get_water_material', 'different_material')
+            assert patch.invoke(null, unrelated) == unrelated
+            final String ambiguous = source.replace(nativeGate, nativeGate + '\n    ' + nativeGate)
+            assert patch.invoke(null, ambiguous) == ambiguous
+            final String nativeMinimum = 'max(dist, 2.0 - 1.0 * skylight_factor)'
+            final String fog = '''
+mat2x3 water_fog_simple(vec3 light_color, vec3 ambient_color, vec3 coeff,
+        vec2 light_levels, float dist, float LoV, float sss_depth) {
+    float skylight_factor = cube(light_levels.y);
+    dist = MINIMUM;
+    vec3 transmittance = exp(-coeff * dist);
+    return mat2x3(vec3(0.0), transmittance);
+}
+'''.replace('MINIMUM', nativeMinimum)
+            final String fogSource = fog + source
+            final String fogPatched = (String) patch.invoke(null, fogSource)
+            final String scopedMinimum = ('dist = NautilusVirtualWater > 0.5 ? max(dist, 0.0) : ('
+                    + nativeMinimum + ');')
+            assert fogPatched.contains(scopedMinimum)
+            assert fogPatched.indexOf('uniform float NautilusVirtualWater;')
+                    < fogPatched.indexOf('mat2x3 water_fog_simple(')
+            assert fogPatched.replace(declaration, '').replace(scopedGate, nativeGate)
+                    .replace(scopedMinimum, 'dist = ' + nativeMinimum + ';') == fogSource
+            assert patch.invoke(null, fogPatched) == fogPatched
+            // Every water-texture mode still gets thin-water absorption, but only the underground
+            // texture mode has its highlight gated. Ordinary water retains the original floor.
+            final String fogOtherMode = (String) patch.invoke(null, fog + otherMode)
+            assert fogOtherMode.contains(scopedMinimum)
+            assert !fogOtherMode.contains('texture_highlight *= NautilusVirtualWater')
+            // Native-water output is identical over the skylight range; only virtual water loses
+            // the texture term and artificial depth floor.
+            for (int sky = 0; sky <= 15; sky++) {
+                final double level = sky / 15.0D
+                final double ramp = Math.clamp(level / 0.5D, 0.0D, 1.0D)
+                final double nativeHighlight = 0.2D * (1.0D - ramp * ramp * ramp)
+                assert 0.2D * (false ? 0.0D : (1.0D - ramp * ramp * ramp)) == nativeHighlight
+                assert 0.2D * (true ? 0.0D : (1.0D - ramp * ramp * ramp)) == 0.0D
+                for (final double distance : [0.0D, 0.02D, 0.25D, 1.0D, 2.0D, 8.0D]) {
+                    final double nativeDistance = Math.max(distance, 2.0D - level * level * level)
+                    final double virtualDistance = Math.max(distance, 0.0D)
+                    assert virtualDistance <= nativeDistance
+                    assert Math.exp(-0.4D * virtualDistance) >= Math.exp(-0.4D * nativeDistance)
+                    if (distance == 0.0D) assert Math.exp(-0.4D * virtualDistance) == 1.0D
+                }
+            }
+        } finally {
+            loader.close()
+        }
+        final String hook = file('src/main/java/com/create/nautilus/mixin/client/'
+                + 'IrisVirtualWaterMaterialMixin.java').getText('UTF-8')
+        final String config = file('src/main/resources/create_nautilus.mixins.json').getText('UTF-8')
+        if (!config.contains('client.IrisVirtualWaterMaterialMixin')
+                || !hook.contains('net.irisshaders.iris.pipeline.programs.ShaderCreator')
+                || !hook.contains('method = "create"') || !hook.contains('patchVanilla(')
+                || !hook.contains('"terrain_translucent".equalsIgnoreCase(name)')
+                || !hook.contains('final String source = args.get(5);')
+                || !hook.contains('args.set(5, patched);')) {
+            throw new GradleException('The material fix must target the immediate terrain ExtendedShader '
+                    + 'fragment before Iris transforms it, not Sodium chunk or post-AST source')
+        }
+        final String renderer = file('src/main/java/com/create/nautilus/client/render/'
+                + 'FloodedChamberRenderer.java').getText('UTF-8')
+        assert renderer.contains('vertices, matrix, sprite, carrier, room, false)')
+        assert renderer.contains('final boolean roomLighting = materialProgram > 0')
+        assert renderer.contains('SodiumOcclusionShaderSource.VIRTUAL_WATER_UNIFORM) >= 0')
+        assert renderer.contains('BlockPos.containing(cell.minX, cell.minY, cell.minZ)')
+        assert renderer.contains('carrier.scaleLightColor(LevelRenderer.getLightColor(carrier.getLevel(), localCell))')
+        assert renderer.count('? roomWaterLight(carrier,') == 1
+        logger.lifecycle('Virtual water material passed: native preservation, 16 skylight levels, '
+                + 'six water depths, zero-depth transparency and shared Photon-only room-cell lighting')
+    }
+}

@@ -1,0 +1,36 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.create.nautilus.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "BasePropellerBlockEntityMixin",
+    "hydrogen.BoilerDataMixin",
+    "SableBlockChangeMixin",
+    "VirtualCompartmentWaterMixin",
+    "PropellerBearingBlockEntityMixin",
+    "CompartmentEntityOcclusionMixin"
+  ],
+  "client": [
+    "client.ClientLevelFluidChangeMixin",
+    "client.SodiumChunkRendererMixin",
+    "client.SodiumWorldRendererMixin",
+    "client.SodiumVirtualWaterLayerMixin",
+    "client.SodiumFluidRendererMixin",
+    "client.SodiumMaterialMixin",
+    "client.IrisXHFPTerrainVertexMixin",
+    "client.SodiumGlShaderMixin",
+    "client.IrisCompositeRendererMixin",
+    "client.IrisVirtualWaterMaterialMixin",
+    "client.IrisPipelineAdapterMixin",
+    "client.IrisProgramMixin",
+    "client.IrisEyeInWaterMixin",
+    "client.CameraFluidMixin",
+    "client.CompartmentEntityOcclusionClientMixin",
+    "client.VirtualCompartmentWaterClientMixin",
+    "client.KineticBlockEntityClientMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

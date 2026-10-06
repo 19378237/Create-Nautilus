@@ -1,0 +1,3 @@
+package com.create.nautilus.content.oxygen;
+import com.create.nautilus.registry.NautilusBlockEntityTypes; import com.simibubi.create.foundation.block.IBE; import net.minecraft.world.level.block.Block; import net.minecraft.world.level.block.entity.BlockEntityType;
+public final class OxygenInterfaceBlock extends Block implements IBE<OxygenInterfaceBlockEntity>{public OxygenInterfaceBlock(Properties p){super(p);} public Class<OxygenInterfaceBlockEntity> getBlockEntityClass(){return OxygenInterfaceBlockEntity.class;} public BlockEntityType<? extends OxygenInterfaceBlockEntity> getBlockEntityType(){return NautilusBlockEntityTypes.OXYGEN_INTERFACE.get();}}

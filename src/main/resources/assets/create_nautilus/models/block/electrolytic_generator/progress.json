@@ -1,0 +1,155 @@
+{
+  "textures": {
+    "t0": "create_nautilus:block/exported/electrolytic_generator/texture_0",
+    "t1": "create_nautilus:block/exported/electrolytic_generator/texture_1",
+    "t2": "create_nautilus:block/exported/electrolytic_generator/texture_2",
+    "t3": "create:block/axis",
+    "t4": "create:block/axis_top",
+    "particle": "create_nautilus:block/exported/electrolytic_generator/texture_0"
+  },
+  "elements": [
+    {
+      "name": "Window internal vertical stem",
+      "from": [
+        7.77,
+        5.34,
+        0.8
+      ],
+      "to": [
+        8.23,
+        7.25,
+        1.26
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          5.34,
+          1.03
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0.5,
+            9,
+            2.5,
+            13
+          ],
+          "texture": "#t1"
+        },
+        "east": {
+          "uv": [
+            0.5,
+            9,
+            2.5,
+            13
+          ],
+          "texture": "#t1"
+        },
+        "south": {
+          "uv": [
+            0.5,
+            9,
+            2.5,
+            13
+          ],
+          "texture": "#t1"
+        },
+        "west": {
+          "uv": [
+            0.5,
+            9,
+            2.5,
+            13
+          ],
+          "texture": "#t1"
+        },
+        "up": {
+          "uv": [
+            0.5,
+            9,
+            2.5,
+            13
+          ],
+          "texture": "#t1"
+        },
+        "down": {
+          "uv": [
+            0.5,
+            9,
+            2.5,
+            13
+          ],
+          "texture": "#t1"
+        }
+      }
+    }
+  ],
+  "display": {
+    "gui": {
+      "rotation": [
+        25,
+        135,
+        0
+      ],
+      "scale": [
+        0.68,
+        0.68,
+        0.68
+      ]
+    },
+    "ground": {
+      "translation": [
+        0,
+        3,
+        0
+      ],
+      "scale": [
+        0.25,
+        0.25,
+        0.25
+      ]
+    },
+    "fixed": {
+      "scale": [
+        0.5,
+        0.5,
+        0.5
+      ]
+    },
+    "thirdperson_righthand": {
+      "rotation": [
+        75,
+        45,
+        0
+      ],
+      "translation": [
+        0,
+        2.5,
+        0
+      ],
+      "scale": [
+        0.375,
+        0.375,
+        0.375
+      ]
+    },
+    "firstperson_righthand": {
+      "rotation": [
+        0,
+        45,
+        0
+      ],
+      "scale": [
+        0.4,
+        0.4,
+        0.4
+      ]
+    }
+  },
+  "render_type": "minecraft:cutout",
+  "parent": "minecraft:block/block",
+  "credit": "Imported from user-exported Java JSON; texture bindings repaired without repainting"
+}

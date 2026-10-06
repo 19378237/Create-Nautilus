@@ -1,0 +1,27 @@
+{
+  "variants": {
+    "facing=south": {
+      "model": "create_nautilus:block/gas_pump/block"
+    },
+    "facing=north": {
+      "model": "create_nautilus:block/gas_pump/block",
+      "y": 180
+    },
+    "facing=east": {
+      "model": "create_nautilus:block/gas_pump/block",
+      "y": 270
+    },
+    "facing=west": {
+      "model": "create_nautilus:block/gas_pump/block",
+      "y": 90
+    },
+    "facing=up": {
+      "model": "create_nautilus:block/gas_pump/block",
+      "x": 90
+    },
+    "facing=down": {
+      "model": "create_nautilus:block/gas_pump/block",
+      "x": 270
+    }
+  }
+}

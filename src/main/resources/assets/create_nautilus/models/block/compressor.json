@@ -1,0 +1,5539 @@
+{
+  "textures": {
+    "t0": "create_nautilus:block/exported/compressor/texture_0",
+    "t1": "create_nautilus:block/exported/compressor/texture_1",
+    "t2": "create_nautilus:block/exported/compressor/texture_2",
+    "t3": "create_nautilus:block/exported/compressor/texture_3",
+    "t4": "create_nautilus:block/exported/compressor/texture_4",
+    "t5": "create:block/axis",
+    "t6": "create:block/axis_top",
+    "particle": "create_nautilus:block/exported/compressor/texture_0"
+  },
+  "elements": [
+    {
+      "name": "Base load-bearing ring north",
+      "from": [
+        0.17768,
+        1.28975,
+        0.17768
+      ],
+      "to": [
+        15.82232,
+        4.67017,
+        5.8
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            0,
+            8,
+            5
+          ],
+          "texture": "#t3"
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            8,
+            5
+          ],
+          "texture": "#t3"
+        },
+        "south": {
+          "uv": [
+            0,
+            0,
+            8,
+            5
+          ],
+          "texture": "#t3"
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            8,
+            5
+          ],
+          "texture": "#t3"
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            8,
+            5
+          ],
+          "texture": "#t3"
+        },
+        "down": {
+          "uv": [
+            8.08884,
+            5.1,
+            15.91116,
+            7.91116
+          ],
+          "texture": "#t3"
+        }
+      }
+    },
+    {
+      "name": "Base load-bearing ring south",
+      "from": [
+        0.17768,
+        1.28975,
+        10.2
+      ],
+      "to": [
+        15.82232,
+        4.67017,
+        15.82232
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            0,
+            8,
+            5
+          ],
+          "texture": "#t3"
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            8,
+            5
+          ],
+          "texture": "#t3"
+        },
+        "south": {
+          "uv": [
+            0,
+            0,
+            8,
+            5
+          ],
+          "texture": "#t3"
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            8,
+            5
+          ],
+          "texture": "#t3"
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            8,
+            5
+          ],
+          "texture": "#t3"
+        },
+        "down": {
+          "uv": [
+            8.08884,
+            0.08884,
+            15.91116,
+            2.9
+          ],
+          "texture": "#t3"
+        }
+      }
+    },
+    {
+      "name": "Base load-bearing ring west",
+      "from": [
+        0.17768,
+        1.28975,
+        5.8
+      ],
+      "to": [
+        5.8,
+        4.67017,
+        10.2
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            0,
+            8,
+            5
+          ],
+          "texture": "#t3"
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            8,
+            5
+          ],
+          "texture": "#t3"
+        },
+        "south": {
+          "uv": [
+            0,
+            0,
+            8,
+            5
+          ],
+          "texture": "#t3"
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            8,
+            5
+          ],
+          "texture": "#t3"
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            8,
+            5
+          ],
+          "texture": "#t3"
+        },
+        "down": {
+          "uv": [
+            8.08884,
+            2.9,
+            10.9,
+            5.1
+          ],
+          "texture": "#t3"
+        }
+      }
+    },
+    {
+      "name": "Base load-bearing ring east",
+      "from": [
+        10.2,
+        1.28975,
+        5.8
+      ],
+      "to": [
+        15.82232,
+        4.67017,
+        10.2
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            0,
+            8,
+            5
+          ],
+          "texture": "#t3"
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            8,
+            5
+          ],
+          "texture": "#t3"
+        },
+        "south": {
+          "uv": [
+            0,
+            0,
+            8,
+            5
+          ],
+          "texture": "#t3"
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            8,
+            5
+          ],
+          "texture": "#t3"
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            8,
+            5
+          ],
+          "texture": "#t3"
+        },
+        "down": {
+          "uv": [
+            13.1,
+            2.9,
+            15.91116,
+            5.1
+          ],
+          "texture": "#t3"
+        }
+      }
+    },
+    {
+      "name": "Base top rim north",
+      "from": [
+        0.31435,
+        4.67017,
+        0.31435
+      ],
+      "to": [
+        15.68565,
+        5.1048,
+        2
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "east": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "south": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "west": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "up": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "down": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        }
+      }
+    },
+    {
+      "name": "Base top rim south",
+      "from": [
+        0.31435,
+        4.67017,
+        14
+      ],
+      "to": [
+        15.68565,
+        5.1048,
+        15.68565
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "east": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "south": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "west": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "up": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "down": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        }
+      }
+    },
+    {
+      "name": "Base top rim west",
+      "from": [
+        0.31435,
+        4.67017,
+        2
+      ],
+      "to": [
+        2,
+        5.1048,
+        14
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "east": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "south": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "west": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "up": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "down": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        }
+      }
+    },
+    {
+      "name": "Base top rim east",
+      "from": [
+        14,
+        4.67017,
+        2
+      ],
+      "to": [
+        15.68565,
+        5.1048,
+        14
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "east": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "south": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "west": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "up": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "down": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        }
+      }
+    },
+    {
+      "name": "Base north top frame",
+      "from": [
+        2,
+        3.9458,
+        0.06834
+      ],
+      "to": [
+        14,
+        4.71847,
+        0.20501
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            0.5,
+            8,
+            1
+          ],
+          "texture": "#t3"
+        },
+        "east": {
+          "uv": [
+            0,
+            0.5,
+            8,
+            1
+          ],
+          "texture": "#t3"
+        },
+        "south": {
+          "uv": [
+            0,
+            0.5,
+            8,
+            1
+          ],
+          "texture": "#t3"
+        },
+        "west": {
+          "uv": [
+            0,
+            0.5,
+            8,
+            1
+          ],
+          "texture": "#t3"
+        },
+        "up": {
+          "uv": [
+            0,
+            0.5,
+            8,
+            1
+          ],
+          "texture": "#t3"
+        },
+        "down": {
+          "uv": [
+            0,
+            0.5,
+            8,
+            1
+          ],
+          "texture": "#t3"
+        }
+      }
+    },
+    {
+      "name": "Base north bottom frame",
+      "from": [
+        2,
+        1.33804,
+        0.06834
+      ],
+      "to": [
+        14,
+        1.96584,
+        0.20501
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            0.5,
+            8,
+            1
+          ],
+          "texture": "#t3"
+        },
+        "east": {
+          "uv": [
+            0,
+            0.5,
+            8,
+            1
+          ],
+          "texture": "#t3"
+        },
+        "south": {
+          "uv": [
+            0,
+            0.5,
+            8,
+            1
+          ],
+          "texture": "#t3"
+        },
+        "west": {
+          "uv": [
+            0,
+            0.5,
+            8,
+            1
+          ],
+          "texture": "#t3"
+        },
+        "up": {
+          "uv": [
+            0,
+            0.5,
+            8,
+            1
+          ],
+          "texture": "#t3"
+        },
+        "down": {
+          "uv": [
+            0,
+            0.5,
+            8,
+            1
+          ],
+          "texture": "#t3"
+        }
+      }
+    },
+    {
+      "name": "Base north left frame",
+      "from": [
+        2,
+        1.96584,
+        0.06834
+      ],
+      "to": [
+        2.8,
+        3.9458,
+        0.20501
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            0,
+            0.5,
+            1.5
+          ],
+          "texture": "#t3"
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            0.5,
+            1.5
+          ],
+          "texture": "#t3"
+        },
+        "south": {
+          "uv": [
+            0,
+            0,
+            0.5,
+            1.5
+          ],
+          "texture": "#t3"
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            0.5,
+            1.5
+          ],
+          "texture": "#t3"
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            0.5,
+            1.5
+          ],
+          "texture": "#t3"
+        },
+        "down": {
+          "uv": [
+            0,
+            0,
+            0.5,
+            1.5
+          ],
+          "texture": "#t3"
+        }
+      }
+    },
+    {
+      "name": "Base north right frame",
+      "from": [
+        13.2,
+        1.96584,
+        0.06834
+      ],
+      "to": [
+        14,
+        3.9458,
+        0.20501
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            0,
+            0.5,
+            1.5
+          ],
+          "texture": "#t3"
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            0.5,
+            1.5
+          ],
+          "texture": "#t3"
+        },
+        "south": {
+          "uv": [
+            0,
+            0,
+            0.5,
+            1.5
+          ],
+          "texture": "#t3"
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            0.5,
+            1.5
+          ],
+          "texture": "#t3"
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            0.5,
+            1.5
+          ],
+          "texture": "#t3"
+        },
+        "down": {
+          "uv": [
+            0,
+            0,
+            0.5,
+            1.5
+          ],
+          "texture": "#t3"
+        }
+      }
+    },
+    {
+      "name": "Base south top frame",
+      "from": [
+        2,
+        3.9458,
+        15.79499
+      ],
+      "to": [
+        14,
+        4.71847,
+        15.93166
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            0.5,
+            8,
+            1
+          ],
+          "texture": "#t3"
+        },
+        "east": {
+          "uv": [
+            0,
+            0.5,
+            8,
+            1
+          ],
+          "texture": "#t3"
+        },
+        "south": {
+          "uv": [
+            0,
+            0.5,
+            8,
+            1
+          ],
+          "texture": "#t3"
+        },
+        "west": {
+          "uv": [
+            0,
+            0.5,
+            8,
+            1
+          ],
+          "texture": "#t3"
+        },
+        "up": {
+          "uv": [
+            0,
+            0.5,
+            8,
+            1
+          ],
+          "texture": "#t3"
+        },
+        "down": {
+          "uv": [
+            0,
+            0.5,
+            8,
+            1
+          ],
+          "texture": "#t3"
+        }
+      }
+    },
+    {
+      "name": "Base south bottom frame",
+      "from": [
+        2,
+        1.33804,
+        15.79499
+      ],
+      "to": [
+        14,
+        1.96584,
+        15.93166
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            0.5,
+            8,
+            1
+          ],
+          "texture": "#t3"
+        },
+        "east": {
+          "uv": [
+            0,
+            0.5,
+            8,
+            1
+          ],
+          "texture": "#t3"
+        },
+        "south": {
+          "uv": [
+            0,
+            0.5,
+            8,
+            1
+          ],
+          "texture": "#t3"
+        },
+        "west": {
+          "uv": [
+            0,
+            0.5,
+            8,
+            1
+          ],
+          "texture": "#t3"
+        },
+        "up": {
+          "uv": [
+            0,
+            0.5,
+            8,
+            1
+          ],
+          "texture": "#t3"
+        },
+        "down": {
+          "uv": [
+            0,
+            0.5,
+            8,
+            1
+          ],
+          "texture": "#t3"
+        }
+      }
+    },
+    {
+      "name": "Base south left frame",
+      "from": [
+        2,
+        1.96584,
+        15.79499
+      ],
+      "to": [
+        2.8,
+        3.9458,
+        15.93166
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            0,
+            0.5,
+            1.5
+          ],
+          "texture": "#t3"
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            0.5,
+            1.5
+          ],
+          "texture": "#t3"
+        },
+        "south": {
+          "uv": [
+            0,
+            0,
+            0.5,
+            1.5
+          ],
+          "texture": "#t3"
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            0.5,
+            1.5
+          ],
+          "texture": "#t3"
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            0.5,
+            1.5
+          ],
+          "texture": "#t3"
+        },
+        "down": {
+          "uv": [
+            0,
+            0,
+            0.5,
+            1.5
+          ],
+          "texture": "#t3"
+        }
+      }
+    },
+    {
+      "name": "Base south right frame",
+      "from": [
+        13.2,
+        1.96584,
+        15.79499
+      ],
+      "to": [
+        14,
+        3.9458,
+        15.93166
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            0,
+            0.5,
+            1.5
+          ],
+          "texture": "#t3"
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            0.5,
+            1.5
+          ],
+          "texture": "#t3"
+        },
+        "south": {
+          "uv": [
+            0,
+            0,
+            0.5,
+            1.5
+          ],
+          "texture": "#t3"
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            0.5,
+            1.5
+          ],
+          "texture": "#t3"
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            0.5,
+            1.5
+          ],
+          "texture": "#t3"
+        },
+        "down": {
+          "uv": [
+            0,
+            0,
+            0.5,
+            1.5
+          ],
+          "texture": "#t3"
+        }
+      }
+    },
+    {
+      "name": "Base east top frame",
+      "from": [
+        15.79499,
+        3.9458,
+        2
+      ],
+      "to": [
+        15.93166,
+        4.71847,
+        14
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            0.5,
+            8,
+            1
+          ],
+          "texture": "#t3"
+        },
+        "east": {
+          "uv": [
+            0,
+            0.5,
+            8,
+            1
+          ],
+          "texture": "#t3"
+        },
+        "south": {
+          "uv": [
+            0,
+            0.5,
+            8,
+            1
+          ],
+          "texture": "#t3"
+        },
+        "west": {
+          "uv": [
+            0,
+            0.5,
+            8,
+            1
+          ],
+          "texture": "#t3"
+        },
+        "up": {
+          "uv": [
+            0,
+            0.5,
+            8,
+            1
+          ],
+          "texture": "#t3"
+        },
+        "down": {
+          "uv": [
+            0,
+            0.5,
+            8,
+            1
+          ],
+          "texture": "#t3"
+        }
+      }
+    },
+    {
+      "name": "Base east bottom frame",
+      "from": [
+        15.79499,
+        1.33804,
+        2
+      ],
+      "to": [
+        15.93166,
+        1.96584,
+        14
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            0.5,
+            8,
+            1
+          ],
+          "texture": "#t3"
+        },
+        "east": {
+          "uv": [
+            0,
+            0.5,
+            8,
+            1
+          ],
+          "texture": "#t3"
+        },
+        "south": {
+          "uv": [
+            0,
+            0.5,
+            8,
+            1
+          ],
+          "texture": "#t3"
+        },
+        "west": {
+          "uv": [
+            0,
+            0.5,
+            8,
+            1
+          ],
+          "texture": "#t3"
+        },
+        "up": {
+          "uv": [
+            0,
+            0.5,
+            8,
+            1
+          ],
+          "texture": "#t3"
+        },
+        "down": {
+          "uv": [
+            0,
+            0.5,
+            8,
+            1
+          ],
+          "texture": "#t3"
+        }
+      }
+    },
+    {
+      "name": "Base east left frame",
+      "from": [
+        15.79499,
+        1.96584,
+        2
+      ],
+      "to": [
+        15.93166,
+        3.9458,
+        2.8
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            0,
+            0.5,
+            1.5
+          ],
+          "texture": "#t3"
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            0.5,
+            1.5
+          ],
+          "texture": "#t3"
+        },
+        "south": {
+          "uv": [
+            0,
+            0,
+            0.5,
+            1.5
+          ],
+          "texture": "#t3"
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            0.5,
+            1.5
+          ],
+          "texture": "#t3"
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            0.5,
+            1.5
+          ],
+          "texture": "#t3"
+        },
+        "down": {
+          "uv": [
+            0,
+            0,
+            0.5,
+            1.5
+          ],
+          "texture": "#t3"
+        }
+      }
+    },
+    {
+      "name": "Base east right frame",
+      "from": [
+        15.79499,
+        1.96584,
+        13.2
+      ],
+      "to": [
+        15.93166,
+        3.9458,
+        14
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            0,
+            0.5,
+            1.5
+          ],
+          "texture": "#t3"
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            0.5,
+            1.5
+          ],
+          "texture": "#t3"
+        },
+        "south": {
+          "uv": [
+            0,
+            0,
+            0.5,
+            1.5
+          ],
+          "texture": "#t3"
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            0.5,
+            1.5
+          ],
+          "texture": "#t3"
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            0.5,
+            1.5
+          ],
+          "texture": "#t3"
+        },
+        "down": {
+          "uv": [
+            0,
+            0,
+            0.5,
+            1.5
+          ],
+          "texture": "#t3"
+        }
+      }
+    },
+    {
+      "name": "Base west top frame",
+      "from": [
+        0.06834,
+        3.9458,
+        2
+      ],
+      "to": [
+        0.20501,
+        4.71847,
+        14
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            0.5,
+            8,
+            1
+          ],
+          "texture": "#t3"
+        },
+        "east": {
+          "uv": [
+            0,
+            0.5,
+            8,
+            1
+          ],
+          "texture": "#t3"
+        },
+        "south": {
+          "uv": [
+            0,
+            0.5,
+            8,
+            1
+          ],
+          "texture": "#t3"
+        },
+        "west": {
+          "uv": [
+            0,
+            0.5,
+            8,
+            1
+          ],
+          "texture": "#t3"
+        },
+        "up": {
+          "uv": [
+            0,
+            0.5,
+            8,
+            1
+          ],
+          "texture": "#t3"
+        },
+        "down": {
+          "uv": [
+            0,
+            0.5,
+            8,
+            1
+          ],
+          "texture": "#t3"
+        }
+      }
+    },
+    {
+      "name": "Base west bottom frame",
+      "from": [
+        0.06834,
+        1.33804,
+        2
+      ],
+      "to": [
+        0.20501,
+        1.96584,
+        14
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            0.5,
+            8,
+            1
+          ],
+          "texture": "#t3"
+        },
+        "east": {
+          "uv": [
+            0,
+            0.5,
+            8,
+            1
+          ],
+          "texture": "#t3"
+        },
+        "south": {
+          "uv": [
+            0,
+            0.5,
+            8,
+            1
+          ],
+          "texture": "#t3"
+        },
+        "west": {
+          "uv": [
+            0,
+            0.5,
+            8,
+            1
+          ],
+          "texture": "#t3"
+        },
+        "up": {
+          "uv": [
+            0,
+            0.5,
+            8,
+            1
+          ],
+          "texture": "#t3"
+        },
+        "down": {
+          "uv": [
+            0,
+            0.5,
+            8,
+            1
+          ],
+          "texture": "#t3"
+        }
+      }
+    },
+    {
+      "name": "Base west left frame",
+      "from": [
+        0.06834,
+        1.96584,
+        2
+      ],
+      "to": [
+        0.20501,
+        3.9458,
+        2.8
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            0,
+            0.5,
+            1.5
+          ],
+          "texture": "#t3"
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            0.5,
+            1.5
+          ],
+          "texture": "#t3"
+        },
+        "south": {
+          "uv": [
+            0,
+            0,
+            0.5,
+            1.5
+          ],
+          "texture": "#t3"
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            0.5,
+            1.5
+          ],
+          "texture": "#t3"
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            0.5,
+            1.5
+          ],
+          "texture": "#t3"
+        },
+        "down": {
+          "uv": [
+            0,
+            0,
+            0.5,
+            1.5
+          ],
+          "texture": "#t3"
+        }
+      }
+    },
+    {
+      "name": "Base west right frame",
+      "from": [
+        0.06834,
+        1.96584,
+        13.2
+      ],
+      "to": [
+        0.20501,
+        3.9458,
+        14
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            0,
+            0.5,
+            1.5
+          ],
+          "texture": "#t3"
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            0.5,
+            1.5
+          ],
+          "texture": "#t3"
+        },
+        "south": {
+          "uv": [
+            0,
+            0,
+            0.5,
+            1.5
+          ],
+          "texture": "#t3"
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            0.5,
+            1.5
+          ],
+          "texture": "#t3"
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            0.5,
+            1.5
+          ],
+          "texture": "#t3"
+        },
+        "down": {
+          "uv": [
+            0,
+            0,
+            0.5,
+            1.5
+          ],
+          "texture": "#t3"
+        }
+      }
+    },
+    {
+      "name": "Corner strap 0 0",
+      "from": [
+        0.041,
+        1,
+        0.041
+      ],
+      "to": [
+        2.15,
+        5.03719,
+        2.15
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            5,
+            2,
+            8
+          ],
+          "texture": "#t3"
+        },
+        "east": {
+          "uv": [
+            0,
+            5,
+            2,
+            8
+          ],
+          "texture": "#t3"
+        },
+        "south": {
+          "uv": [
+            0,
+            5,
+            2,
+            8
+          ],
+          "texture": "#t3"
+        },
+        "west": {
+          "uv": [
+            0,
+            5,
+            2,
+            8
+          ],
+          "texture": "#t3"
+        },
+        "up": {
+          "uv": [
+            2.5,
+            5,
+            4,
+            6
+          ],
+          "texture": "#t3"
+        },
+        "down": {
+          "uv": [
+            2.5,
+            5,
+            4,
+            6
+          ],
+          "texture": "#t3"
+        }
+      }
+    },
+    {
+      "name": "Corner strap 0 14",
+      "from": [
+        0.041,
+        1,
+        13.85
+      ],
+      "to": [
+        2.15,
+        5.03719,
+        15.959
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            5,
+            2,
+            8
+          ],
+          "texture": "#t3"
+        },
+        "east": {
+          "uv": [
+            0,
+            5,
+            2,
+            8
+          ],
+          "texture": "#t3"
+        },
+        "south": {
+          "uv": [
+            0,
+            5,
+            2,
+            8
+          ],
+          "texture": "#t3"
+        },
+        "west": {
+          "uv": [
+            0,
+            5,
+            2,
+            8
+          ],
+          "texture": "#t3"
+        },
+        "up": {
+          "uv": [
+            2.5,
+            5,
+            4,
+            6
+          ],
+          "texture": "#t3"
+        },
+        "down": {
+          "uv": [
+            2.5,
+            5,
+            4,
+            6
+          ],
+          "texture": "#t3"
+        }
+      }
+    },
+    {
+      "name": "Corner strap 14 0",
+      "from": [
+        13.85,
+        1,
+        0.041
+      ],
+      "to": [
+        15.959,
+        5.03719,
+        2.15
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            5,
+            2,
+            8
+          ],
+          "texture": "#t3"
+        },
+        "east": {
+          "uv": [
+            0,
+            5,
+            2,
+            8
+          ],
+          "texture": "#t3"
+        },
+        "south": {
+          "uv": [
+            0,
+            5,
+            2,
+            8
+          ],
+          "texture": "#t3"
+        },
+        "west": {
+          "uv": [
+            0,
+            5,
+            2,
+            8
+          ],
+          "texture": "#t3"
+        },
+        "up": {
+          "uv": [
+            2.5,
+            5,
+            4,
+            6
+          ],
+          "texture": "#t3"
+        },
+        "down": {
+          "uv": [
+            2.5,
+            5,
+            4,
+            6
+          ],
+          "texture": "#t3"
+        }
+      }
+    },
+    {
+      "name": "Corner strap 14 14",
+      "from": [
+        13.85,
+        1,
+        13.85
+      ],
+      "to": [
+        15.959,
+        5.03719,
+        15.959
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            5,
+            2,
+            8
+          ],
+          "texture": "#t3"
+        },
+        "east": {
+          "uv": [
+            0,
+            5,
+            2,
+            8
+          ],
+          "texture": "#t3"
+        },
+        "south": {
+          "uv": [
+            0,
+            5,
+            2,
+            8
+          ],
+          "texture": "#t3"
+        },
+        "west": {
+          "uv": [
+            0,
+            5,
+            2,
+            8
+          ],
+          "texture": "#t3"
+        },
+        "up": {
+          "uv": [
+            2.5,
+            5,
+            4,
+            6
+          ],
+          "texture": "#t3"
+        },
+        "down": {
+          "uv": [
+            2.5,
+            5,
+            4,
+            6
+          ],
+          "texture": "#t3"
+        }
+      }
+    },
+    {
+      "name": "Housing bottom isolation gasket",
+      "from": [
+        1.95444,
+        5.05651,
+        1.95444
+      ],
+      "to": [
+        14.04556,
+        5.44902,
+        14.04556
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "east": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "south": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "west": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "up": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "down": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        }
+      }
+    },
+    {
+      "name": "Copper body",
+      "from": [
+        2,
+        5.44902,
+        2
+      ],
+      "to": [
+        14,
+        14.38841,
+        14
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#t0"
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#t0"
+        },
+        "south": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#t0"
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#t0"
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#t0"
+        },
+        "down": {
+          "uv": [
+            0,
+            8,
+            12,
+            12
+          ],
+          "texture": "#t2"
+        }
+      }
+    },
+    {
+      "name": "Front rib 1 root",
+      "from": [
+        2.3,
+        6.72161,
+        1.63554
+      ],
+      "to": [
+        13.7,
+        7.50393,
+        2
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            8,
+            12,
+            12
+          ],
+          "texture": "#t2"
+        },
+        "east": {
+          "uv": [
+            0,
+            8,
+            12,
+            12
+          ],
+          "texture": "#t2"
+        },
+        "south": {
+          "uv": [
+            0,
+            8,
+            12,
+            12
+          ],
+          "texture": "#t2"
+        },
+        "west": {
+          "uv": [
+            0,
+            8,
+            12,
+            12
+          ],
+          "texture": "#t2"
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            12,
+            2
+          ],
+          "texture": "#t2"
+        },
+        "down": {
+          "uv": [
+            0,
+            8,
+            12,
+            10
+          ],
+          "texture": "#t2"
+        }
+      }
+    },
+    {
+      "name": "Front rib 1",
+      "from": [
+        1.90888,
+        6.93023,
+        0.90661
+      ],
+      "to": [
+        6.2,
+        8.1298,
+        1.65376
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            0,
+            12,
+            2
+          ],
+          "texture": "#t2"
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            12,
+            2
+          ],
+          "texture": "#t2"
+        },
+        "south": {
+          "uv": [
+            0,
+            0,
+            12,
+            2
+          ],
+          "texture": "#t2"
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            12,
+            2
+          ],
+          "texture": "#t2"
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            12,
+            2
+          ],
+          "texture": "#t2"
+        },
+        "down": {
+          "uv": [
+            0,
+            8,
+            12,
+            10
+          ],
+          "texture": "#t2"
+        }
+      }
+    },
+    {
+      "name": "Opposite rib 1 root",
+      "from": [
+        14,
+        6.72161,
+        2.3
+      ],
+      "to": [
+        14.36447,
+        7.50393,
+        13.7
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            8,
+            12,
+            12
+          ],
+          "texture": "#t2"
+        },
+        "east": {
+          "uv": [
+            0,
+            8,
+            12,
+            12
+          ],
+          "texture": "#t2"
+        },
+        "south": {
+          "uv": [
+            0,
+            8,
+            12,
+            12
+          ],
+          "texture": "#t2"
+        },
+        "west": {
+          "uv": [
+            0,
+            8,
+            12,
+            12
+          ],
+          "texture": "#t2"
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            12,
+            2
+          ],
+          "texture": "#t2"
+        },
+        "down": {
+          "uv": [
+            0,
+            8,
+            12,
+            10
+          ],
+          "texture": "#t2"
+        }
+      }
+    },
+    {
+      "name": "Opposite rib 1",
+      "from": [
+        14.34624,
+        6.93023,
+        1.90888
+      ],
+      "to": [
+        15.09339,
+        8.1298,
+        14.09112
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            0,
+            12,
+            2
+          ],
+          "texture": "#t2"
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            12,
+            2
+          ],
+          "texture": "#t2"
+        },
+        "south": {
+          "uv": [
+            0,
+            0,
+            12,
+            2
+          ],
+          "texture": "#t2"
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            12,
+            2
+          ],
+          "texture": "#t2"
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            12,
+            2
+          ],
+          "texture": "#t2"
+        },
+        "down": {
+          "uv": [
+            0,
+            8,
+            12,
+            10
+          ],
+          "texture": "#t2"
+        }
+      }
+    },
+    {
+      "name": "Front rib 2 root",
+      "from": [
+        2.3,
+        10.216,
+        1.63554
+      ],
+      "to": [
+        13.7,
+        10.99833,
+        2
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            8,
+            12,
+            12
+          ],
+          "texture": "#t2"
+        },
+        "east": {
+          "uv": [
+            0,
+            8,
+            12,
+            12
+          ],
+          "texture": "#t2"
+        },
+        "south": {
+          "uv": [
+            0,
+            8,
+            12,
+            12
+          ],
+          "texture": "#t2"
+        },
+        "west": {
+          "uv": [
+            0,
+            8,
+            12,
+            12
+          ],
+          "texture": "#t2"
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            12,
+            2
+          ],
+          "texture": "#t2"
+        },
+        "down": {
+          "uv": [
+            0,
+            8,
+            12,
+            10
+          ],
+          "texture": "#t2"
+        }
+      }
+    },
+    {
+      "name": "Front rib 2",
+      "from": [
+        1.90888,
+        10.42462,
+        0.90661
+      ],
+      "to": [
+        14.09112,
+        11.62419,
+        1.65376
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            0,
+            12,
+            2
+          ],
+          "texture": "#t2"
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            12,
+            2
+          ],
+          "texture": "#t2"
+        },
+        "south": {
+          "uv": [
+            0,
+            0,
+            12,
+            2
+          ],
+          "texture": "#t2"
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            12,
+            2
+          ],
+          "texture": "#t2"
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            12,
+            2
+          ],
+          "texture": "#t2"
+        },
+        "down": {
+          "uv": [
+            0,
+            8,
+            12,
+            10
+          ],
+          "texture": "#t2"
+        }
+      }
+    },
+    {
+      "name": "Opposite rib 2 root",
+      "from": [
+        14,
+        10.216,
+        2.3
+      ],
+      "to": [
+        14.36447,
+        10.99833,
+        13.7
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            8,
+            12,
+            12
+          ],
+          "texture": "#t2"
+        },
+        "east": {
+          "uv": [
+            0,
+            8,
+            12,
+            12
+          ],
+          "texture": "#t2"
+        },
+        "south": {
+          "uv": [
+            0,
+            8,
+            12,
+            12
+          ],
+          "texture": "#t2"
+        },
+        "west": {
+          "uv": [
+            0,
+            8,
+            12,
+            12
+          ],
+          "texture": "#t2"
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            12,
+            2
+          ],
+          "texture": "#t2"
+        },
+        "down": {
+          "uv": [
+            0,
+            8,
+            12,
+            10
+          ],
+          "texture": "#t2"
+        }
+      }
+    },
+    {
+      "name": "Opposite rib 2",
+      "from": [
+        14.34624,
+        10.42462,
+        1.90888
+      ],
+      "to": [
+        15.09339,
+        11.62419,
+        14.09112
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            0,
+            12,
+            2
+          ],
+          "texture": "#t2"
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            12,
+            2
+          ],
+          "texture": "#t2"
+        },
+        "south": {
+          "uv": [
+            0,
+            0,
+            12,
+            2
+          ],
+          "texture": "#t2"
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            12,
+            2
+          ],
+          "texture": "#t2"
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            12,
+            2
+          ],
+          "texture": "#t2"
+        },
+        "down": {
+          "uv": [
+            0,
+            8,
+            12,
+            10
+          ],
+          "texture": "#t2"
+        }
+      }
+    },
+    {
+      "name": "Right visible smooth side cover",
+      "from": [
+        1.22551,
+        5.78282,
+        2.25
+      ],
+      "to": [
+        2,
+        12.71944,
+        13.75
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#t0"
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#t0"
+        },
+        "south": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#t0"
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#t0"
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#t0"
+        },
+        "down": {
+          "uv": [
+            0,
+            8,
+            12,
+            12
+          ],
+          "texture": "#t2"
+        }
+      }
+    },
+    {
+      "name": "Front rib 1 | cavity trim 1",
+      "from": [
+        9.8,
+        6.93023,
+        0.90661
+      ],
+      "to": [
+        14.09112,
+        8.1298,
+        1.65376
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            0,
+            12,
+            2
+          ],
+          "texture": "#t2"
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            12,
+            2
+          ],
+          "texture": "#t2"
+        },
+        "south": {
+          "uv": [
+            0,
+            0,
+            12,
+            2
+          ],
+          "texture": "#t2"
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            12,
+            2
+          ],
+          "texture": "#t2"
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            12,
+            2
+          ],
+          "texture": "#t2"
+        },
+        "down": {
+          "uv": [
+            0,
+            8,
+            12,
+            10
+          ],
+          "texture": "#t2"
+        }
+      }
+    },
+    {
+      "name": "Front rib 1 | cavity trim 2",
+      "from": [
+        6.25,
+        6.93023,
+        1.52
+      ],
+      "to": [
+        9.75,
+        8.1298,
+        1.65376
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            0,
+            12,
+            2
+          ],
+          "texture": "#t2"
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            12,
+            2
+          ],
+          "texture": "#t2"
+        },
+        "south": {
+          "uv": [
+            0,
+            0,
+            12,
+            2
+          ],
+          "texture": "#t2"
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            12,
+            2
+          ],
+          "texture": "#t2"
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            12,
+            2
+          ],
+          "texture": "#t2"
+        },
+        "down": {
+          "uv": [
+            0,
+            8,
+            12,
+            10
+          ],
+          "texture": "#t2"
+        }
+      }
+    },
+    {
+      "name": "Upper shoulder plate",
+      "from": [
+        1.77221,
+        13.50177,
+        1.77221
+      ],
+      "to": [
+        14.22779,
+        14.59703,
+        14.22779
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            0,
+            12,
+            2
+          ],
+          "texture": "#t2"
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            12,
+            2
+          ],
+          "texture": "#t2"
+        },
+        "south": {
+          "uv": [
+            0,
+            0,
+            12,
+            2
+          ],
+          "texture": "#t2"
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            12,
+            2
+          ],
+          "texture": "#t2"
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            12,
+            2
+          ],
+          "texture": "#t2"
+        },
+        "down": {
+          "uv": [
+            0,
+            8,
+            12,
+            10
+          ],
+          "texture": "#t2"
+        }
+      }
+    },
+    {
+      "name": "Top dark gasket",
+      "from": [
+        3.05,
+        14.59703,
+        3.05
+      ],
+      "to": [
+        12.95,
+        15.1916,
+        12.95
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "east": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "south": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "west": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "up": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "down": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        }
+      }
+    },
+    {
+      "name": "Square copper lid",
+      "from": [
+        3.25,
+        15.1916,
+        3.25
+      ],
+      "to": [
+        12.75,
+        15.98435,
+        12.75
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            0,
+            12,
+            2
+          ],
+          "texture": "#t2"
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            12,
+            2
+          ],
+          "texture": "#t2"
+        },
+        "south": {
+          "uv": [
+            0,
+            0,
+            12,
+            2
+          ],
+          "texture": "#t2"
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            12,
+            2
+          ],
+          "texture": "#t2"
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#t1"
+        },
+        "down": {
+          "uv": [
+            0,
+            8,
+            12,
+            10
+          ],
+          "texture": "#t2"
+        }
+      }
+    },
+    {
+      "name": "Front brass flange",
+      "from": [
+        4.8,
+        4.8,
+        1.7
+      ],
+      "to": [
+        11.2,
+        11.2,
+        2
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            8,
+            6,
+            10
+          ],
+          "texture": "#t4"
+        },
+        "east": {
+          "uv": [
+            0,
+            8,
+            6,
+            10
+          ],
+          "texture": "#t4"
+        },
+        "south": {
+          "uv": [
+            0,
+            8,
+            6,
+            10
+          ],
+          "texture": "#t4"
+        },
+        "west": {
+          "uv": [
+            0,
+            8,
+            6,
+            10
+          ],
+          "texture": "#t4"
+        },
+        "up": {
+          "uv": [
+            0,
+            8,
+            6,
+            10
+          ],
+          "texture": "#t4"
+        },
+        "down": {
+          "uv": [
+            0,
+            12,
+            6,
+            16
+          ],
+          "texture": "#t4"
+        }
+      }
+    },
+    {
+      "name": "Front flange dark seal",
+      "from": [
+        5.05,
+        5.05,
+        1.5
+      ],
+      "to": [
+        10.95,
+        10.95,
+        1.7
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "east": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "south": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "west": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "up": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "down": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        }
+      }
+    },
+    {
+      "name": "Small square nozzle left wall",
+      "from": [
+        5.35,
+        5.35,
+        0
+      ],
+      "to": [
+        6.25,
+        10.65,
+        1.5
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            0,
+            2,
+            8
+          ],
+          "texture": "#t4"
+        },
+        "east": {
+          "uv": [
+            0,
+            12,
+            6,
+            16
+          ],
+          "texture": "#t4"
+        },
+        "south": {
+          "uv": [
+            0,
+            8,
+            6,
+            10
+          ],
+          "texture": "#t4"
+        },
+        "west": {
+          "uv": [
+            0,
+            8,
+            6,
+            10
+          ],
+          "texture": "#t4"
+        },
+        "up": {
+          "uv": [
+            0,
+            8,
+            6,
+            10
+          ],
+          "texture": "#t4"
+        },
+        "down": {
+          "uv": [
+            0,
+            12,
+            6,
+            16
+          ],
+          "texture": "#t4"
+        }
+      }
+    },
+    {
+      "name": "Small square nozzle right wall",
+      "from": [
+        9.75,
+        5.35,
+        0
+      ],
+      "to": [
+        10.65,
+        10.65,
+        1.5
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            6,
+            0,
+            8,
+            8
+          ],
+          "texture": "#t4"
+        },
+        "east": {
+          "uv": [
+            0,
+            8,
+            6,
+            10
+          ],
+          "texture": "#t4"
+        },
+        "south": {
+          "uv": [
+            0,
+            8,
+            6,
+            10
+          ],
+          "texture": "#t4"
+        },
+        "west": {
+          "uv": [
+            0,
+            12,
+            6,
+            16
+          ],
+          "texture": "#t4"
+        },
+        "up": {
+          "uv": [
+            0,
+            8,
+            6,
+            10
+          ],
+          "texture": "#t4"
+        },
+        "down": {
+          "uv": [
+            0,
+            12,
+            6,
+            16
+          ],
+          "texture": "#t4"
+        }
+      }
+    },
+    {
+      "name": "Small square nozzle top wall",
+      "from": [
+        6.25,
+        9.75,
+        0
+      ],
+      "to": [
+        9.75,
+        10.65,
+        1.5
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            2,
+            0,
+            6,
+            2
+          ],
+          "texture": "#t4"
+        },
+        "east": {
+          "uv": [
+            0,
+            8,
+            6,
+            10
+          ],
+          "texture": "#t4"
+        },
+        "south": {
+          "uv": [
+            0,
+            8,
+            6,
+            10
+          ],
+          "texture": "#t4"
+        },
+        "west": {
+          "uv": [
+            0,
+            8,
+            6,
+            10
+          ],
+          "texture": "#t4"
+        },
+        "up": {
+          "uv": [
+            0,
+            8,
+            6,
+            10
+          ],
+          "texture": "#t4"
+        },
+        "down": {
+          "uv": [
+            0,
+            12,
+            6,
+            16
+          ],
+          "texture": "#t4"
+        }
+      }
+    },
+    {
+      "name": "Small square nozzle bottom wall",
+      "from": [
+        6.25,
+        5.35,
+        0
+      ],
+      "to": [
+        9.75,
+        6.25,
+        1.5
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            2,
+            6,
+            6,
+            8
+          ],
+          "texture": "#t4"
+        },
+        "east": {
+          "uv": [
+            0,
+            8,
+            6,
+            10
+          ],
+          "texture": "#t4"
+        },
+        "south": {
+          "uv": [
+            0,
+            8,
+            6,
+            10
+          ],
+          "texture": "#t4"
+        },
+        "west": {
+          "uv": [
+            0,
+            8,
+            6,
+            10
+          ],
+          "texture": "#t4"
+        },
+        "up": {
+          "uv": [
+            0,
+            12,
+            6,
+            16
+          ],
+          "texture": "#t4"
+        },
+        "down": {
+          "uv": [
+            0,
+            12,
+            6,
+            16
+          ],
+          "texture": "#t4"
+        }
+      }
+    },
+    {
+      "name": "Small nozzle deep interior",
+      "from": [
+        6.25,
+        6.25,
+        1.48
+      ],
+      "to": [
+        9.75,
+        9.75,
+        1.49
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            3,
+            14,
+            7,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "east": {
+          "uv": [
+            3,
+            14,
+            7,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "south": {
+          "uv": [
+            3,
+            14,
+            7,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "west": {
+          "uv": [
+            3,
+            14,
+            7,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "up": {
+          "uv": [
+            3,
+            14,
+            7,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "down": {
+          "uv": [
+            3,
+            14,
+            7,
+            16
+          ],
+          "texture": "#t2"
+        }
+      }
+    },
+    {
+      "name": "Rear dark mounting flange",
+      "from": [
+        4.55,
+        4.55,
+        14
+      ],
+      "to": [
+        11.45,
+        11.45,
+        14.35
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "east": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "south": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "west": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "up": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "down": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        }
+      }
+    },
+    {
+      "name": "Rear iron mounting lip",
+      "from": [
+        4.72,
+        4.72,
+        14.35
+      ],
+      "to": [
+        11.28,
+        11.28,
+        14.55
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            0,
+            8,
+            1.5
+          ],
+          "texture": "#t3"
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            8,
+            1.5
+          ],
+          "texture": "#t3"
+        },
+        "south": {
+          "uv": [
+            0,
+            0,
+            8,
+            1.5
+          ],
+          "texture": "#t3"
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            8,
+            1.5
+          ],
+          "texture": "#t3"
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            8,
+            1.5
+          ],
+          "texture": "#t3"
+        },
+        "down": {
+          "uv": [
+            0,
+            0,
+            8,
+            1.5
+          ],
+          "texture": "#t3"
+        }
+      }
+    },
+    {
+      "name": "Large square nozzle left wall",
+      "from": [
+        4.95,
+        4.95,
+        14.55
+      ],
+      "to": [
+        6.25,
+        11.05,
+        16
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            8,
+            6,
+            10
+          ],
+          "texture": "#t4"
+        },
+        "east": {
+          "uv": [
+            0,
+            12,
+            6,
+            16
+          ],
+          "texture": "#t4"
+        },
+        "south": {
+          "uv": [
+            0,
+            0,
+            2,
+            8
+          ],
+          "texture": "#t4"
+        },
+        "west": {
+          "uv": [
+            0,
+            8,
+            6,
+            10
+          ],
+          "texture": "#t4"
+        },
+        "up": {
+          "uv": [
+            0,
+            8,
+            6,
+            10
+          ],
+          "texture": "#t4"
+        },
+        "down": {
+          "uv": [
+            0,
+            12,
+            6,
+            16
+          ],
+          "texture": "#t4"
+        }
+      }
+    },
+    {
+      "name": "Large square nozzle right wall",
+      "from": [
+        9.75,
+        4.95,
+        14.55
+      ],
+      "to": [
+        11.05,
+        11.05,
+        16
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            8,
+            6,
+            10
+          ],
+          "texture": "#t4"
+        },
+        "east": {
+          "uv": [
+            0,
+            8,
+            6,
+            10
+          ],
+          "texture": "#t4"
+        },
+        "south": {
+          "uv": [
+            6,
+            0,
+            8,
+            8
+          ],
+          "texture": "#t4"
+        },
+        "west": {
+          "uv": [
+            0,
+            12,
+            6,
+            16
+          ],
+          "texture": "#t4"
+        },
+        "up": {
+          "uv": [
+            0,
+            8,
+            6,
+            10
+          ],
+          "texture": "#t4"
+        },
+        "down": {
+          "uv": [
+            0,
+            12,
+            6,
+            16
+          ],
+          "texture": "#t4"
+        }
+      }
+    },
+    {
+      "name": "Large square nozzle top wall",
+      "from": [
+        6.25,
+        9.75,
+        14.55
+      ],
+      "to": [
+        9.75,
+        11.05,
+        16
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            8,
+            6,
+            10
+          ],
+          "texture": "#t4"
+        },
+        "east": {
+          "uv": [
+            0,
+            8,
+            6,
+            10
+          ],
+          "texture": "#t4"
+        },
+        "south": {
+          "uv": [
+            2,
+            0,
+            6,
+            2
+          ],
+          "texture": "#t4"
+        },
+        "west": {
+          "uv": [
+            0,
+            8,
+            6,
+            10
+          ],
+          "texture": "#t4"
+        },
+        "up": {
+          "uv": [
+            0,
+            8,
+            6,
+            10
+          ],
+          "texture": "#t4"
+        },
+        "down": {
+          "uv": [
+            0,
+            12,
+            6,
+            16
+          ],
+          "texture": "#t4"
+        }
+      }
+    },
+    {
+      "name": "Large square nozzle bottom wall",
+      "from": [
+        6.25,
+        4.95,
+        14.55
+      ],
+      "to": [
+        9.75,
+        6.25,
+        16
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            8,
+            6,
+            10
+          ],
+          "texture": "#t4"
+        },
+        "east": {
+          "uv": [
+            0,
+            8,
+            6,
+            10
+          ],
+          "texture": "#t4"
+        },
+        "south": {
+          "uv": [
+            2,
+            6,
+            6,
+            8
+          ],
+          "texture": "#t4"
+        },
+        "west": {
+          "uv": [
+            0,
+            8,
+            6,
+            10
+          ],
+          "texture": "#t4"
+        },
+        "up": {
+          "uv": [
+            0,
+            12,
+            6,
+            16
+          ],
+          "texture": "#t4"
+        },
+        "down": {
+          "uv": [
+            0,
+            12,
+            6,
+            16
+          ],
+          "texture": "#t4"
+        }
+      }
+    },
+    {
+      "name": "Large nozzle deep interior",
+      "from": [
+        6.25,
+        6.25,
+        14.62
+      ],
+      "to": [
+        9.75,
+        9.75,
+        14.64
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            3,
+            14,
+            7,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "east": {
+          "uv": [
+            3,
+            14,
+            7,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "south": {
+          "uv": [
+            3,
+            14,
+            7,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "west": {
+          "uv": [
+            3,
+            14,
+            7,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "up": {
+          "uv": [
+            3,
+            14,
+            7,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "down": {
+          "uv": [
+            3,
+            14,
+            7,
+            16
+          ],
+          "texture": "#t2"
+        }
+      }
+    },
+    {
+      "name": "Underside inset step north",
+      "from": [
+        1.81777,
+        1.14488,
+        1.81777
+      ],
+      "to": [
+        14.18223,
+        1.28975,
+        5.35
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            0,
+            8,
+            5
+          ],
+          "texture": "#t3"
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            8,
+            5
+          ],
+          "texture": "#t3"
+        },
+        "south": {
+          "uv": [
+            0,
+            0,
+            8,
+            5
+          ],
+          "texture": "#t3"
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            8,
+            5
+          ],
+          "texture": "#t3"
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            8,
+            5
+          ],
+          "texture": "#t3"
+        },
+        "down": {
+          "uv": [
+            8.90888,
+            5.325,
+            15.09112,
+            7.09112
+          ],
+          "texture": "#t3"
+        }
+      }
+    },
+    {
+      "name": "Underside inset step south",
+      "from": [
+        1.81777,
+        1.14488,
+        10.65
+      ],
+      "to": [
+        14.18223,
+        1.28975,
+        14.18223
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            0,
+            8,
+            5
+          ],
+          "texture": "#t3"
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            8,
+            5
+          ],
+          "texture": "#t3"
+        },
+        "south": {
+          "uv": [
+            0,
+            0,
+            8,
+            5
+          ],
+          "texture": "#t3"
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            8,
+            5
+          ],
+          "texture": "#t3"
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            8,
+            5
+          ],
+          "texture": "#t3"
+        },
+        "down": {
+          "uv": [
+            8.90888,
+            0.90888,
+            15.09112,
+            2.675
+          ],
+          "texture": "#t3"
+        }
+      }
+    },
+    {
+      "name": "Underside inset step west",
+      "from": [
+        1.81777,
+        1.14488,
+        5.35
+      ],
+      "to": [
+        5.35,
+        1.28975,
+        10.65
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            0,
+            8,
+            5
+          ],
+          "texture": "#t3"
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            8,
+            5
+          ],
+          "texture": "#t3"
+        },
+        "south": {
+          "uv": [
+            0,
+            0,
+            8,
+            5
+          ],
+          "texture": "#t3"
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            8,
+            5
+          ],
+          "texture": "#t3"
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            8,
+            5
+          ],
+          "texture": "#t3"
+        },
+        "down": {
+          "uv": [
+            8.90888,
+            2.675,
+            10.675,
+            5.325
+          ],
+          "texture": "#t3"
+        }
+      }
+    },
+    {
+      "name": "Underside inset step east",
+      "from": [
+        10.65,
+        1.14488,
+        5.35
+      ],
+      "to": [
+        14.18223,
+        1.28975,
+        10.65
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            0,
+            8,
+            5
+          ],
+          "texture": "#t3"
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            8,
+            5
+          ],
+          "texture": "#t3"
+        },
+        "south": {
+          "uv": [
+            0,
+            0,
+            8,
+            5
+          ],
+          "texture": "#t3"
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            8,
+            5
+          ],
+          "texture": "#t3"
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            8,
+            5
+          ],
+          "texture": "#t3"
+        },
+        "down": {
+          "uv": [
+            13.325,
+            2.675,
+            15.09112,
+            5.325
+          ],
+          "texture": "#t3"
+        }
+      }
+    },
+    {
+      "name": "Bearing dark surround north",
+      "from": [
+        5.25,
+        1.08692,
+        5.25
+      ],
+      "to": [
+        10.75,
+        1.28975,
+        5.8
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "east": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "south": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "west": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "up": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "down": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        }
+      }
+    },
+    {
+      "name": "Bearing dark surround south",
+      "from": [
+        5.25,
+        1.08692,
+        10.2
+      ],
+      "to": [
+        10.75,
+        1.28975,
+        10.75
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "east": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "south": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "west": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "up": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "down": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        }
+      }
+    },
+    {
+      "name": "Bearing dark surround west",
+      "from": [
+        5.25,
+        1.08692,
+        5.8
+      ],
+      "to": [
+        5.8,
+        1.28975,
+        10.2
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "east": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "south": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "west": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "up": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "down": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        }
+      }
+    },
+    {
+      "name": "Bearing dark surround east",
+      "from": [
+        10.2,
+        1.08692,
+        5.8
+      ],
+      "to": [
+        10.75,
+        1.28975,
+        10.2
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "east": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "south": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "west": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "up": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        },
+        "down": {
+          "uv": [
+            0,
+            12,
+            16,
+            16
+          ],
+          "texture": "#t2"
+        }
+      }
+    },
+    {
+      "name": "Brass square bearing north",
+      "from": [
+        5.7,
+        1.02898,
+        5.7
+      ],
+      "to": [
+        10.3,
+        1.28975,
+        6
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            8,
+            6,
+            10
+          ],
+          "texture": "#t4"
+        },
+        "east": {
+          "uv": [
+            0,
+            8,
+            6,
+            10
+          ],
+          "texture": "#t4"
+        },
+        "south": {
+          "uv": [
+            0,
+            8,
+            6,
+            10
+          ],
+          "texture": "#t4"
+        },
+        "west": {
+          "uv": [
+            0,
+            8,
+            6,
+            10
+          ],
+          "texture": "#t4"
+        },
+        "up": {
+          "uv": [
+            0,
+            8,
+            6,
+            10
+          ],
+          "texture": "#t4"
+        },
+        "down": {
+          "uv": [
+            0,
+            12,
+            6,
+            16
+          ],
+          "texture": "#t4"
+        }
+      }
+    },
+    {
+      "name": "Brass square bearing south",
+      "from": [
+        5.7,
+        1.02898,
+        10
+      ],
+      "to": [
+        10.3,
+        1.28975,
+        10.3
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            8,
+            6,
+            10
+          ],
+          "texture": "#t4"
+        },
+        "east": {
+          "uv": [
+            0,
+            8,
+            6,
+            10
+          ],
+          "texture": "#t4"
+        },
+        "south": {
+          "uv": [
+            0,
+            8,
+            6,
+            10
+          ],
+          "texture": "#t4"
+        },
+        "west": {
+          "uv": [
+            0,
+            8,
+            6,
+            10
+          ],
+          "texture": "#t4"
+        },
+        "up": {
+          "uv": [
+            0,
+            8,
+            6,
+            10
+          ],
+          "texture": "#t4"
+        },
+        "down": {
+          "uv": [
+            0,
+            12,
+            6,
+            16
+          ],
+          "texture": "#t4"
+        }
+      }
+    },
+    {
+      "name": "Brass square bearing west",
+      "from": [
+        5.7,
+        1.02898,
+        6
+      ],
+      "to": [
+        6,
+        1.28975,
+        10
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            8,
+            6,
+            10
+          ],
+          "texture": "#t4"
+        },
+        "east": {
+          "uv": [
+            0,
+            8,
+            6,
+            10
+          ],
+          "texture": "#t4"
+        },
+        "south": {
+          "uv": [
+            0,
+            8,
+            6,
+            10
+          ],
+          "texture": "#t4"
+        },
+        "west": {
+          "uv": [
+            0,
+            8,
+            6,
+            10
+          ],
+          "texture": "#t4"
+        },
+        "up": {
+          "uv": [
+            0,
+            8,
+            6,
+            10
+          ],
+          "texture": "#t4"
+        },
+        "down": {
+          "uv": [
+            0,
+            12,
+            6,
+            16
+          ],
+          "texture": "#t4"
+        }
+      }
+    },
+    {
+      "name": "Brass square bearing east",
+      "from": [
+        10,
+        1.02898,
+        6
+      ],
+      "to": [
+        10.3,
+        1.28975,
+        10
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            8,
+            6,
+            10
+          ],
+          "texture": "#t4"
+        },
+        "east": {
+          "uv": [
+            0,
+            8,
+            6,
+            10
+          ],
+          "texture": "#t4"
+        },
+        "south": {
+          "uv": [
+            0,
+            8,
+            6,
+            10
+          ],
+          "texture": "#t4"
+        },
+        "west": {
+          "uv": [
+            0,
+            8,
+            6,
+            10
+          ],
+          "texture": "#t4"
+        },
+        "up": {
+          "uv": [
+            0,
+            8,
+            6,
+            10
+          ],
+          "texture": "#t4"
+        },
+        "down": {
+          "uv": [
+            0,
+            12,
+            6,
+            16
+          ],
+          "texture": "#t4"
+        }
+      }
+    }
+  ],
+  "render_type": "minecraft:cutout",
+  "display": {
+    "gui": {
+      "rotation": [
+        30,
+        135,
+        0
+      ],
+      "scale": [
+        0.625,
+        0.625,
+        0.625
+      ]
+    },
+    "ground": {
+      "translation": [
+        0,
+        3,
+        0
+      ],
+      "scale": [
+        0.25,
+        0.25,
+        0.25
+      ]
+    },
+    "fixed": {
+      "scale": [
+        0.5,
+        0.5,
+        0.5
+      ]
+    },
+    "thirdperson_righthand": {
+      "rotation": [
+        75,
+        45,
+        0
+      ],
+      "translation": [
+        0,
+        2.5,
+        0
+      ],
+      "scale": [
+        0.375,
+        0.375,
+        0.375
+      ]
+    },
+    "firstperson_righthand": {
+      "rotation": [
+        0,
+        45,
+        0
+      ],
+      "scale": [
+        0.4,
+        0.4,
+        0.4
+      ]
+    }
+  },
+  "parent": "minecraft:block/block",
+  "credit": "Imported from user-exported Java JSON; texture bindings repaired without repainting"
+}

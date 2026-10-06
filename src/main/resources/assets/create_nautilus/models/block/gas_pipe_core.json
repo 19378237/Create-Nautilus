@@ -1,0 +1,77 @@
+{
+  "credit": "Create: Nautilus - modeled in Blockbench on a 16x16 grid",
+  "parent": "minecraft:block/block",
+  "textures": {
+    "body": "create:block/copper_casing",
+    "band": "create:block/andesite_casing",
+    "particle": "create:block/copper_casing"
+  },
+  "elements": [
+    {
+      "name": "Copper pipe central body",
+      "from": [
+        5,
+        5,
+        5
+      ],
+      "to": [
+        11,
+        11,
+        11
+      ],
+      "faces": {
+        "down": {
+          "texture": "#body"
+        },
+        "up": {
+          "texture": "#body"
+        },
+        "north": {
+          "texture": "#body"
+        },
+        "south": {
+          "texture": "#body"
+        },
+        "west": {
+          "texture": "#body"
+        },
+        "east": {
+          "texture": "#body"
+        }
+      }
+    },
+    {
+      "name": "Central dark sealing band",
+      "from": [
+        5,
+        5,
+        5
+      ],
+      "to": [
+        11,
+        11,
+        6
+      ],
+      "faces": {
+        "down": {
+          "texture": "#band"
+        },
+        "up": {
+          "texture": "#band"
+        },
+        "north": {
+          "texture": "#band"
+        },
+        "south": {
+          "texture": "#band"
+        },
+        "west": {
+          "texture": "#band"
+        },
+        "east": {
+          "texture": "#band"
+        }
+      }
+    }
+  ]
+}

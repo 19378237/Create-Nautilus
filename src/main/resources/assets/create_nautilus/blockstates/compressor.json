@@ -1,0 +1,1 @@
+{"variants":{"facing=north":{"model":"create_nautilus:block/compressor"},"facing=east":{"model":"create_nautilus:block/compressor","y":90},"facing=south":{"model":"create_nautilus:block/compressor","y":180},"facing=west":{"model":"create_nautilus:block/compressor","y":270}}}

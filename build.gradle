@@ -1,0 +1,2741 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+    id 'net.neoforged.moddev' version '2.0.141'
+    id 'idea'
+}
+
+version = mod_version
+group = mod_group_id
+
+// Keep the project license and third-party attribution with both artifacts.
+tasks.matching { it.name in ['jar', 'sourcesJar'] }.configureEach {
+    from('LICENSE')
+    from('THIRD_PARTY.md')
+}
+
+base {
+    archivesName = mod_id
+}
+
+java {
+    // Minecraft 1.21.1 is distributed with Java 21. Compiling to a newer
+    // bytecode level would make the mod fail before NeoForge can load it.
+    toolchain.languageVersion = JavaLanguageVersion.of(21)
+    withSourcesJar()
+}
+
+repositories {
+    mavenCentral()
+
+    // Create, Ponder, Flywheel, Registrate and Sable publish their developer
+    // artifacts through these repositories.
+    maven { url = 'https://maven.blamejared.com' }
+    maven { url = 'https://maven.createmod.net' }
+    maven { url = 'https://maven.tterrag.com' }
+
+    // These are the actual repositories declared by the Sable 2.0.3 build.
+    // Registrate's 1.21 artifacts are not present in the legacy tterrag repo;
+    // Sable releases likewise are published on RyanHCode's repository.
+    exclusiveContent {
+        forRepositories(
+                maven { name = 'IThundxrHidden'; url = 'https://maven.ithundxr.dev/hidden' },
+                maven { name = 'IThundxrSnapshots'; url = 'https://maven.ithundxr.dev/snapshots' }
+        )
+        filter { includeGroup 'com.tterrag.registrate' }
+    }
+
+    exclusiveContent {
+        forRepository {
+            maven { name = 'RyanHCode'; url = 'https://maven.ryanhcode.dev/releases' }
+        }
+        filter { includeGroupAndSubgroups 'dev.ryanhcode' }
+    }
+
+    // Aeronautics 1.3.0 is currently distributed as a bundled Modrinth jar.
+    exclusiveContent {
+        forRepository {
+            maven { name = 'Modrinth'; url = 'https://api.modrinth.com/maven' }
+        }
+        filter { includeGroup 'maven.modrinth' }
+    }
+}
+
+neoForge {
+    version = project.neo_version
+
+    parchment {
+        minecraftVersion = project.parchment_minecraft_version
+        mappingsVersion = project.parchment_mappings_version
+    }
+
+    runs {
+        client {
+            client()
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+        }
+
+        server {
+            server()
+            programArgument '--nogui'
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+        }
+
+        gameTestServer {
+            type = 'gameTestServer'
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+        }
+
+        data {
+            data()
+            programArguments.addAll '--mod', project.mod_id,
+                    '--all',
+                    '--output', file('src/generated/resources/').absolutePath,
+                    '--existing', file('src/main/resources/').absolutePath,
+                    '--existing-mod', 'create'
+        }
+
+        configureEach {
+            systemProperty 'forge.logging.markers', 'REGISTRIES'
+            logLevel = org.slf4j.event.Level.DEBUG
+        }
+    }
+
+    mods {
+        "${mod_id}" {
+            sourceSet sourceSets.main
+        }
+    }
+}
+
+sourceSets.main.resources {
+    srcDir 'src/generated/resources'
+}
+
+configurations {
+    runtimeClasspath.extendsFrom localRuntime
+}
+
+dependencies {
+    // Create does not publish its support libraries transitively, so the
+    // versions used by Create 6.0.10 must be declared explicitly.
+    implementation("com.simibubi.create:create-${minecraft_version}:${create_version}") {
+        transitive = false
+    }
+    implementation "net.createmod.ponder:ponder-neoforge:${ponder_version}+mc${minecraft_version}"
+    compileOnly "dev.engine-room.flywheel:flywheel-neoforge-api-${minecraft_version}:${flywheel_version}"
+    localRuntime "dev.engine-room.flywheel:flywheel-neoforge-${minecraft_version}:${flywheel_version}"
+    implementation "com.tterrag.registrate:Registrate:${registrate_version}"
+
+    // Sable owns the real sub-level and rigid-body APIs used by Nautilus.
+    implementation("dev.ryanhcode.sable:sable-neoforge-${minecraft_version}:${sable_version}") {
+        exclude group: 'foundry.veil'
+        exclude group: 'com.tterrag.registrate'
+    }
+    // Sable exposes Veil's RegistryObject in the public ForceGroups API. Nautilus only needs
+    // those signatures at compile time; Sable/Aeronautics supplies Veil in the game instance.
+    compileOnly "foundry.veil:veil-neoforge-${minecraft_version}:4.1.4"
+
+    // Optional client mixins reference Iris types directly at compile time.
+    // Resolve that API reproducibly without requiring or bundling Iris at runtime.
+    compileOnly("maven.modrinth:iris:${iris_version}") {
+        transitive = false
+    }
+
+    // The published Aeronautics jar contains the Simulated and Aeronautics
+    // modules. It is required at run time and provides later integration types.
+    implementation "maven.modrinth:create-aeronautics:${aeronautics_version}"
+}
+
+def metadataProperties = [
+        minecraft_version      : minecraft_version,
+        minecraft_version_range: minecraft_version_range,
+        neo_version            : neo_version,
+        loader_version_range   : loader_version_range,
+        create_mod_version     : create_mod_version,
+        mod_id                 : mod_id,
+        mod_name               : mod_name,
+        mod_license            : mod_license,
+        mod_version            : mod_version,
+        mod_authors            : mod_authors,
+        mod_description        : mod_description
+]
+
+tasks.withType(ProcessResources).configureEach {
+    inputs.properties metadataProperties
+    filesMatching('META-INF/neoforge.mods.toml') {
+        expand metadataProperties
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 21
+}
+
+def verifyVoxelAtlasPacking = tasks.register('verifyVoxelAtlasPacking') {
+    group = 'verification'
+    description = 'CPU reference checks for sparse voxel addressing, shell guards and boundaries.'
+    dependsOn tasks.named('classes')
+    doLast {
+        final int brickSize = 8
+        final int trials = 25_000
+        final Random random = new Random(0x4E415554494C5553L)
+        final Map<List<Integer>, Integer> expected = new HashMap<>()
+        for (int index = 0; index < 4_096; index++) {
+            int x = random.nextInt(1025) - 512
+            int y = random.nextInt(257) - 128
+            int z = random.nextInt(1025) - 512
+            expected.put([x, y, z], 1 + random.nextInt(4095))
+        }
+
+        final Map<List<Integer>, int[]> payloads = new HashMap<>()
+        expected.each { cell, room ->
+            int bx = Math.floorDiv(cell[0], brickSize)
+            int by = Math.floorDiv(cell[1], brickSize)
+            int bz = Math.floorDiv(cell[2], brickSize)
+            int[] payload = payloads.computeIfAbsent([bx, by, bz]) {
+                new int[brickSize * brickSize * brickSize]
+            }
+            int ix = Math.floorMod(cell[0], brickSize)
+            int iy = Math.floorMod(cell[1], brickSize)
+            int iz = Math.floorMod(cell[2], brickSize)
+            payload[ix + brickSize * (iz + brickSize * iy)] = room
+        }
+        final List<List<Integer>> directory = new ArrayList<>(payloads.keySet())
+        directory.sort { a, b ->
+            int value = Integer.compare(a[1], b[1])
+            if (value == 0) value = Integer.compare(a[2], b[2])
+            if (value == 0) value = Integer.compare(a[0], b[0])
+            value
+        }
+
+        Closure<Integer> lookup = { int x, int y, int z ->
+            List<Integer> wanted = [Math.floorDiv(x, brickSize),
+                                    Math.floorDiv(y, brickSize),
+                                    Math.floorDiv(z, brickSize)]
+            int low = 0
+            int high = directory.size() - 1
+            int[] payload = null
+            while (low <= high) {
+                int mid = (low + high) >>> 1
+                List<Integer> found = directory[mid]
+                int comparison = Integer.compare(found[1], wanted[1])
+                if (comparison == 0) comparison = Integer.compare(found[2], wanted[2])
+                if (comparison == 0) comparison = Integer.compare(found[0], wanted[0])
+                if (comparison < 0) low = mid + 1
+                else if (comparison > 0) high = mid - 1
+                else {
+                    payload = payloads[found]
+                    break
+                }
+            }
+            if (payload == null) return 0
+            int ix = Math.floorMod(x, brickSize)
+            int iy = Math.floorMod(y, brickSize)
+            int iz = Math.floorMod(z, brickSize)
+            payload[ix + brickSize * (iz + brickSize * iy)]
+        }
+
+        expected.each { cell, room ->
+            assert lookup(cell[0], cell[1], cell[2]) == room
+        }
+        for (int index = 0; index < trials; index++) {
+            int x = random.nextInt(2049) - 1024
+            int y = random.nextInt(513) - 256
+            int z = random.nextInt(2049) - 1024
+            assert lookup(x, y, z) == expected.getOrDefault([x, y, z], 0)
+        }
+
+        // Abstract shell semantics: room ownership wins, solid neighbours remain fail-open unless
+        // proven full optical occupancy, while exterior air and real plot water remain untouched.
+        // The -1 value is deliberately non-optical; only the -1.25 occupancy sentinel and encoded
+        // optical slots (<= -2) may make Sodium discard a water fragment.
+        final Set<List<Integer>> interior = [[0, 0, 0], [-8, 7, 8]] as Set
+        final Set<List<Integer>> solid = [[1, 0, 0], [1, 1, 1], [-9, 7, 8]] as Set
+        final Set<List<Integer>> water = [[0, 1, 0]] as Set
+        final Map<List<Integer>, Integer> semantics = new HashMap<>()
+        interior.each { semantics[it] = 1 }
+        interior.each { cell ->
+            (-1..1).each { dx ->
+                (-1..1).each { dy ->
+                    (-1..1).each { dz ->
+                        if (dx != 0 || dy != 0 || dz != 0) {
+                            List<Integer> neighbour = [cell[0] + dx, cell[1] + dy, cell[2] + dz]
+                            if (!interior.contains(neighbour) && solid.contains(neighbour)
+                                    && !water.contains(neighbour)) {
+                                semantics.putIfAbsent(neighbour, -1)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        assert semantics[[0, 0, 0]] == 1
+        assert semantics[[1, 0, 0]] == -1
+        assert semantics[[1, 1, 1]] == -1
+        assert semantics[[-9, 7, 8]] == -1
+        assert semantics.getOrDefault([0, 1, 0], 0) == 0
+        assert semantics.getOrDefault([2, 0, 0], 0) == 0
+        Closure<Boolean> opticalShellBlocksWater = { value ->
+            double encoded = (value as Number).doubleValue()
+            encoded == -1.25D || encoded <= -1.5D
+        }
+        assert !opticalShellBlocksWater(-1)
+        assert opticalShellBlocksWater(-1.25F)
+        assert !opticalShellBlocksWater(-1.24F)
+        assert opticalShellBlocksWater(-2)
+        assert opticalShellBlocksWater(-65)
+
+        // Eventless full optical occupancy uses a distinct sentinel: Sodium may discard water
+        // for it, while Iris' event resolver must continue to consume only signed event slots.
+        final float eventlessOpticalVolume = -1.25F
+        Closure<Float> encodeOpticalShellFixture = { Integer group, boolean full ->
+            group != null && group >= 0 ? -(group + 2.0F)
+                    : full ? eventlessOpticalVolume : -1.0F
+        }
+        assert encodeOpticalShellFixture(null, false) == -1.0F
+        assert encodeOpticalShellFixture(null, true) == eventlessOpticalVolume
+        assert encodeOpticalShellFixture(0, true) == -2.0F
+        assert encodeOpticalShellFixture(17, true) == -19.0F
+        final Map<String, List<Integer>> horizontalOffsets = [
+                N: [0, 0, -1], S: [0, 0, 1], E: [1, 0, 0], W: [-1, 0, 0]
+        ]
+        final List<Map<String, Object>> horizontalPairs = [
+                [top: 'ROOM', pair: ['N', 'S']], [top: 'EXTERIOR', pair: ['N', 'E']],
+                [top: 'ROOM', pair: ['N', 'W']], [top: 'EXTERIOR', pair: ['S', 'E']],
+                [top: 'ROOM', pair: ['S', 'W']], [top: 'EXTERIOR', pair: ['E', 'W']]
+        ]
+        horizontalPairs.each { Map<String, Object> fixture ->
+            final Set<List<Integer>> junctionSolid = [[0, -1, 0]] as Set
+            final List<String> pair = fixture.pair as List<String>
+            pair.each { String side -> junctionSolid.add(horizontalOffsets[side]) }
+            assert junctionSolid.contains([0, -1, 0])
+            if (!pair.every { String side -> junctionSolid.contains(horizontalOffsets[side]) }) {
+                throw new GradleException("${fixture.top} horizontal pair must block both crossed sides")
+            }
+            // The opposite horizontal axis may remain open; only the requested pair is required.
+            assert encodeOpticalShellFixture(null, false) == -1.0F
+            assert encodeOpticalShellFixture(null, true) == eventlessOpticalVolume
+        }
+        // Room ownership is written before shell state; real plot water is never occupied by a
+        // shell sentinel, and unknown/partial eventless cells remain fail-open (-1).
+        Closure<Float> cellEncodingFixture = { Float owner, boolean realWater,
+                                                Integer group, boolean full ->
+            if (realWater) return 0.0F
+            owner != null ? owner : encodeOpticalShellFixture(group, full)
+        }
+        assert cellEncodingFixture(9.0F, false, null, true) == 9.0F
+        assert cellEncodingFixture(null, true, null, true) == 0.0F
+        assert cellEncodingFixture(null, false, null, true) == eventlessOpticalVolume
+        assert cellEncodingFixture(null, false, null, false) == -1.0F
+        assert eventlessOpticalVolume > -1.5F
+
+        // Exercise the production encoder itself (rather than only duplicating its arithmetic).
+        final List<URL> atlasRuntimeUrls = sourceSets.main.runtimeClasspath.files.collect {
+            it.toURI().toURL()
+        }
+        final URLClassLoader atlasLoader = new URLClassLoader(
+                atlasRuntimeUrls as URL[], (ClassLoader) null)
+        try {
+            final Class<?> atlasClass = Class.forName(
+                    'com.create.nautilus.client.render.ShaderVoxelMaskAtlas', true, atlasLoader)
+            final def encoder = atlasClass.getDeclaredMethod(
+                    'encodedOpticalShell', Integer.class, Boolean.TYPE)
+            encoder.setAccessible(true)
+            assert ((Number) encoder.invoke(null, null, false)).floatValue() == -1.0F
+            assert ((Number) encoder.invoke(null, null, true)).floatValue()
+                    == eventlessOpticalVolume
+            assert ((Number) encoder.invoke(null, 0, true)).floatValue() == -2.0F
+            assert ((Number) encoder.invoke(null, 17, true)).floatValue() == -19.0F
+            horizontalPairs.each { fixture ->
+                final float encoded = ((Number) encoder.invoke(null, null, true)).floatValue()
+                assert opticalShellBlocksWater(encoded)
+                assert encoded > -1.5F // No fabricated fog-event slot for this solid junction.
+            }
+        } finally {
+            atlasLoader.close()
+        }
+
+        // Photon-style quasi-random sub-pixel jitter and +/-0.025 wave displacement must never
+        // change pre-wave ownership. Boundary candidates conservatively include both half-open
+        // cells, while the rendered Y remains independent for continuous water-level comparison.
+        final double boundaryEpsilon = 1.0D / 1024.0D
+        Closure<Set<Integer>> boundaryCells = { double coordinate ->
+            int primary = (int) Math.floor(coordinate)
+            double fraction = coordinate - primary
+            Set<Integer> cells = [primary] as Set
+            if (fraction < boundaryEpsilon) cells.add(primary - 1)
+            if (fraction > 1.0D - boundaryEpsilon) cells.add(primary + 1)
+            cells
+        }
+        for (int frame = 0; frame < 1024; frame++) {
+            double r2 = (0.7548776662466927D * frame) % 1.0D
+            double jitter = (r2 - 0.5D) / 2048.0D
+            double preWaveBoundary = 10.0D + jitter
+            double lookupY = 42.0D - boundaryEpsilon
+            double renderedY = 42.0D + Math.sin(frame * 0.37D) * 0.025D
+            assert boundaryCells(preWaveBoundary).contains(9)
+            assert (int) Math.floor(lookupY) == 41
+            assert renderedY >= 41.975D && renderedY <= 42.025D
+        }
+
+        // Aperture planes are authored relative to the room minimum, while the sparse atlas
+        // inverse transform returns a point relative to a brick-aligned origin.  Translating the
+        // constant by n dot (atlasOrigin - roomOrigin) must preserve the signed field exactly.
+        for (int index = 0; index < trials; index++) {
+            double nx = random.nextDouble() * 2.0D - 1.0D
+            double ny = random.nextDouble() * 2.0D - 1.0D
+            double nz = random.nextDouble() * 2.0D - 1.0D
+            double w = random.nextDouble() * 128.0D - 64.0D
+            int deltaX = random.nextInt(brickSize)
+            int deltaY = random.nextInt(brickSize)
+            int deltaZ = random.nextInt(brickSize)
+            double atlasX = random.nextDouble() * 2048.0D - 1024.0D
+            double atlasY = random.nextDouble() * 512.0D - 256.0D
+            double atlasZ = random.nextDouble() * 2048.0D - 1024.0D
+            double cacheField = nx * (atlasX + deltaX) +
+                    ny * (atlasY + deltaY) + nz * (atlasZ + deltaZ) + w
+            double translatedW = w + nx * deltaX + ny * deltaY + nz * deltaZ
+            double atlasField = nx * atlasX + ny * atlasY + nz * atlasZ + translatedW
+            assert Math.abs(cacheField - atlasField) <= 1.0E-9D
+        }
+
+        /*
+         * Unsupported medium semantics are isolated to their optical slot. The carrier remains
+         * publishable when topology/geometry alignment is coherent, valid neighbours keep their
+         * exact slot numbers, and a carrier-level mismatch removes only that carrier from the
+         * drawable map. Slot compaction is forbidden because baked VBO vertices store these ids.
+         */
+        Closure<Map<Integer, Boolean>> publishOpticalSlots = {
+                boolean carrierAligned, List<Boolean> eventValidity ->
+            final Map<Integer, Boolean> metadata = new LinkedHashMap<>()
+            eventValidity.eachWithIndex { boolean valid, int slot ->
+                metadata[slot] = carrierAligned && valid
+            }
+            metadata
+        }
+        final Map<Integer, Boolean> mixedSlots = publishOpticalSlots(
+                true, [true, false, true, false])
+        assert mixedSlots.keySet().toList() == [0, 1, 2, 3]
+        assert mixedSlots.findAll { slot, valid -> valid }.keySet().toList() == [0, 2]
+        assert publishOpticalSlots(false, [true, true]).values().every { !it }
+        final Map<String, Boolean> drawableCarriers = [validCarrier: true,
+                                                       mismatchedCarrier: false,
+                                                       otherValidCarrier: true]
+        assert drawableCarriers.findAll { id, aligned -> aligned }.keySet().toList()
+                == ['validCarrier', 'otherValidCarrier']
+        logger.lifecycle("Voxel atlas CPU reference passed: {} cells, {} random points, "
+                + "shell guards, origin translation, per-slot fail-open and 1024 jitter frames",
+                expected.size(), trials)
+    }
+}
+
+def verifyApertureEntryDepth = tasks.register('verifyApertureEntryDepth') {
+    group = 'verification'
+    description = 'CPU reference checks for the single D24S8 optical water-entry contract.'
+    doLast {
+        final double depthEpsilon = 1.0E-7D
+        final double maximumSceneDistance = 65_000.0D
+
+        Closure<Boolean> depthHit = { rawValue, clearReversedValue ->
+            double raw = (rawValue as Number).doubleValue()
+            boolean clearReversed = clearReversedValue as boolean
+            if (!Double.isFinite(raw) || raw < 0.0D || raw > 1.0D) return false
+            boolean clear = clearReversed
+                    ? raw <= depthEpsilon : raw >= 1.0D - depthEpsilon
+            return !clear
+        }
+        assert depthHit(0.4D, false)
+        assert !depthHit(1.0D, false)
+        assert depthHit(0.6D, true)
+        assert !depthHit(0.0D, true)
+        assert !depthHit(Double.NaN, false)
+        assert !depthHit(Double.POSITIVE_INFINITY, true)
+
+        /*
+         * A dry camera may create a finite water suffix. A real-water camera remains entirely on
+         * the shader pack's native underwater path, so Nautilus publishes no composite interval.
+         * Iris and the semantic snapshot must still agree; disagreement is fail-open.
+         */
+        Closure<List<Double>> waterInterval = { cameraWaterValue, irisEyeValue,
+                                                 entryDistanceValue, sceneEndValue ->
+            boolean cameraWater = cameraWaterValue as boolean
+            int irisEye = (irisEyeValue as Number).intValue()
+            double entryDistance = (entryDistanceValue as Number).doubleValue()
+            double sceneEnd = (sceneEndValue as Number).doubleValue()
+            if ((irisEye != 0 && irisEye != 1)
+                    || (irisEye == 1) != cameraWater
+                    || !Double.isFinite(entryDistance)
+                    || !Double.isFinite(sceneEnd)
+                    || entryDistance < 0.0D
+                    || entryDistance >= maximumSceneDistance
+                    || sceneEnd <= entryDistance
+                    || sceneEnd >= maximumSceneDistance) {
+                return []
+            }
+            return cameraWater ? [] : [entryDistance, sceneEnd]
+        }
+        assert waterInterval(false, 0, 4.0D, 20.0D) == [4.0D, 20.0D]
+        assert waterInterval(true, 1, 4.0D, 20.0D).isEmpty()
+        assert waterInterval(false, 1, 4.0D, 20.0D).isEmpty()
+        assert waterInterval(true, 0, 4.0D, 20.0D).isEmpty()
+        assert waterInterval(false, 2, 4.0D, 20.0D).isEmpty()
+        assert waterInterval(false, 0, Double.NaN, 20.0D).isEmpty()
+
+        // A tracked room is a virtual medium, not Iris' unbounded parent-water camera medium.
+        // Both DRY and WET therefore publish cameraWater=0; only OUTSIDE samples the parent world.
+        Closure<Boolean> irisCameraWater = { String cameraState, boolean parentWater ->
+            return cameraState == 'OUTSIDE' && parentWater
+        }
+        assert !irisCameraWater('DRY', true)
+        assert !irisCameraWater('WET', true)
+        assert irisCameraWater('OUTSIDE', true)
+        assert !irisCameraWater('OUTSIDE', false)
+
+        /*
+         * A flooded exterior shell contributes only parent-ocean water. Room-side virtual water
+         * remains owned by its rendered material: inside rays get an ocean suffix, outside-water
+         * rays get a prefix through any continuous room water, and outside-air rays recover only
+         * the ocean-surface-to-glass segment. MAX represents no later plane crossing.
+         */
+        Closure<List<Double>> floodedExteriorShellInterval = {
+                cameraWaterValue, rayOutwardValue, exteriorWaterValue,
+                roomWaterValue, gateValue, oceanBoundaryValue, roomExitValue ->
+            final boolean cameraWater = cameraWaterValue as boolean
+            final boolean rayOutward = rayOutwardValue as boolean
+            final boolean exteriorWater = exteriorWaterValue as boolean
+            final boolean roomWater = roomWaterValue as boolean
+            final double gate = (gateValue as Number).doubleValue()
+            final double oceanBoundary = (oceanBoundaryValue as Number).doubleValue()
+            final double roomExit = (roomExitValue as Number).doubleValue()
+            if (!exteriorWater || gate < 0.0D) return []
+            if (rayOutward) {
+                if (cameraWater) return []
+                return [gate, oceanBoundary > gate ? oceanBoundary : maximumSceneDistance]
+            }
+            if (cameraWater) {
+                return [0.0D, roomWater
+                        ? roomExit > gate ? roomExit : maximumSceneDistance
+                        : gate]
+            }
+            if (oceanBoundary < 0.0D || oceanBoundary >= gate) return []
+            return [oceanBoundary, gate]
+        }
+        assert floodedExteriorShellInterval(
+                false, true, true, true, 4.0D, 20.0D, -1.0D) == [4.0D, 20.0D]
+        assert floodedExteriorShellInterval(
+                false, true, true, false, 4.0D, 20.0D, -1.0D) == [4.0D, 20.0D]
+        assert floodedExteriorShellInterval(
+                true, false, true, false, 4.0D, -1.0D, -1.0D) == [0.0D, 4.0D]
+        assert floodedExteriorShellInterval(
+                true, false, true, true, 4.0D, -1.0D, 12.0D) == [0.0D, 12.0D]
+        assert floodedExteriorShellInterval(
+                false, false, true, true, 4.0D, 2.0D, -1.0D) == [2.0D, 4.0D]
+        assert floodedExteriorShellInterval(
+                false, false, false, true, 4.0D, 2.0D, -1.0D).isEmpty()
+
+        /*
+         * Every valid aperture batch shares one D24S8 attachment. Normal depth keeps the minimum
+         * value and reversed depth keeps the maximum value, so a farther carrier/window can never
+         * erase the already selected nearest entry. Invalid/ambiguous events never write.
+         */
+        Closure<Double> nearestEntryDepth = { List<Map<String, Object>> candidates,
+                                               reversedValue ->
+            boolean reversed = reversedValue as boolean
+            double clear = reversed ? 0.0D : 1.0D
+            double nearest = clear
+            boolean found = false
+            for (final Map<String, Object> candidate : candidates) {
+                final boolean valid = candidate.valid as boolean
+                final double depth = (candidate.depth as Number).doubleValue()
+                if (!valid || !Double.isFinite(depth) || depth < 0.0D || depth > 1.0D) continue
+                if (!found || (reversed ? depth > nearest : depth < nearest)) {
+                    nearest = depth
+                    found = true
+                }
+            }
+            return found ? nearest : clear
+        }
+        assert nearestEntryDepth([], false) == 1.0D
+        assert nearestEntryDepth([], true) == 0.0D
+        assert nearestEntryDepth([[valid: true, depth: 0.4D]], false) == 0.4D
+        assert nearestEntryDepth([
+                [valid: true, depth: 0.25D],
+                [valid: true, depth: 0.75D]
+        ], false) == 0.25D
+        assert nearestEntryDepth([
+                [valid: true, depth: 0.25D],
+                [valid: true, depth: 0.75D]
+        ], true) == 0.75D
+        assert nearestEntryDepth([
+                [valid: false, depth: 0.1D],
+                [valid: true, depth: 0.4D],
+                [valid: true, depth: Double.NaN]
+        ], false) == 0.4D
+        assert nearestEntryDepth([[valid: false, depth: 0.4D]], false) == 1.0D
+
+        /*
+         * Mirror the strict exterior-medium acceptance contract. AIR is a valid no-effect result;
+         * WATER/SURFACE may form a dry-to-water entry; uncertain data is always INVALID.
+         */
+        final Map<String, Object> airCell = [
+                loaded: true, air: true, solid: false, water: false, source: false,
+                liquidBlock: false, waterlogged: false, flat: false,
+                sameLayerLoaded: true, aboveLayerLoaded: true,
+                aboveWater: false, aboveSource: false,
+                aboveLiquidBlock: false, aboveWaterlogged: false
+        ]
+        final Map<String, Object> surfaceSource = airCell + [
+                air: false, water: true, source: true, liquidBlock: true, flat: true
+        ]
+        final Map<String, Object> fullSource = surfaceSource + [
+                aboveWater: true, aboveSource: true, aboveLiquidBlock: true
+        ]
+        Closure<String> stableWater = { Map<String, Object> cell ->
+            if (!(cell.loaded as boolean)) return 'INVALID'
+            if (!(cell.water as boolean)) return 'AIR'
+            if (!(cell.source as boolean) || !(cell.liquidBlock as boolean)
+                    || cell.waterlogged as boolean || !(cell.flat as boolean)) return 'INVALID'
+            if (!(cell.sameLayerLoaded as boolean)
+                    || !(cell.aboveLayerLoaded as boolean)) return 'INVALID'
+            if (cell.aboveWater as boolean) {
+                return cell.aboveSource as boolean
+                        && cell.aboveLiquidBlock as boolean
+                        && !(cell.aboveWaterlogged as boolean) ? 'WATER' : 'INVALID'
+            }
+            return 'SURFACE'
+        }
+        Closure<String> exteriorMedium = { Map<String, Object> side,
+                                            Map<String, Object> below ->
+            if (!(side.loaded as boolean)) return 'INVALID'
+            final String current = stableWater(side)
+            if (current != 'AIR') return current
+            return side.air as boolean ? stableWater(below) : 'INVALID'
+        }
+        assert exteriorMedium(surfaceSource, airCell) == 'SURFACE'
+        assert exteriorMedium(fullSource, airCell) == 'WATER'
+        assert exteriorMedium(airCell, surfaceSource) == 'SURFACE'
+        assert exteriorMedium(airCell, airCell) == 'AIR'
+        assert exteriorMedium(surfaceSource + [source: false], airCell) == 'INVALID'
+        assert exteriorMedium(surfaceSource + [waterlogged: true], airCell) == 'INVALID'
+        assert exteriorMedium(surfaceSource + [flat: false], airCell) == 'INVALID'
+        assert exteriorMedium(surfaceSource + [loaded: false], airCell) == 'INVALID'
+        assert exteriorMedium(surfaceSource + [sameLayerLoaded: false], airCell) == 'INVALID'
+        assert exteriorMedium(surfaceSource + [aboveLayerLoaded: false], airCell) == 'INVALID'
+        assert exteriorMedium(airCell + [air: false, solid: true], surfaceSource) == 'INVALID'
+        assert exteriorMedium(airCell + [air: false], surfaceSource) == 'INVALID'
+
+        // Empty space inside a conservative Sable plot bound is not physical exterior air.
+        // Preserve real/uncertain plot fluid, but resolve plot AIR at the renderPose-mapped
+        // parent-world cell so recessed and complex hull faces still see the surrounding ocean.
+        Closure<String> carrierExteriorMedium = { String plotMedium,
+                                                   String parentMedium ->
+            return plotMedium == 'AIR' ? parentMedium : plotMedium
+        }
+        assert carrierExteriorMedium('AIR', 'WATER') == 'WATER'
+        assert carrierExteriorMedium('AIR', 'SURFACE') == 'SURFACE'
+        assert carrierExteriorMedium('AIR', 'AIR') == 'AIR'
+        assert carrierExteriorMedium('WATER', 'AIR') == 'WATER'
+        assert carrierExteriorMedium('SURFACE', 'AIR') == 'SURFACE'
+        assert carrierExteriorMedium('INVALID', 'WATER') == 'INVALID'
+
+        /*
+         * A complete one-block optical shell is discovered from the room's Chebyshev-1
+         * neighbourhood, but only its exterior faces are emitted. For a 2x2x2 room this gives
+         * 24 face cells with one axis, 24 edge cells with two axes and 8 corner cells with three;
+         * every neighbour inside the room or shell is an internal join and contributes no face.
+         */
+        final Set<List<Integer>> fixtureRoom = new LinkedHashSet<>()
+        for (int x = 0; x < 2; x++) {
+            for (int y = 0; y < 2; y++) {
+                for (int z = 0; z < 2; z++) fixtureRoom.add([x, y, z])
+            }
+        }
+        final Set<List<Integer>> fixtureShell = new LinkedHashSet<>()
+        fixtureRoom.each { List<Integer> cell ->
+            for (int dx = -1; dx <= 1; dx++) {
+                for (int dy = -1; dy <= 1; dy++) {
+                    for (int dz = -1; dz <= 1; dz++) {
+                        if (dx == 0 && dy == 0 && dz == 0) continue
+                        final List<Integer> candidate = [
+                                cell[0] + dx, cell[1] + dy, cell[2] + dz]
+                        if (!fixtureRoom.contains(candidate)) fixtureShell.add(candidate)
+                    }
+                }
+            }
+        }
+        final List<List<Integer>> fixtureSteps = [
+                [-1, 0, 0], [1, 0, 0], [0, -1, 0],
+                [0, 1, 0], [0, 0, -1], [0, 0, 1]]
+        final Map<Integer, Integer> shellAxisHistogram = [:].withDefault { 0 }
+        fixtureShell.each { List<Integer> cell ->
+            final List<Integer> exteriorDirections = []
+            fixtureSteps.eachWithIndex { List<Integer> step, int direction ->
+                final List<Integer> neighbour = [
+                        cell[0] + step[0], cell[1] + step[1], cell[2] + step[2]]
+                if (!fixtureRoom.contains(neighbour) && !fixtureShell.contains(neighbour)) {
+                    exteriorDirections.add(direction)
+                }
+            }
+            final Set<Integer> exteriorAxes = exteriorDirections.collect {
+                Math.floorDiv(it, 2)
+            } as Set<Integer>
+            assert exteriorAxes.size() == exteriorDirections.size()
+            shellAxisHistogram[exteriorAxes.size()]++
+        }
+        assert fixtureShell.size() == 56
+        assert shellAxisHistogram == [1: 24, 2: 24, 3: 8]
+
+        /*
+         * A local second optical layer is bounded by Chebyshev-2 from the room, then filtered by
+         * 26-neighbour optical connectivity. The centre of a 3x3 outer roof and its corner must
+         * survive, while a third layer remains outside the contract. The exact optical cells are
+         * then merged into the otherwise one-cell voxel-atlas semantic shell.
+         */
+        final int connectedMembraneRadius = 2
+        final List<Integer> twoLayerInterior = [0, 0, 0]
+        final Set<List<Integer>> twoLayerZone = new LinkedHashSet<>()
+        for (int dx = -connectedMembraneRadius; dx <= connectedMembraneRadius; dx++) {
+            for (int dy = -connectedMembraneRadius; dy <= connectedMembraneRadius; dy++) {
+                for (int dz = -connectedMembraneRadius; dz <= connectedMembraneRadius; dz++) {
+                    if (dx == 0 && dy == 0 && dz == 0) continue
+                    twoLayerZone.add([dx, dy, dz])
+                }
+            }
+        }
+        final Set<List<Integer>> twoLayerOptical = new LinkedHashSet<>()
+        twoLayerOptical.add([0, 1, 0])
+        for (int x = -1; x <= 1; x++) {
+            for (int z = -1; z <= 1; z++) twoLayerOptical.add([x, 2, z])
+        }
+        twoLayerOptical.add([0, 3, 0])
+        final Set<List<Integer>> discoveredOptical = new LinkedHashSet<>()
+        final List<List<Integer>> opticalQueue = [[0, 1, 0]]
+        discoveredOptical.add(opticalQueue[0])
+        for (int cursor = 0; cursor < opticalQueue.size(); cursor++) {
+            final List<Integer> current = opticalQueue[cursor]
+            for (int dx = -1; dx <= 1; dx++) {
+                for (int dy = -1; dy <= 1; dy++) {
+                    for (int dz = -1; dz <= 1; dz++) {
+                        if (dx == 0 && dy == 0 && dz == 0) continue
+                        final List<Integer> candidate = [
+                                current[0] + dx, current[1] + dy, current[2] + dz]
+                        if (twoLayerZone.contains(candidate)
+                                && twoLayerOptical.contains(candidate)
+                                && discoveredOptical.add(candidate)) {
+                            opticalQueue.add(candidate)
+                        }
+                    }
+                }
+            }
+        }
+        assert discoveredOptical.contains([0, 2, 0])
+        assert discoveredOptical.contains([1, 2, 1])
+        assert !discoveredOptical.contains([0, 3, 0])
+        final Set<List<Integer>> atlasCandidates = new LinkedHashSet<>()
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dy = -1; dy <= 1; dy++) {
+                for (int dz = -1; dz <= 1; dz++) {
+                    atlasCandidates.add([twoLayerInterior[0] + dx,
+                                         twoLayerInterior[1] + dy,
+                                         twoLayerInterior[2] + dz])
+                }
+            }
+        }
+        assert !atlasCandidates.contains([0, 2, 0])
+        atlasCandidates.addAll(discoveredOptical)
+        assert atlasCandidates.contains([0, 2, 0])
+        assert atlasCandidates.contains([1, 2, 1])
+        final List<Integer> twoLayerCentre = [
+                twoLayerInterior[0], 2, twoLayerInterior[2]]
+        final List<List<Integer>> centreExteriorNeighbours = fixtureSteps.collect {
+            List<Integer> step -> [twoLayerCentre[0] + step[0],
+                                   twoLayerCentre[1] + step[1],
+                                   twoLayerCentre[2] + step[2]]
+        }.findAll { List<Integer> neighbour ->
+            !discoveredOptical.contains(neighbour)
+                    && !twoLayerOptical.contains(neighbour)
+                    && neighbour != twoLayerInterior
+        }
+        // Radius-three glass is deliberately not discovered, but remains a solid membrane. It
+        // blocks the outer event instead of being misclassified as exterior air.
+        assert twoLayerOptical.contains([0, 3, 0])
+        assert centreExteriorNeighbours.isEmpty()
+
+        // glDepthRange reversal is independent from reversed projection ordering.
+        Closure<Double> canonicalDepth = { rawValue, rangeReversedValue ->
+            double raw = (rawValue as Number).doubleValue()
+            return (rangeReversedValue as boolean) ? 1.0D - raw : raw
+        }
+        assert canonicalDepth(0.25D, false) == 0.25D
+        assert canonicalDepth(0.75D, true) == 0.25D
+        assert (false ^ false) == false
+        assert (true ^ false) == true
+        assert (false ^ true) == true
+        assert (true ^ true) == false
+
+        // The published normalized rectangle is half-open, matching the GLSL sampling guard.
+        Closure<Boolean> inBounds = { uvValue, boundsValue ->
+            List<Number> uv = uvValue as List<Number>
+            List<Number> bounds = boundsValue as List<Number>
+            return uv[0].doubleValue() >= bounds[0].doubleValue()
+                    && uv[1].doubleValue() >= bounds[1].doubleValue()
+                    && uv[0].doubleValue() < bounds[2].doubleValue()
+                    && uv[1].doubleValue() < bounds[3].doubleValue()
+        }
+        final List<Double> bounds = [0.25D, 0.125D, 0.75D, 0.875D]
+        assert inBounds([0.25D, 0.125D], bounds)
+        assert inBounds([0.5D, 0.5D], bounds)
+        assert !inBounds([0.75D, 0.5D], bounds)
+        assert !inBounds([0.5D, 0.875D], bounds)
+
+        // Exactly one full-resolution D24S8 allocation stays below the renderer's 16 MiB budget.
+        assert 2560L * 1494L * 4L < 16L * 1024L * 1024L
+
+        logger.lifecycle('Aperture entry-depth CPU reference passed: nearest valid transition, '
+                + 'strict exterior water, clear/reversed depth and half-open bounds')
+    }
+}
+
+def verifyMixinSourceSafety = tasks.register('verifyMixinSourceSafety') {
+    group = 'verification'
+    description = 'Reject clone() calls in mixin source that Mixin 0.8.7 cannot transform safely.'
+    doLast {
+        List<String> offenders = []
+        fileTree('src/main/java/com/create/nautilus/mixin') {
+            include '**/*.java'
+        }.files.sort().each { File sourceFile ->
+            String source = sourceFile.getText('UTF-8')
+                    .replaceAll(/(?s)\/\*.*?\*\//, '')
+            source.readLines().eachWithIndex { String line, int index ->
+                String code = line.replaceFirst(/\/\/.*$/, '')
+                if (code =~ /\.clone\s*\(/) {
+                    offenders.add("${project.relativePath(sourceFile)}:${index + 1}")
+                }
+            }
+        }
+        if (!offenders.isEmpty()) {
+            throw new GradleException('Mixin source must not call clone(); Mixin 0.8.7 may crash while '
+                    + "resolving array owners. Offenders: ${offenders.join(', ')}")
+        }
+        final File irisPipelineMixin = file(
+                'src/main/java/com/create/nautilus/mixin/client/IrisPipelineAdapterMixin.java')
+        final String irisPipelineSource = irisPipelineMixin.getText('UTF-8')
+        final String constructorHeadMarker =
+                '@Inject(method = "<init>", at = @At("HEAD"), require = 0)'
+        final int constructorHead = irisPipelineSource.indexOf(constructorHeadMarker)
+        final int handlerEnd = constructorHead < 0
+                ? -1 : irisPipelineSource.indexOf('{', constructorHead + constructorHeadMarker.length())
+        final String constructorHeadHandler = constructorHead < 0 || handlerEnd < 0
+                ? '' : irisPipelineSource.substring(constructorHead + constructorHeadMarker.length(), handlerEnd)
+        if (constructorHead < 0 || !(constructorHeadHandler =~ /\bstatic\b/)) {
+            throw new GradleException('A Mixin constructor HEAD injector runs before super(); its '
+                    + 'handler must be static for Mixin 0.8.7')
+        }
+        final String visualCacheSource = file(
+                'src/main/java/com/create/nautilus/client/render/ClientCompartmentVisualCache.java')
+                .getText('UTF-8')
+        if (!visualCacheSource.contains(
+                'WaterMediumClassifier.fluidField(subLevel.getLevel(), localCell,')
+                || !visualCacheSource.contains('if (!room.containsCamera(local))')
+                || !visualCacheSource.contains(
+                'private static final double CAMERA_BOUNDARY_MARGIN = 0.25D')
+                || !visualCacheSource.contains(
+                'public static boolean isInsideTrackedRoomExact(final Vec3 worldPosition)')
+                || !visualCacheSource.contains('if (room.contains(local))')
+                || !visualCacheSource.contains(
+                'return new CarrierSnapshot(payload.topologyRevision(), Map.copyOf(rooms),')
+                || !visualCacheSource.contains('Map.of());')) {
+            throw new GradleException('Camera medium classification must recognize real plot '
+                    + 'water, retain a bounded cabin-side camera margin and never reuse water '
+                    + 'samples across topology revisions')
+        }
+        final String apertureCacheSource = file(
+                'src/main/java/com/create/nautilus/client/render/ApertureEventCache.java')
+                .getText('UTF-8')
+        final String apertureProviderSource = file(
+                'src/main/java/com/create/nautilus/client/render/OpticalApertureProvider.java')
+                .getText('UTF-8')
+        final String hullGlassTagSource = file(
+                'src/main/resources/data/create_nautilus/tags/block/hull_glass.json')
+                .getText('UTF-8')
+        final List<String> expectedCreatePrismHullGlassIds = [
+                'createprism:andesite_glass_casing',
+                'createprism:andesite_clear_glass_casing',
+                'createprism:andesite_illumination_casing',
+                'createprism:brass_glass_casing',
+                'createprism:brass_clear_glass_casing',
+                'createprism:brass_illumination_casing',
+                'createprism:copper_glass_casing',
+                'createprism:copper_clear_glass_casing',
+                'createprism:copper_illumination_casing',
+                'createprism:train_glass_casing',
+                'createprism:train_clear_glass_casing',
+                'createprism:train_illumination_casing'
+        ]
+        final Map parsedHullGlassTag = (Map) new groovy.json.JsonSlurper()
+                .parseText(hullGlassTagSource)
+        final List hullGlassTagValues = (List) parsedHullGlassTag.get('values')
+        final List<String> invalidCreatePrismHullGlassEntries =
+                expectedCreatePrismHullGlassIds.findAll { String id ->
+                    final List matchingEntries = hullGlassTagValues.findAll { Object value ->
+                        value instanceof Map && ((Map) value).get('id') == id
+                    }
+                    matchingEntries.size() != 1
+                            || ((Map) matchingEntries[0]).get('required') != false
+                }
+        if (!invalidCreatePrismHullGlassEntries.isEmpty()) {
+            throw new GradleException('hull_glass.json must contain each Create Prism casing exactly once '
+                    + 'with required=false: ' + invalidCreatePrismHullGlassEntries.join(', '))
+        }
+        final int apertureCacheRefresh = apertureCacheSource.indexOf(
+                'if (cached == null || cached.carrier() != carrier')
+        final int apertureRoomsComplete = apertureCacheSource.indexOf(
+                'if (!rooms.complete()) continue;', apertureCacheRefresh)
+        final int apertureTopologySignature = apertureCacheSource.indexOf(
+                'final long signature = topologySignature(entry.getValue());',
+                apertureRoomsComplete)
+        final int apertureBuildCarrier = apertureCacheSource.indexOf(
+                'cached = buildCarrier(carrier, revision, signature,',
+                apertureTopologySignature)
+        final int apertureCachePut = apertureCacheSource.indexOf(
+                'CACHE.put(key, cached);', apertureBuildCarrier)
+        final int fluidNeighborhoodCheck = apertureCacheSource.indexOf(
+                'if (!fluidNeighborhoodLoaded(level, position))')
+        final int fluidCornerHeightRead = apertureCacheSource.indexOf(
+                'WaterMediumClassifier.fluidCornerHeights(', fluidNeighborhoodCheck)
+        final int connectedWrapStart = apertureCacheSource.indexOf(
+                'private static void addConnectedMembraneWrapCandidates(')
+        final int connectedWrapQueue = apertureCacheSource.indexOf(
+                'final Set<Long> examined = new HashSet<>(shellCells.keySet());',
+                connectedWrapStart)
+        final int connectedWrapNeighbour = apertureCacheSource.indexOf(
+                'final BlockPos neighbour = current.offset(dx, dy, dz);',
+                connectedWrapQueue)
+        final int connectedWrapRadius = apertureCacheSource.indexOf(
+                'private static final int CONNECTED_MEMBRANE_RADIUS = 2;')
+        final int connectedWrapZone = apertureCacheSource.indexOf(
+                'for (int dx = -CONNECTED_MEMBRANE_RADIUS;', connectedWrapStart)
+        final int roomMembraneSeedMap = apertureCacheSource.indexOf(
+                'final Map<UUID, Map<Long, Direction>> roomMembraneSeeds =')
+        final int roomMediumValidation = apertureCacheSource.indexOf(
+                'final boolean roomOnNegative =', roomMembraneSeedMap)
+        final int roomMembraneSeedInsert = apertureCacheSource.indexOf(
+                '.computeIfAbsent(room.id(), ignored -> new LinkedHashMap<>())',
+                roomMediumValidation)
+        final int directExteriorTerminal = apertureCacheSource.indexOf(
+                'final BlockPos exterior = optical.relative(direction);',
+                roomMembraneSeedInsert)
+        final int connectedWrapCall = apertureCacheSource.indexOf(
+                'addConnectedMembraneWrapCandidates(carrier, plotBounds, roomIndex,',
+                directExteriorTerminal)
+        final int plotAirFallback = apertureCacheSource.indexOf(
+                'if (localPlane.kind() != FluidKind.AIR)')
+        final int parentWorldSample = apertureCacheSource.indexOf(
+                'final Vector3d worldSample = pose.transformPosition(new Vector3d(',
+                plotAirFallback)
+        if (!apertureCacheSource.contains('if (!rooms.complete())')
+                || !apertureCacheSource.contains(
+                'cached.topologyRevision() != revision')
+                || !apertureCacheSource.contains(
+                'cached.resourceGeneration() != resourceGeneration')
+                || apertureCacheRefresh < 0
+                || apertureRoomsComplete <= apertureCacheRefresh
+                || apertureTopologySignature <= apertureRoomsComplete
+                || apertureBuildCarrier <= apertureTopologySignature
+                || apertureCachePut <= apertureBuildCarrier
+                || apertureCacheSource.count(
+                'topologySignature(entry.getValue())') != 1
+                || !apertureCacheSource.contains(
+                'final List<Event> events = new ArrayList<>(cached.boundaries().size())')
+                || !apertureCacheSource.contains(
+                'final Map<UUID, RoomRuntime> runtimeRooms = runtimeRooms(')
+                || !apertureCacheSource.contains(
+                'entry.getKey(), entry.getValue(), pose)')
+                || !apertureCacheSource.contains(
+                'static synchronized OpticalSlots opticalSlots(')
+                || !apertureCacheSource.contains(
+                'static final int DIRECTION_SLOT_GROUP_SIZE = 64;')
+                || !apertureCacheSource.contains(
+                'final Map<Long, List<BoundaryCandidate>> boundariesByCell')
+                || !apertureCacheSource.contains(
+                'cellBoundaries.sort(Comparator.comparingInt(')
+                || !apertureCacheSource.contains(
+                'groupedSlot * DIRECTION_SLOT_GROUP_SIZE + directionBits')
+                || !apertureCacheSource.contains(
+                'private record BoundaryKey(long opticalCell, Direction outwardDirection)')
+                || apertureCacheSource.contains(
+                'private record BoundaryKey(long opticalCell, Direction.Axis axis)')
+                || !apertureCacheSource.contains(
+                'for (final BoundaryCandidate boundary : orderedBoundaries)')
+                || apertureCacheSource.contains('AMBIGUOUS_SLOT')
+                || apertureCacheSource.contains('voxelSlots.merge(')
+                || !apertureCacheSource.contains(
+                'final boolean valid = negative.valid() && positive.valid()')
+                || !apertureCacheSource.contains(
+                'final RoomRuntime boundaryRuntime = boundaryRoom == null')
+                || !apertureCacheSource.contains(
+                '? null : runtimeRooms.get(boundaryRoom);')
+                || !apertureCacheSource.contains(
+                'final boolean floodedExteriorShell = boundaryRuntime != null')
+                || !apertureCacheSource.contains(
+                'boundary.outwardDirection(), floodedExteriorShell,')
+                || !apertureCacheSource.contains(
+                'compartmentState != ClientCompartmentVisualCache.CameraWaterState.OUTSIDE')
+                || !apertureCacheSource.contains(
+                'negativeMedium == UnknownMedium.INSTANCE')
+                || !apertureCacheSource.contains(
+                'static final int VERTEX_STRIDE = 8;')
+                || !apertureCacheSource.contains(
+                'final double outwardFace = extremeFaceCoordinate(boundary, outwardPositive);')
+                 || !apertureCacheSource.contains(
+                 'final double placedX = vertex.x();')
+                 || !apertureCacheSource.contains(
+                 'boundary.opticalCell()).inflate(1.0E-4D)')
+                 || apertureCacheSource.contains('final Direction inward =')
+                || !apertureCacheSource.contains('mesh.add(faceSign);')
+                || !apertureCacheSource.contains('mesh.add(outwardSign);')
+                  || !apertureCacheSource.contains(
+                  'addConnectedMembraneWrapCandidates(carrier, plotBounds, roomIndex,')
+                  || connectedWrapStart < 0
+                  || connectedWrapRadius < 0
+                  || connectedWrapZone <= connectedWrapStart
+                  || connectedWrapQueue <= connectedWrapStart
+                  || connectedWrapNeighbour <= connectedWrapQueue
+                  || roomMembraneSeedMap < 0
+                  || roomMediumValidation <= roomMembraneSeedMap
+                  || roomMembraneSeedInsert <= roomMediumValidation
+                  || directExteriorTerminal <= roomMembraneSeedInsert
+                  || connectedWrapCall <= directExteriorTerminal
+                  || !apertureCacheSource.contains(
+                  'if (dx == 0 && dy == 0 && dz == 0) continue;')
+                  || !apertureCacheSource.contains(
+                  'for (int dz = -1; dz <= 1; dz++)')
+                  || !apertureCacheSource.contains(
+                  'final Map<UUID, Map<Long, Direction>> roomSeeds,')
+                  || !apertureCacheSource.contains(
+                  'final Map<UUID, Map<Long, Direction>> roomMembraneSeeds =')
+                  || !apertureCacheSource.contains(
+                  'final boolean roomOnNegative = negativeMedium instanceof RoomMedium')
+                  || !apertureCacheSource.contains(
+                  'final boolean roomOnPositive = positiveMedium instanceof RoomMedium')
+                 || !apertureCacheSource.contains(
+                 'final Map<UUID, Set<Long>> shellZones = new LinkedHashMap<>();')
+                 || !apertureCacheSource.contains(
+                 'if (!zone.contains(packed) || !examined.add(packed)')
+                 || !apertureCacheSource.contains(
+                 'if (shellCells.containsKey(exteriorPacked)')
+                 || !apertureCacheSource.contains(
+                 'membrane = membraneWrap(')
+                  || !apertureCacheSource.contains(
+                  'final Map<Direction, MembraneFace> faces = new EnumMap<>(Direction.class);')
+                  || !apertureCacheSource.contains(
+                  'faces.put(direction, new MembraneFace(')
+                  || !apertureCacheSource.contains(
+                  'return faces.isEmpty() ? null : new MembraneWrap(faces);')
+                  || !apertureCacheSource.contains(
+                  'final MembraneFace face = membrane.face(outward);')
+                  || !apertureCacheSource.contains(
+                  'hasBakedFace(face.batches(), outward.getAxis(), outwardPositive)')
+                  || !apertureCacheSource.contains(
+                  'final Map<Long, MembraneWrap> classified = new HashMap<>();')
+                  || !apertureCacheSource.contains(
+                  'final Set<Long> nonOptical = new HashSet<>();')
+                  || apertureCacheSource.contains('MembraneKey')
+                || !apertureCacheSource.contains(
+                'new BatchKey(source.atlas(), source.alphaCutoff(),')
+                || !apertureCacheSource.contains(
+                'entry.getKey().alphaCutoff(), entry.getKey().directionCode(),')
+                || apertureCacheSource.contains('synthesizeOpposite')
+                || !apertureCacheSource.contains(
+                 'positiveFaceNormal != outwardPositive || fullFaceBatch != null) continue;')
+                  || !apertureProviderSource.contains(
+                  'fullCollisionBlock = state.isCollisionShapeFullBlock(level, position);')
+                  || !apertureProviderSource.contains(
+                  'if (stateClassification == StateClassification.CONFIRMED_OPTICAL) {')
+                || !apertureCacheSource.contains(
+                'final OpticalApertureProvider.AtlasBatch fullFaceBatch =')
+                 || !apertureCacheSource.contains(
+                 'boundary.fullCollisionBlock() ? opticalAxisBatch(boundary) : null;')
+                  || !apertureCacheSource.contains(
+                  'triangle.modelNormal().getAxisDirection() == expected')
+                  || !apertureCacheSource.contains(
+                  'return null;')
+                || apertureCacheSource.contains('completeOpticalFaceBatch(')
+                || apertureCacheSource.count('appendFullCellFace(meshes,') != 1
+                || !apertureCacheSource.contains(
+                'final List<AABB> apertureCellBounds = new ArrayList<>')
+                || !apertureCacheSource.contains(
+                'addFluidWatchNeighborhood(plotFluidWatchCells,')
+                || !apertureCacheSource.contains(
+                'final Vector3d worldSample = pose.transformPosition(new Vector3d(')
+                || plotAirFallback < 0
+                || parentWorldSample <= plotAirFallback
+                || !apertureCacheSource.contains('sample.plotAirFallback = true;')
+                || !apertureCacheSource.contains(
+                'sample.plotAirFallback = plotLocal;')
+                || !apertureCacheSource.contains(
+                'if (!loaded(level, position)) return FluidPlane.invalid();')
+                || !apertureCacheSource.contains(
+                'currentState == null || !currentState.isAir()')
+                || !apertureCacheSource.contains(
+                'if (!fluid.isSource() || !(state.getBlock() instanceof LiquidBlock)')
+                || !apertureCacheSource.contains(
+                'state.hasProperty(BlockStateProperties.WATERLOGGED)')
+                || !apertureCacheSource.contains(
+                'maximum - minimum > FLAT_PLANE_EPSILON')
+                || fluidNeighborhoodCheck < 0
+                || fluidCornerHeightRead <= fluidNeighborhoodCheck
+                || !apertureCacheSource.contains('for (int dx = -1; dx <= 1; dx++)')
+                || !apertureCacheSource.contains('for (int dz = -1; dz <= 1; dz++)')
+                || !apertureCacheSource.contains(
+                'final BlockPos neighbor = position.offset(dx, 0, dz);')
+                || !apertureCacheSource.contains(
+                '!loaded(level, neighbor) || !loaded(level, neighbor.above())')
+                || !apertureCacheSource.contains(
+                'return new Invalidation(removed || fluidInvalidated, removed);')
+                || !apertureCacheSource.contains(
+                'ClientCompartmentVisualCache.cameraWaterState(')
+                || apertureCacheSource.contains(
+                'prepared.cached().cellOwners().get(localCell.asLong())')
+                || !apertureCacheSource.contains(
+                'OpticalApertureProvider.invalidateAround')
+                || !apertureCacheSource.contains(
+                'cached.geometryWatchCells().contains(changedPosition.asLong())')
+                || !apertureCacheSource.contains(
+                'invalidateExteriorSamples(cached, changedPosition)')
+                || !apertureCacheSource.contains(
+                'record Frame(ClientLevel level,')) {
+            throw new GradleException('Aperture events must cache real model geometry by topology '
+                    + 'and resource generation, expand only collision-full optical blocks into '
+                    + 'one bounded connected exterior wrap face per axis, add local full-optical '
+                    + 'occupancy candidates, rebuild the immutable event table per frame, map exterior '
+                    + 'samples through renderPose, reject unstable water and fail open for '
+                    + 'incomplete medium semantics')
+        }
+
+        final String apertureRendererSource = file(
+                'src/main/java/com/create/nautilus/client/render/ApertureMediumMaskRenderer.java')
+                .getText('UTF-8')
+        final String apertureMaskSource = file(
+                'src/main/java/com/create/nautilus/client/render/ApertureMaskMeshRenderer.java')
+                .getText('UTF-8')
+        final int semanticPrepare = apertureRendererSource.indexOf(
+                'ApertureEventCache.prepare(')
+        final int nearestDepth = apertureRendererSource.indexOf(
+                'GL11C.glDepthFunc(reversed ? GL11C.GL_GREATER : GL11C.GL_LESS);')
+        final int stencilAlways = apertureRendererSource.indexOf(
+                'GL11C.glStencilFunc(GL11C.GL_ALWAYS, 1, 0xFF);', nearestDepth)
+        final int stencilReplaceNearest = apertureRendererSource.indexOf(
+                'GL11C.glStencilOp(GL11C.GL_KEEP, GL11C.GL_KEEP, GL11C.GL_REPLACE);',
+                stencilAlways)
+        final int drawNearest = apertureRendererSource.indexOf(
+                'drawnBatches = drawMaskGeometry(drawSession, frame, opticalAtlas);',
+                stencilReplaceNearest)
+        final int nearestDiagnostic = apertureRendererSource.indexOf(
+                'first mask pixels nearest={}', drawNearest)
+        final int metadataCamera = apertureRendererSource.indexOf(
+                'publishedCameraWater = frame.semantic().cameraStartsInWater()')
+        final int publishReady = apertureRendererSource.indexOf(
+                'ready = true;', metadataCamera)
+        if (apertureRendererSource.count('GL30C.GL_DEPTH24_STENCIL8') != 2
+                || apertureRendererSource.count('GL30C.GL_DEPTH_STENCIL_ATTACHMENT') != 1
+                || !apertureRendererSource.contains(
+                'private static final int BYTES_PER_DEPTH_STENCIL_PIXEL = 4')
+                || semanticPrepare < 0
+                || apertureRendererSource.contains(
+                'cameraState == ClientCompartmentVisualCache.CameraWaterState.WET')
+                || apertureRendererSource.contains(
+                'cameraState != ClientCompartmentVisualCache.CameraWaterState.DRY')
+                || !apertureRendererSource.contains(
+                'GL14C.GL_TEXTURE_COMPARE_MODE, GL11C.GL_NONE')
+                || !apertureRendererSource.contains(
+                'GL42C.glTexStorage2D(GL11C.GL_TEXTURE_2D, 1,')
+                || !apertureRendererSource.contains(
+                'GL43C.glTextureView(candidateDirectionView, GL11C.GL_TEXTURE_2D,')
+                || !apertureRendererSource.contains(
+                'GL43C.GL_DEPTH_STENCIL_TEXTURE_MODE, GL11C.GL_STENCIL_INDEX')
+                || !apertureRendererSource.contains(
+                'GL11C.glStencilFunc(GL11C.GL_ALWAYS, batch.directionCode(), 0xFF)')
+                || !apertureRendererSource.contains(
+                'public static int directionTextureId()')
+                || !apertureRendererSource.contains(
+                'directions=[X-:{},X+:{},Y-:{},Y+:{},Z-:{},Z+:{}]')
+                || !apertureRendererSource.contains(
+                'multiAxisCells=[2:{},3:{}] oppositeSideCells={}')
+                || nearestDepth < 0 || stencilAlways < nearestDepth
+                || stencilReplaceNearest < stencilAlways
+                || drawNearest < stencilReplaceNearest
+                || nearestDiagnostic < drawNearest
+                || !apertureRendererSource.contains('invalidData={}')
+                || !apertureRendererSource.contains('invalidEvents={}')
+                || !apertureRendererSource.contains('invalidDirectionGroups={}')
+                || !apertureRendererSource.contains('invalidCarriers={}')
+                || !apertureRendererSource.contains('unexpectedStencil={}')
+                || apertureRendererSource.contains('GL11C.GL_INCR')
+                || apertureRendererSource.contains(
+                'GL11C.glDepthFunc(reversed ? GL11C.GL_LESS : GL11C.GL_GREATER);')
+                || apertureRendererSource.contains('ApertureMaskMeshRenderer.sanitize(')
+                || !apertureRendererSource.contains(
+                'textureLevelMatches(sceneDepthTexture, targetWidth, targetHeight)')
+                || !apertureRendererSource.contains('projectionOrdering < 0')
+                || !apertureRendererSource.contains(
+                'final boolean reversed = projectionReversed ^ rangeReversed')
+                || !apertureRendererSource.contains(
+                'final float clearDepth = reversed ? 0.0F : 1.0F')
+                || !apertureRendererSource.contains(
+                'final ScreenBounds clearBounds = previousBounds.union(bounds)')
+                || !apertureRendererSource.contains('sameCamera(frame,')
+                || !apertureRendererSource.contains(
+                '|| !IrisCompositeShaderSource.adapterReady(adapterGeneration)')
+                || !apertureRendererSource.contains(
+                'publishedMinU = (float) bounds.x() / width')
+                || !apertureRendererSource.contains(
+                'publishedMaxU = (float) (bounds.x() + bounds.width()) / width')
+                || !apertureRendererSource.contains(
+                'return ready && finalizedSerial == frameSerial')
+                || !apertureRendererSource.contains(
+                'return cameraRelativeCarrierModelView(')
+                || !apertureRendererSource.contains(
+                'frame.rotationOnlyView(), carrier.pose(),')
+                || !apertureRendererSource.contains(
+                'carrier.voxelOriginX(), carrier.voxelOriginY(), carrier.voxelOriginZ(),')
+                || !apertureRendererSource.contains(
+                'new Matrix4d(carrierPose).translate(')
+                || !apertureRendererSource.contains(
+                'voxelOriginX, voxelOriginY, voxelOriginZ);')
+                || metadataCamera < 0 || publishReady < metadataCamera) {
+            throw new GradleException('The optical renderer must publish one size-checked D24S8 '
+                    + 'texture, retain the globally nearest valid entry without a second-layer '
+                    + 'conflict pass, leave no-entry pixels at clear depth, clear dirty bounds '
+                    + 'and publish normalized half-open bounds')
+        }
+        ['GL_DEPTH_COMPONENT32F', 'GL_RGBA16F', 'GL_R32F', 'GL_RG8',
+         'gateCoverageTextures', 'depthTextures', 'glTexImage3D',
+         'WaterMediumSegmentRenderer'].each { token ->
+            if (apertureRendererSource.contains(token)) {
+                throw new GradleException("Single-entry renderer retained removed full-screen "
+                        + "segment/coverage/peel state: ${token}")
+            }
+        }
+        if (apertureMaskSource.contains(
+                'textureLod(BlockAtlas, nautilusAtlasUv, 0.0).a')
+                || apertureMaskSource.contains('alpha < opaqueThreshold')
+                || !apertureMaskSource.contains(
+                'bool negativeWater = negativeField <= -0.0001')
+                || !apertureMaskSource.contains(
+                'if (negativeWater == positiveWater) discard')
+                || !apertureMaskSource.contains(
+                'bool floodedExteriorShell = metadata.y > 2.5;')
+                || !apertureMaskSource.contains(
+                'vec4 exteriorPlane = eventOutwardSign > 0.0')
+                || !apertureMaskSource.contains(
+                'Both viewing directions are valid')
+                || !apertureMaskSource.contains('in float FaceSign;')
+                || !apertureMaskSource.contains('in float OutwardSign;')
+                || !apertureMaskSource.contains('flat out float nautilusFaceSign;')
+                || !apertureMaskSource.contains('flat out float nautilusOutwardSign;')
+                || !apertureMaskSource.contains(
+                'nautilusLocalPosition = Position - EventVoxelOrigin;')
+                || apertureMaskSource.contains('uniform vec3 CameraLocalPosition;')
+                || apertureMaskSource.contains('float rayAxis = surfaceAxis - cameraAxis;')
+                || apertureMaskSource.contains('vec3 entryPosition = CameraLocalPosition')
+                || apertureMaskSource.contains('nautilusEntryClipPosition')
+                || !apertureMaskSource.contains(
+                'gl_Position = ProjMat * viewPosition;')
+                || apertureMaskSource.contains(
+                'negativeWater && nautilusFaceSign > 0.0')
+                 || !apertureMaskSource.contains(
+                 'GL20C.glVertexAttribPointer(3, 1, GL11C.GL_FLOAT, false, strideBytes, 24L)')
+                  || !apertureMaskSource.contains(
+                  'GL20C.glVertexAttribPointer(4, 1, GL11C.GL_FLOAT, false, strideBytes, 28L)')
+                  || !apertureMaskSource.contains(
+                  'GL20C.glBindAttribLocation(program, 4, "OutwardSign");')
+                  || !apertureMaskSource.contains(
+                  'vec3 semanticPosition = nautilusLocalPosition;')
+                 || apertureMaskSource.contains('gl_FragDepth =')
+                 || !apertureMaskSource.contains('uniform sampler2D SceneDepth;')
+                  || !apertureMaskSource.contains(
+                  'float scene = texture(SceneDepth, sceneUv).r;')
+                 || !apertureMaskSource.contains(
+                 '? gl_FragCoord.z < scene - 0.0000005')
+                || !apertureMaskSource.contains(
+                ': gl_FragCoord.z > scene + 0.0000005;')
+                 || apertureMaskSource.contains('gl_FragCoord.z <= scene +')
+                 || apertureMaskSource.contains('gl_FragCoord.z >= scene -')
+                || !apertureMaskSource.contains('if (hidden) discard;')
+                || apertureMaskSource.contains('gl_FragDepth = ClearDepth;')
+                || apertureMaskSource.contains('uniform float ClearDepth;')) {
+            throw new GradleException('Aperture rasterization must keep confirmed optical model '
+                    + 'triangles whole, retain the ordinary transition gate, let a flooded room '
+                    + 'publish its exterior-water shell in both viewing directions, preserve '
+                    + 'coplanar cutout glass while rejecting strictly foreground geometry, restore '
+                    + 'the original water-side semantic point and leave exact direction to stencil')
+        }
+        if (!irisPipelineSource.contains('@Inject(method = "finalizeLevelRendering"')
+                || !irisPipelineSource.contains(
+                'target = "Lnet/irisshaders/iris/pipeline/CompositeRenderer;renderAll()V"')
+                || !irisPipelineSource.contains('copyPreTranslucentDepth()V')
+                || !irisPipelineSource.contains('shift = At.Shift.AFTER')
+                || !irisPipelineSource.contains(
+                'if (!IrisCompositeShaderSource.requiresEarlyFog(createNautilus$adapterGeneration))')
+                || !apertureRendererSource.contains('ShaderVoxelMaskAtlas.publishOpticalForEarlyFog(')
+                || !apertureRendererSource.contains(
+                'adapterGeneration, irisFrameCounter, targetWidth, targetHeight)')) {
+            throw new GradleException('Fog masks must keep late composite publication and provide '
+                    + 'a pack-gated early path only after Iris has copied opaque depth')
+        }
+
+        final String sodiumBridgeSource = file(
+                'src/main/java/com/create/nautilus/client/render/SodiumWaterOcclusionShaderBridge.java')
+                .getText('UTF-8')
+        final int cachedTextureUnitUse = sodiumBridgeSource.indexOf(
+                'final int textureUnit = cachedUnusedTextureUnit(program);')
+        final int cacheLookup = sodiumBridgeSource.indexOf(
+                'final Integer cached = VOXEL_TEXTURE_UNIT_CACHE.get(key);')
+        final int linkedProgramCheck = sodiumBridgeSource.indexOf(
+                'GL20C.glGetProgrami(program, GL20C.GL_LINK_STATUS)', cacheLookup)
+        final int samplerScan = sodiumBridgeSource.indexOf(
+                'final int resolved = findUnusedTextureUnit(program);', linkedProgramCheck)
+        final int resetGeneration = sodiumBridgeSource.indexOf(
+                'voxelTextureUnitPipelineGeneration = nextTextureUnitGeneration > 0')
+        final int resetCache = sodiumBridgeSource.indexOf(
+                'VOXEL_TEXTURE_UNIT_CACHE.clear();', resetGeneration)
+        if (!sodiumBridgeSource.contains(
+                'ConcurrentMap<TextureUnitCacheKey, Integer>')
+                || !sodiumBridgeSource.contains(
+                'new TextureUnitCacheKey(program, pipelineGeneration)')
+                || cachedTextureUnitUse < 0 || cacheLookup < 0
+                || linkedProgramCheck < cacheLookup || samplerScan < linkedProgramCheck
+                || !sodiumBridgeSource.contains(
+                'if (pipelineGeneration != voxelTextureUnitPipelineGeneration) return -1;')
+                || resetGeneration < 0 || resetCache < resetGeneration
+                || sodiumBridgeSource.count('findUnusedTextureUnit(program)') != 1) {
+            throw new GradleException('The Sodium voxel-atlas texture unit must be resolved from '
+                    + 'the linked program sampler layout once per pipeline generation, cleared on '
+                    + 'reset, and fail open if a reset races resolution')
+        }
+
+        final String voxelAtlasSource = file(
+                'src/main/java/com/create/nautilus/client/render/ShaderVoxelMaskAtlas.java')
+                .getText('UTF-8')
+        final int candidateMembershipRefresh = voxelAtlasSource.indexOf(
+                'if (!atlasCandidates(input, packed.roomOwners().keySet(), liveOptical)')
+        final int unaffectedCandidateSkip = voxelAtlasSource.indexOf('if (!candidateAffected)')
+        if (candidateMembershipRefresh < 0 || unaffectedCandidateSkip < candidateMembershipRefresh) {
+            throw new GradleException('New eventless glass outside the old candidate set must be '
+                    + 'discovered before the unchanged-candidate fast path can skip its block edit')
+        }
+        final int carrierValidity = voxelAtlasSource.indexOf(
+                'if (opticalCarrierValid) {')
+        final int carrierPublish = voxelAtlasSource.indexOf(
+                'opticalCarriers.put(carrierLayout.id(), new CompositeCarrierView(',
+                carrierValidity)
+        final int slotValidity = voxelAtlasSource.indexOf(
+                'final boolean valid = opticalCarrierValid && event != null', carrierPublish)
+        final int slotUpload = voxelAtlasSource.indexOf(
+                'putOpticalEvent(prefix, event, valid, carrierLayout.revision(),', slotValidity)
+        final int framePublish = voxelAtlasSource.indexOf(
+                'final CompositeAtlasView opticalView = opticalFrameCoherent', slotUpload)
+        final String sodiumOcclusionSource = file(
+                'src/main/java/com/create/nautilus/client/render/SodiumOcclusionShaderSource.java')
+                .getText('UTF-8')
+        final int d6Load = sodiumOcclusionSource.indexOf(
+                'vec4 d6 = nautilusAtlasTexel(descriptor + 6.0);')
+        final int screenReject = sodiumOcclusionSource.indexOf(
+                'if (gl_FragCoord.x < d6.x', d6Load)
+        final int matrixLoad = sodiumOcclusionSource.indexOf(
+                'vec4 d0 = nautilusAtlasTexel(descriptor);', screenReject)
+        final int photonRefractionProbe = sodiumOcclusionSource.indexOf(
+                'private static MainSpan photonRefractionMain(final String source)')
+        final int photonRefractionBodyProbe = sodiumOcclusionSource.indexOf(
+                'PHOTON_WATER_ABSORPTION.matcher(body).find()', photonRefractionProbe)
+        final int photonRefractionXyProbe = sodiumOcclusionSource.indexOf(
+                'PHOTON_REFRACTION_XY_WRITE.matcher(body).find()', photonRefractionBodyProbe)
+        final int photonRefractionZwProbe = sodiumOcclusionSource.indexOf(
+                'PHOTON_REFRACTION_ZW_WRITE.matcher(body).find()', photonRefractionXyProbe)
+        final int virtualRefractionReset = sodiumOcclusionSource.indexOf(
+                'refraction_data = vec4(0.0);')
+        final int appendRefractionReset = sodiumOcclusionSource.indexOf(
+                '+ refractionSuppression')
+        final int appendMainClose = sodiumOcclusionSource.indexOf(
+                '+ source.substring(main.close());', appendRefractionReset)
+        if (!voxelAtlasSource.contains(
+                'putConservativeScreenRect(prefix, carrier, modelView, projection,')
+                || !voxelAtlasSource.contains(
+                'putFullScreenRect(target, viewportX, viewportY, viewportWidth, viewportHeight)')
+                || !voxelAtlasSource.contains(
+                'Any uncertain projection disables')
+                || !sodiumOcclusionSource.contains(
+                'public static final int VOXEL_CARRIER_DESCRIPTOR_TEXELS = 8')
+                || photonRefractionProbe < 0
+                || photonRefractionBodyProbe < photonRefractionProbe
+                || photonRefractionXyProbe < photonRefractionBodyProbe
+                || photonRefractionZwProbe < photonRefractionXyProbe
+                 || !sodiumOcclusionSource.contains(
+                 'MAIN.matcher(codeOnly(source, 0, source.length()))')
+                 || !sodiumOcclusionSource.contains(
+                 'if (encodedVoxel <= -1.5) return true;')
+                 || sodiumOcclusionSource.contains(
+                 'if (encodedVoxel < -0.5) return true;')
+                 || !sodiumOcclusionSource.contains('if (candidate != null)')
+                || virtualRefractionReset < 0
+                || !sodiumOcclusionSource.contains(
+                'if (" + VIRTUAL_WATER_UNIFORM + " > 0.5)')
+                || appendRefractionReset < 0 || appendMainClose < appendRefractionReset
+                || !voxelAtlasSource.contains(
+                'private static final int OPTICAL_EVENT_TEXELS = 3')
+                 || !voxelAtlasSource.contains(
+                 'return directionSlotGroup != null && directionSlotGroup >= 0')
+                 || !voxelAtlasSource.contains(
+                 'final boolean fullOpticalVolume = directionSlotGroup == null')
+                 || !voxelAtlasSource.contains(
+                 'OpticalApertureProvider.isFullOpticalVolume(carrier, cell)')
+                 || !voxelAtlasSource.contains(
+                 'fullOpticalVolume ? EVENTLESS_OPTICAL_VOLUME : -1.0F')
+                 || !voxelAtlasSource.contains(
+                 'payload[index] = encodedShell(carrier, cell,')
+                 || !voxelAtlasSource.contains(
+                 'encodedShell(input.carrier(), cell,')
+                || !voxelAtlasSource.contains(
+                'static record CompositeAtlasView(')
+                || !voxelAtlasSource.contains(
+                'static record CompositeCarrierView(')
+                || carrierValidity < 0 || carrierPublish < carrierValidity
+                || slotValidity < carrierPublish || slotUpload < slotValidity
+                || framePublish < slotUpload
+                || voxelAtlasSource.contains('if (!valid) opticalComplete = false;')
+                || voxelAtlasSource.contains('if (!opticalCarrierValid) {\n'
+                + '                opticalComplete = false;')
+                || !voxelAtlasSource.contains(
+                'final Set<UUID> ambiguousOpticalIds = new HashSet<>();')
+                || !voxelAtlasSource.contains(
+                'putOpticalEvent(prefix, event, valid, carrierLayout.revision(),')
+                || !voxelAtlasSource.contains(
+                'final int originDeltaX = opticalCarrierValid')
+                || !voxelAtlasSource.contains(
+                'final double negativeW = negative.w() + negative.x() * originDeltaX')
+                || !voxelAtlasSource.contains(
+                'final double positiveW = positive.w() + positive.x() * originDeltaX')
+                 || !voxelAtlasSource.contains(
+                 'event.floodedExteriorShell() ? 2.0F : 0.0F')
+                 || !voxelAtlasSource.contains(
+                 'private static Set<Long> atlasCandidates(')
+                 || !voxelAtlasSource.contains(
+                 'candidates.addAll(optical.voxelSlots().keySet());')
+                 || !voxelAtlasSource.contains(
+                 'final Set<Long> fullOpticalNeighbours = new LongOpenHashSet();')
+                 || !voxelAtlasSource.contains(
+                 'isFullOpticalVolume(input.carrier(), neighbour)')
+                 || !voxelAtlasSource.contains(
+                 'candidates.addAll(fullOpticalNeighbours);')
+                 || voxelAtlasSource.count('atlasCandidates(') != 4
+                 || !voxelAtlasSource.contains(
+                 'if (!atlasCandidates(input, packed.roomOwners().keySet(), liveOptical)')
+                 || !voxelAtlasSource.contains(
+                 '.equals(packed.candidates()))')
+                 || !voxelAtlasSource.contains(
+                 'if (packed.candidates().contains(key))')
+                 || !voxelAtlasSource.contains('if (!candidateAffected)')
+                || !apertureMaskSource.contains(
+                'float first = EventPlaneBase + slot * 3.0;')
+                || !apertureMaskSource.contains(
+                'abs(metadata.z - slot) > 0.25')
+                || d6Load < 0 || screenReject < d6Load || matrixLoad < screenReject) {
+            throw new GradleException('Every voxel-atlas descriptor must publish a conservative '
+                    + 'screen rectangle and reject off-screen fragments before loading its matrix; '
+                    + 'optical publication must isolate invalid slots/carriers without compacting '
+                    + 'event ids; Photon virtual water must retain absorption while clearing only '
+                    + 'its packed refraction output; non-optical shell sentinels must fail open; '
+                    + 'uncertain projections must never become false-negative')
+        }
+        final String floodedSource = file(
+                'src/main/java/com/create/nautilus/client/render/FloodedChamberRenderer.java')
+                .getText('UTF-8')
+        final String cameraFluidSource = file(
+                'src/main/java/com/create/nautilus/mixin/client/CameraFluidMixin.java')
+                .getText('UTF-8')
+        final String compartmentFogSource = file(
+                'src/main/java/com/create/nautilus/client/render/WetCompartmentFog.java')
+                .getText('UTF-8')
+        final String virtualWaterMixinSource = file(
+                'src/main/java/com/create/nautilus/mixin/client/SodiumVirtualWaterLayerMixin.java')
+                .getText('UTF-8')
+        final int outsideHook = virtualWaterMixinSource.indexOf(
+                'private void createNautilus$drawVirtualWaterOutside(')
+        final int outsideWaterGuard = virtualWaterMixinSource.indexOf(
+                'if (createNautilus$skipExternalParentWaterSubmission())', outsideHook)
+        final int outsideMatrixLookup = virtualWaterMixinSource.indexOf(
+                'final Matrix4f[] pair = createNautilus$matrices(matrices);', outsideHook)
+        final int insideHook = virtualWaterMixinSource.indexOf(
+                'private void createNautilus$drawVirtualWaterInside(')
+        final int insideWaterGuard = virtualWaterMixinSource.indexOf(
+                'if (createNautilus$skipExternalParentWaterSubmission())', insideHook)
+        final int insideMatrixLookup = virtualWaterMixinSource.indexOf(
+                'final Matrix4f[] pair = createNautilus$matrices(matrices);', insideHook)
+        final int externalCameraMedium = cameraFluidSource.indexOf(
+                'final boolean externalParentWater')
+        final int forceExternalWater = cameraFluidSource.indexOf(
+                'callback.setReturnValue(FogType.WATER);', externalCameraMedium)
+        final int forceTrackedNone = cameraFluidSource.indexOf(
+                'callback.setReturnValue(FogType.NONE);', forceExternalWater)
+        final int invalidateBefore = floodedSource.indexOf('BufferUploader.invalidate();')
+        final int immediateDraw = floodedSource.indexOf(
+                'BufferUploader.drawWithShader(mesh);', invalidateBefore)
+        final int invalidateAfter = floodedSource.indexOf(
+                'BufferUploader.invalidate();', immediateDraw + 1)
+        final int restoreVao = floodedSource.indexOf(
+                'GL30C.glBindVertexArray(previousVao);', invalidateAfter)
+        final int restoreArray = floodedSource.indexOf(
+                'GL15C.glBindBuffer(GL15C.GL_ARRAY_BUFFER, previousArrayBuffer);', restoreVao)
+        if (!cameraFluidSource.contains('@Mixin(value = Camera.class, priority = 2000)')
+                || !cameraFluidSource.contains(
+                '@Inject(method = "getFluidInCamera", at = @At("HEAD"), cancellable = true)')
+                || !cameraFluidSource.contains(
+                'if (externalParentWater || state == ClientCompartmentVisualCache.CameraWaterState.WET)')
+                || !cameraFluidSource.contains(
+                'if (state == ClientCompartmentVisualCache.CameraWaterState.DRY)')
+                || !cameraFluidSource.contains('case WET -> "WATER";')
+                || !cameraFluidSource.contains('callback.setReturnValue(FogType.NONE);')
+                || compartmentFogSource.contains('cameraInFloodedRoom(')
+                || compartmentFogSource.contains('getWaterFogColor()')
+                || compartmentFogSource.contains('setNearPlaneDistance(-8.0F)')
+                || compartmentFogSource.contains('setFarPlaneDistance(96.0F)')
+                || externalCameraMedium < 0 || forceExternalWater < externalCameraMedium
+                || forceTrackedNone < forceExternalWater
+                || !cameraFluidSource.contains(
+                '!ClientCompartmentVisualCache.isInsideTrackedRoomExact(cameraPosition)')
+                || !cameraFluidSource.contains(
+                'WaterMediumClassifier.parentWorldContains(minecraft.level')
+                || outsideHook < 0 || outsideWaterGuard < outsideHook
+                || outsideMatrixLookup < outsideWaterGuard
+                || insideHook < outsideMatrixLookup || insideWaterGuard < insideHook
+                || insideMatrixLookup < insideWaterGuard
+                || virtualWaterMixinSource.count(
+                'if (createNautilus$skipExternalParentWaterSubmission())') != 2
+                || !virtualWaterMixinSource.contains(
+                'WaterMediumClassifier.parentWorldContains(')
+                || !virtualWaterMixinSource.contains(
+                '!ClientCompartmentVisualCache.isInsideTrackedRoomExact(cameraPosition)')
+                || invalidateBefore < 0 || immediateDraw < invalidateBefore
+                || invalidateAfter < immediateDraw || restoreVao < invalidateAfter
+                || restoreArray < restoreVao
+                || !floodedSource.contains(
+                '(pass == NativeSurfacePass.CAMERA_INSIDE_ROOM) != cameraInside')
+                || !floodedSource.contains(
+                'return room.bounds().contains(local.x, local.y, local.z);')
+                || !floodedSource.contains(
+                'Math.clamp(local.x - cellBounds.minX, 0.0D, 1.0D);')
+                || !floodedSource.contains(
+                'Math.clamp(local.z - cellBounds.minZ, 0.0D, 1.0D);')
+                || floodedSource.contains('sprite.uvShrinkRatio()')) {
+            throw new GradleException('Wet compartments and exact external water must restore '
+                    + 'native WATER before coarse Sable occlusion; only dry rooms suppress fog; Sodium virtual '
+                    + 'water must skip both underwater hooks before shader/VAO access, invalidate BufferUploader on both '
+                    + 'sides of remaining draws, restore the caller VAO/array buffer, submit '
+                    + 'each room in exactly one pass and keep the free-surface UV seam-free')
+        }
+        logger.lifecycle('Source safety checks passed: immutable aperture events, one D24S8 '
+                + 'stencil mask, atlas screen early-out and VAO cache contracts are preserved')
+    }
+}
+
+def verifyIrisShaderPatchSafety = tasks.register('verifyIrisShaderPatchSafety') {
+    group = 'verification'
+    description = 'Reject post-preprocess Iris adapter output containing conditional directives.'
+    dependsOn tasks.named('classes')
+    doLast {
+        final File adapterFile = file(
+                'src/main/java/com/create/nautilus/client/render/IrisCompositeShaderSource.java')
+        final String adapterSource = adapterFile.getText('UTF-8')
+        final def directiveLine = ~/(?m)^\s*#\s*(?:if|ifdef|ifndef|elif|else|endif)\b/
+        final def directiveMatcher = directiveLine.matcher(adapterSource)
+        if (directiveMatcher.find()) {
+            final int line = adapterSource.substring(0, directiveMatcher.start())
+                    .count('\n') + 1
+            throw new GradleException('Iris adapter templates run after shader-pack preprocessing; '
+                    + "conditional directive found at ${project.relativePath(adapterFile)}:${line}")
+        }
+        if (!adapterSource.contains('CONDITIONAL_PREPROCESSOR_DIRECTIVE')
+                || !adapterSource.contains('reintroduced ')
+                || !adapterSource.contains(
+                'a conditional preprocessor directive after Iris preprocessing')) {
+            throw new GradleException('Iris adapter runtime must fail open if a generated patch '
+                    + 'reintroduces a conditional preprocessor directive')
+        }
+
+        final String mixinConfig = file('src/main/resources/create_nautilus.mixins.json')
+                .getText('UTF-8')
+        if (mixinConfig.contains('client.IrisProgramBuilderMixin')) {
+            throw new GradleException('Post-AST Iris ProgramBuilder source rewriting must remain '
+                    + 'unregistered; all adapter injection belongs at the pre-AST boundary')
+        }
+        final String legacyBuilder = file(
+                'src/main/java/com/create/nautilus/mixin/client/IrisProgramBuilderMixin.java')
+                .getText('UTF-8')
+        if (legacyBuilder.contains('patchFragment(')) {
+            throw new GradleException('Historical ProgramBuilder mixin must not call the '
+                    + 'pre-AST shader patcher')
+        }
+        final String pipelineAdapter = file(
+                'src/main/java/com/create/nautilus/mixin/client/IrisPipelineAdapterMixin.java')
+                .getText('UTF-8')
+        if (!pipelineAdapter.contains('Iris.getCurrentPack()')
+                || !pipelineAdapter.contains('getOptionSet()')
+                || !pipelineAdapter.contains('getDefaultValue()')
+                || !pipelineAdapter.contains('createNautilus$readBooleanOption')
+                || !pipelineAdapter.contains(
+                'dofQuality, taaJitter, temporalAa, photonTaau,')) {
+            throw new GradleException('Iris adapter options must be frozen from the current '
+                    + 'pack, including resolved defaults, at pipeline-construction HEAD')
+        }
+        final String irisProgramMixin = file(
+                'src/main/java/com/create/nautilus/mixin/client/IrisProgramMixin.java')
+                .getText('UTF-8')
+        final int dispatchStart = adapterSource.indexOf(
+                'final String patched = switch (match.kind)')
+        final int dispatchEnd = dispatchStart < 0 ? -1
+                : adapterSource.indexOf('};', dispatchStart)
+        final String dispatch = dispatchStart < 0 || dispatchEnd < 0 ? ''
+                : adapterSource.substring(dispatchStart, dispatchEnd)
+        final int detectStart = adapterSource.indexOf(
+                'private static PatchMatch detectPatch')
+        final int detectEnd = detectStart < 0 ? -1 : adapterSource.indexOf(
+                'private static synchronized void recordPackFingerprint', detectStart)
+        final String detection = detectStart < 0 || detectEnd < 0 ? ''
+                : adapterSource.substring(detectStart, detectEnd)
+        final int commonStart = adapterSource.indexOf('private static String commonHelper()')
+        final int commonEnd = commonStart < 0 ? -1 : adapterSource.indexOf(
+                'private static String photonUvHelper', commonStart)
+        final String commonHelper = commonStart < 0 || commonEnd < 0 ? ''
+                : adapterSource.substring(commonStart, commonEnd)
+        final int blissProducerStart = adapterSource.indexOf(
+                'private static String patchBlissBehindTranslucent')
+        final int blissProducerEnd = blissProducerStart < 0 ? -1 : adapterSource.indexOf(
+                'private static String patchBlissBackgroundBlend', blissProducerStart)
+        final String blissProducer = blissProducerStart < 0 || blissProducerEnd < 0 ? ''
+                : adapterSource.substring(blissProducerStart, blissProducerEnd)
+        final int blissConsumerStart = blissProducerEnd
+        final int blissConsumerEnd = blissConsumerStart < 0 ? -1 : adapterSource.indexOf(
+                'private static String patchPhotonVolumetricFront', blissConsumerStart)
+        final String blissConsumer = blissConsumerStart < 0 || blissConsumerEnd < 0 ? ''
+                : adapterSource.substring(blissConsumerStart, blissConsumerEnd)
+        final int readyZero = irisProgramMixin.indexOf('GL20C.glUniform1i(ready, 0)')
+        final int expectedGenerationUpload = irisProgramMixin.indexOf(
+                'GL20C.glUniform1i(expectedAdapterGenerationUniform, adapterGeneration)',
+                readyZero)
+        final int metadataSnapshot = irisProgramMixin.indexOf(
+                'final int generation = ApertureMediumMaskRenderer.generation()',
+                expectedGenerationUpload)
+        final int bindTextureSet = irisProgramMixin.indexOf(
+                'createNautilus$bindTextureSet(units, textures)', metadataSnapshot)
+        final int postBindStart = irisProgramMixin.indexOf(
+                'final float[] currentBounds = ApertureMediumMaskRenderer.bounds()', bindTextureSet)
+        final int samplerUpload = irisProgramMixin.indexOf(
+                'GL20C.glUniform1i(entrySampler, units[0])', postBindStart)
+        final int directionSamplerUpload = irisProgramMixin.indexOf(
+                'GL20C.glUniform1i(directionSampler, units[1])', samplerUpload)
+        final int atlasSamplerUpload = irisProgramMixin.indexOf(
+                'GL20C.glUniform1i(atlasSampler, units[2])', directionSamplerUpload)
+        final int atlasSizeUpload = irisProgramMixin.indexOf(
+                'GL20C.glUniform2f(atlasSizeUniform, atlasWidth, atlasHeight)',
+                atlasSamplerUpload)
+        final int atlasCountUpload = irisProgramMixin.indexOf(
+                'GL20C.glUniform1i(atlasCarrierCountUniform, atlasCarrierCount)',
+                atlasSizeUpload)
+        final int metadataUpload = irisProgramMixin.indexOf(
+                'GL20C.glUniform1i(adapterGenerationUniform, rendererAdapterGeneration)',
+                atlasCountUpload)
+        final int readyUpload = irisProgramMixin.indexOf('GL20C.glUniform1i(ready, 1)')
+        if (!adapterSource.contains('READY_ADAPTER_GENERATIONS')
+                || !adapterSource.contains('currentBuildGeneration()')
+                || !adapterSource.contains(
+                'case PHOTON_VOLUMETRIC_FRONT -> patchPhotonVolumetricFront(source);')
+                || !adapterSource.contains(
+                'case PHOTON_VOLUMETRIC_BLEND -> patchPhotonVolumetricBlend(source);')
+                || !adapterSource.contains(
+                'case PHOTON_ANALYTIC -> patchPhotonAnalytic(source);')
+                || !adapterSource.contains(
+                'world_end_pos - nautilusCameraWorld')
+                || !adapterSource.contains(
+                'back_position_world - nautilusCameraWorld')
+                || !adapterSource.contains(
+                'segments = vec4(eventDistance, endDistance, -1.0, 65504.0);')
+                || !adapterSource.contains(
+                'world_start_pos = nautilusCameraWorld')
+                || !adapterSource.contains(
+                '+ nautilusDirectionWorld * nautilusWaterInterval.x;')
+                || !adapterSource.contains(
+                'world_end_pos = nautilusCameraWorld')
+                || !adapterSource.contains(
+                '+ nautilusDirectionWorld * nautilusWaterInterval.y;')
+                || !adapterSource.contains('photonUvOptionsResolved()')
+                || !adapterSource.contains(
+                'public static final String ENTRY_DEPTH_SAMPLER = "NautilusWaterEntryDepth"')
+                || !adapterSource.contains(
+                'public static final String ENTRY_DIRECTION_SAMPLER = "NautilusWaterEntryDirection"')
+                || !adapterSource.contains(
+                'public static final String EXPECTED_ADAPTER_GENERATION_UNIFORM =')
+                || !adapterSource.contains(
+                '"NautilusWaterAdapterGenerationExpected"')
+                || !adapterSource.contains('public static final boolean PORTHOLE_ENABLED = false')
+                || !adapterSource.contains('nautilus_entry_candidate(vec2 uv)')
+                || !adapterSource.contains('nautilus_decode_entry(float entryDepth')
+                || adapterSource.contains('float nautilusMediumStart = is_translucent')
+                || adapterSource.contains(
+                'clamp(nautilusGate, 0.0, nautilusSceneDistance)')
+                || !adapterSource.contains(
+                'bool nautilusOverride = is_translucent && !back_is_hand')
+                || !adapterSource.contains(
+                'return EnumSet.of(AdapterStage.PHOTON_VOLUMETRIC_FRONT,')
+                || !adapterSource.contains(
+                'AdapterStage.PHOTON_VOLUMETRIC_BLEND);')
+                || !adapterSource.contains(
+                'adapter remains disabled",')
+                || !adapterSource.contains('eyeInWater != cameraWater')
+                || !adapterSource.contains('CLEAR_REVERSED_UNIFORM')
+                || dispatch.count('case ') != 7
+                || !dispatch.contains('case BLISS_BEHIND_TRANSLUCENT')
+                || !dispatch.contains('case BLISS_BACKGROUND_BLEND')
+                || !dispatch.contains('case COMPLEMENTARY_DEFERRED')
+                || !dispatch.contains('case COMPLEMENTARY_TONE')
+                || detection.count('new PatchMatch') != 7
+                || !detection.contains('program.equals("composite2")')
+                || !detection.contains('AdapterStage.BLISS_BACKGROUND_BLEND')
+                || !detection.contains('program.equals("deferred1")')
+                || !detection.contains('program.equals("composite1")')
+                || commonHelper.count('uniform sampler2D') != 2
+                || commonHelper.count('uniform usampler2D') != 1
+                || commonHelper.count(
+                'EXPECTED_ADAPTER_GENERATION_UNIFORM + " > 0"') != 2
+                || commonHelper.count(
+                '" == NautilusWaterAdapterGenerationExpected"') != 2
+                || !adapterSource.contains(
+                'public static final String ENTRY_ATLAS_SAMPLER = "NautilusWaterVoxelAtlas"')
+                 || !adapterSource.contains('nautilus_resolve_optical_event(')
+                 || adapterSource.contains('nautilus_decode_axis_slot(')
+                 || !adapterSource.contains('int directionCode = int(entryDirection);')
+                 || !adapterSource.contains('int expectedAxis = (directionCode - 1) / 2;')
+                 || !adapterSource.contains('vec3 semanticHit = localHit;')
+                 || adapterSource.contains('expectedAxisStep')
+                 || !adapterSource.contains(
+                 'abs(metadataOutward - expectedOutward) > 0.25')
+                 || !adapterSource.contains(
+                 'bool floodedExteriorShell = selectedMetadata.y > 2.5;')
+                 || !adapterSource.contains('nautilusSceneUv * 2.0 - 1.0')
+                 || adapterSource.contains('nautilusResolvedMaskUv * 2.0 - 1.0')
+                 || !adapterSource.contains(
+                 'bool rayOutward = axisDirection * metadataOutward > 1.0E-7;')
+                 || !adapterSource.contains(
+                 'bool rayInward = axisDirection * metadataOutward < -1.0E-7;')
+                 || !adapterSource.contains(
+                 'vec4 exteriorPlane = metadataOutward > 0.0')
+                 || !adapterSource.contains(
+                 'vec4 roomPlane = metadataOutward > 0.0')
+                 || !adapterSource.contains(
+                 'segments = vec4(startDistance, eventDistance, -1.0, 65504.0);')
+                 || !adapterSource.contains(
+                 'segments = vec4(0.0, endDistance, -1.0, 65504.0);')
+                 || !adapterSource.contains(
+                 'abs(selectedMetadata.z - float(selectedSlot)) > 0.25')
+                || !adapterSource.contains(
+                'abs(selectedMetadata.w - d7.z) > 0.25')
+                || !commonHelper.contains(
+                'vec4 d6 = nautilus_atlas_texel(descriptor + 6.0)')
+                || !commonHelper.contains(
+                'vec2 entryPixel = uv * NautilusWaterEntrySize')
+                || !commonHelper.contains(
+                'entryPixel.x >= d6.z || entryPixel.y >= d6.w')
+                 || !commonHelper.contains(
+                 'float primaryEncoded = nautilus_atlas_voxel(')
+                 || commonHelper.contains('primaryEncoded == -1.25')
+                 || commonHelper.contains('primaryEncoded == -1.25F')
+                 || !commonHelper.contains('if (primaryEncoded <= -1.5)')
+                 || !commonHelper.contains(
+                 'if (candidateMetadataAxis != expectedAxis) continue;')
+                 || commonHelper.contains('closestFaceError')
+                 || commonHelper.contains('primaryAxisCount')
+                 || !commonHelper.contains('for (int ox = -1; ox <= 1; ++ox)')
+                 || !commonHelper.contains('bool boundaryCompatible = true;')
+                 || !commonHelper.contains('bool expectedFaceNear = expectedFaceFraction < cellTolerance')
+                 || !commonHelper.contains('bool primaryFaceMatches = abs(primaryHitAxis - primaryFace)')
+                 || !commonHelper.contains('float candidateFace = expectedAxis == 0')
+                 || !commonHelper.contains('abs(candidateHitAxis - candidateFace)')
+                 || !commonHelper.contains('for (int recoveryPass = 0; recoveryPass < 2; ++recoveryPass)')
+                 || !commonHelper.contains('if (recoveryPass == 0 && tangentOffset) continue;')
+                 || !commonHelper.contains('candidateOutwardCode = candidateMetadata.y > 2.5')
+                || !adapterSource.contains('case BLISS -> EnumSet.of(AdapterStage.BLISS_BEHIND_TRANSLUCENT,')
+                || !adapterSource.contains('AdapterStage.BLISS_BACKGROUND_BLEND);')
+                || !adapterSource.contains('case COMPLEMENTARY -> EnumSet.of(AdapterStage.COMPLEMENTARY_DEFERRED,')
+                || !adapterSource.contains('worldRayY != worldRayY')
+                || adapterSource.contains('worldRayY <= 1.0E-5')
+                || !irisProgramMixin.contains('createNautilus$adapterGeneration')
+                || !irisProgramMixin.contains(
+                'IrisCompositeShaderSource.currentBuildGeneration()')
+                || !irisProgramMixin.contains(
+                'IrisCompositeShaderSource.EXPECTED_ADAPTER_GENERATION_UNIFORM')
+                || !irisProgramMixin.contains('createNautilus$uniformsResolved')
+                || !irisProgramMixin.contains('createNautilus$textureUnits')
+                || !irisProgramMixin.contains('ApertureMediumMaskRenderer.textureId()')
+                || !irisProgramMixin.contains(
+                'ApertureMediumMaskRenderer.directionTextureId()')
+                || !irisProgramMixin.contains(
+                'final int[] textures = {texture, directionTexture, atlasTexture};')
+                || !irisProgramMixin.contains('if (textures.length != 3) return false;')
+                || !irisProgramMixin.contains(
+                'GL20C.glUniform1i(directionSampler, units[1])')
+                || !irisProgramMixin.contains('GL20C.glUniform1i(atlasSampler, units[2])')
+                || !irisProgramMixin.contains(
+                'GL20C.glUniform2f(atlasSizeUniform, atlasWidth, atlasHeight)')
+                || !irisProgramMixin.contains(
+                'GL20C.glUniform1i(atlasCarrierCountUniform, atlasCarrierCount)')
+                || !irisProgramMixin.contains(
+                'ApertureMediumMaskRenderer.atlasTextureId() != atlasTexture')
+                || !irisProgramMixin.contains(
+                'createNautilus$findUnreferencedTextureUnits(')
+                || !irisProgramMixin.contains(
+                'GL20C.glGetProgrami(program, GL20C.GL_ACTIVE_UNIFORMS)')
+                || !irisProgramMixin.contains(
+                'GL31C.glGetActiveUniformsi(')
+                || !irisProgramMixin.contains(
+                'if (location == entrySampler || location == directionSampler')
+                || irisProgramMixin.contains('createNautilus$unitIsUnbound')
+                || irisProgramMixin.contains('createNautilus$textureUnitsAreFree')
+                || !irisProgramMixin.contains('createNautilus$sameBounds')
+                || irisProgramMixin.contains('WaterMediumSegmentRenderer')
+                || irisProgramMixin.contains('createNautilus$gateSampler')
+                || irisProgramMixin.contains('createNautilus$statusSampler')
+                || !irisProgramMixin.contains(
+                'IrisCompositeShaderSource.adapterReady(adapterGeneration)')
+                || !irisProgramMixin.contains('expectedAdapterGenerationUniform < 0')
+                || !irisProgramMixin.contains(
+                'rendererAdapterGeneration != adapterGeneration')
+                || readyZero < 0 || expectedGenerationUpload <= readyZero
+                || metadataSnapshot <= expectedGenerationUpload
+                || bindTextureSet <= metadataSnapshot || postBindStart <= bindTextureSet
+                || samplerUpload <= postBindStart
+                || directionSamplerUpload <= samplerUpload
+                || atlasSamplerUpload <= directionSamplerUpload
+                || atlasSizeUpload <= atlasSamplerUpload
+                || atlasCountUpload <= atlasSizeUpload
+                || metadataUpload <= atlasCountUpload
+                || readyUpload <= metadataUpload) {
+            throw new GradleException('Iris optical-medium consumers must sample '
+                    + 'one EntryDepth and its shared stencil direction view plus the voxel atlas through '
+                    + 'dynamically safe units, atomically validate renderer/adapter generations '
+                    + 'and bounds, and publish Ready last')
+        }
+        final Closure<Boolean> adapterGenerationGate = { expected, actual ->
+            (expected as int) > 0 && (actual as int) == (expected as int)
+        }
+        if (adapterGenerationGate(0, 0) || adapterGenerationGate(0, 7)
+                || adapterGenerationGate(7, 6) || !adapterGenerationGate(7, 7)) {
+            throw new GradleException('Iris generation uniforms must fail open for a zero '
+                    + 'program generation or a renderer/program generation mismatch')
+        }
+        if (!blissProducer.contains('nautilusRangeStart = nautilusGate;')
+                || blissProducer.contains('nautilusRangeStart = min(')) {
+            throw new GradleException('Bliss behind-translucent fog must start at the semantic '
+                    + 'Nautilus entry, not at a native depthtex0/depthtex1 difference')
+        }
+        if (!blissConsumer.contains(
+                'if(translucentMasks > 0.0 || nautilusBackgroundOverride)')
+                || !blissConsumer.contains('isEyeInWater == 0 && !isWater && !hand')
+                || !blissConsumer.contains(
+                'nautilusSceneDistance > nautilusGate + 1.0E-4')
+                || !blissConsumer.contains('nautilus_water_length_range(')
+                || !blissConsumer.contains(
+                'nautilusBackWaterLength > 1.0E-4')) {
+            throw new GradleException('Bliss background blend may bypass its native translucent '
+                    + 'mask only for a dry, non-water, non-hand pixel with a semantic water '
+                    + 'interval strictly behind the entry gate')
+        }
+
+        // Mirror the packed signed-direction resolver. Each optical voxel stores its first dense
+        // slot and X-/X+/Y-/Y+/Z-/Z+ presence bits; offsets count present lower directions.
+        // Use floorDiv here to retain GLSL integer-division semantics in the Groovy fixture.
+        final int directionSlotGroupSize = 64
+        final def decodeDirectionSlot = { Integer group, Integer directionCode ->
+            if (group == null || group < 0 || directionCode == null
+                    || directionCode < 1 || directionCode > 6) {
+                return null
+            }
+            final int firstSlot = Math.floorDiv(group, directionSlotGroupSize)
+            final int directionBits = group - firstSlot * directionSlotGroupSize
+            if (directionBits < 1 || directionBits > 63) return null
+            int remainingBits = directionBits
+            int offset = 0
+            for (int code = 1; code <= 6; code++) {
+                final int present = remainingBits - Math.floorDiv(remainingBits, 2) * 2
+                if (code == directionCode) return present != 0 ? firstSlot + offset : null
+                offset += present
+                remainingBits = Math.floorDiv(remainingBits, 2)
+            }
+            return null
+        }
+        final int xBothZPositiveGroup = 7 * directionSlotGroupSize + 35
+        final int allDirectionsGroup = 11 * directionSlotGroupSize + 63
+        assert decodeDirectionSlot(xBothZPositiveGroup, 1) == 7
+        assert decodeDirectionSlot(xBothZPositiveGroup, 2) == 8
+        assert decodeDirectionSlot(xBothZPositiveGroup, 3) == null
+        assert decodeDirectionSlot(xBothZPositiveGroup, 6) == 9
+        (1..6).each { int directionCode ->
+            assert decodeDirectionSlot(allDirectionsGroup, directionCode) == 10 + directionCode
+        }
+
+        // The shared S8 view carries exact X-/X+/Y-/Y+/Z-/Z+ direction while D24 remains the
+        // original raster depth used for projection reconstruction and nearest-entry ordering.
+        (0..2).each { int axis ->
+            (0..1).each { int positive ->
+                final int directionCode = axis * 2 + positive + 1
+                final int decodedAxis = Math.floorDiv(directionCode - 1, 2)
+                final int decodedPositive = Math.floorMod(directionCode - 1, 2)
+                assert decodedAxis == axis
+                assert decodedPositive == positive
+            }
+        }
+
+        // Mirror the connected full-block membrane rim rule on a 3x3 sheet. Every cell keeps
+        // its normal axis; exposed edge cells add one tangent axis and corners add two. A tangent
+        // event must always point away from the sheet, never into an adjacent glass cell.
+        final Set<List<Integer>> membraneSheet = new LinkedHashSet<>()
+        (0..2).each { int u ->
+            (0..2).each { int v -> membraneSheet.add([u, v]) }
+        }
+        final Map<List<Integer>, Integer> membraneAxisCounts = new LinkedHashMap<>()
+        int membraneRimEvents = 0
+        membraneSheet.each { List<Integer> cell ->
+            final int u = cell[0]
+            final int v = cell[1]
+            int axisCount = 1
+            final boolean negativeU = membraneSheet.contains([u - 1, v])
+            final boolean positiveU = membraneSheet.contains([u + 1, v])
+            if (negativeU != positiveU) {
+                final List<Integer> target = negativeU ? [u + 1, v] : [u - 1, v]
+                assert !membraneSheet.contains(target)
+                axisCount++
+                membraneRimEvents++
+            }
+            final boolean negativeV = membraneSheet.contains([u, v - 1])
+            final boolean positiveV = membraneSheet.contains([u, v + 1])
+            if (negativeV != positiveV) {
+                final List<Integer> target = negativeV ? [u, v + 1] : [u, v - 1]
+                assert !membraneSheet.contains(target)
+                axisCount++
+                membraneRimEvents++
+            }
+            membraneAxisCounts.put(cell, axisCount)
+        }
+        assert membraneAxisCounts.get([1, 1]) == 1
+        assert membraneAxisCounts.findAll { cell, count -> count == 2 }.size() == 4
+        assert membraneAxisCounts.findAll { cell, count -> count == 3 }.size() == 4
+        assert membraneRimEvents == 12
+
+        // A precise primary optical voxel wins before any neighbour is considered. Recovery
+        // decodes only the exact signed direction and only along its normal axis; two genuine
+        // candidates for that same direction remain ambiguous.
+        final def resolveOpticalSlotFixture = {
+                Integer primaryGroup, Integer directionCode,
+                List<Map<String, Integer>> candidates ->
+            final Integer primarySlot = decodeDirectionSlot(
+                    primaryGroup, directionCode) as Integer
+            if (primarySlot != null) {
+                return [slot: primarySlot, conflict: false, searched: false]
+            }
+            final int expectedAxis = Math.floorDiv(directionCode - 1, 2)
+            Integer selected = null
+            boolean conflict = false
+            candidates.each { Map<String, Integer> candidate ->
+                if (candidate.offsetAxis != expectedAxis) return
+                final Integer slot = decodeDirectionSlot(
+                        candidate.group, directionCode) as Integer
+                if (slot == null) return
+                if (selected != null && selected != slot) conflict = true
+                else selected = slot
+            }
+            return [slot: selected, conflict: conflict, searched: true]
+        }
+        [[primary: 7, neighbour: 8], [primary: 8, neighbour: 7]].each { fixture ->
+            final def resolved = resolveOpticalSlotFixture(
+                    fixture.primary * directionSlotGroupSize + 32, 6,
+                    [[group: fixture.neighbour * directionSlotGroupSize + 1,
+                      offsetAxis: 0]])
+            if (resolved.searched || resolved.conflict || resolved.slot != fixture.primary) {
+                throw new GradleException('Adjacent window cells must keep their exact signed '
+                        + 'primary optical slot without scanning a tangential neighbour')
+            }
+        }
+        final def recoveredNormal = resolveOpticalSlotFixture(null, 6, [
+                [group: 8 * directionSlotGroupSize + 32, offsetAxis: 0],
+                [group: 7 * directionSlotGroupSize + 32, offsetAxis: 2]
+        ])
+        if (!recoveredNormal.searched || recoveredNormal.conflict
+                || recoveredNormal.slot != 7) {
+            throw new GradleException('D24 optical recovery must ignore tangential slots and '
+                    + 'accept the matching signed-direction neighbour')
+        }
+        final def sameDirectionConflict = resolveOpticalSlotFixture(null, 1, [
+                [group: 7 * directionSlotGroupSize + 1, offsetAxis: 0],
+                [group: 8 * directionSlotGroupSize + 1, offsetAxis: 0]
+        ])
+        if (!sameDirectionConflict.searched || !sameDirectionConflict.conflict) {
+            throw new GradleException('Two distinct same-direction optical candidates must remain '
+                    + 'ambiguous and fail open')
+        }
+
+        // Bliss' producer and consumer must not depend on a native translucent-depth split:
+        // Create's cutout glass can leave depthtex0 == depthtex1 at the seabed and write no
+        // translucent mask. Mirror the semantic gates that permit that one missing native path
+        // while preserving every foreground, missing-entry and empty-water fallback.
+        final def blissCutoutFog = {
+                depth0, depth1, sceneDistance, entryGate,
+                waterLength, entryValid, nativeMask,
+                eyeInWater, surfaceWater, hand ->
+            final boolean semanticWater = !eyeInWater && !surfaceWater && !hand
+                    && entryValid && sceneDistance > entryGate + 1.0E-4D
+                    && waterLength > 1.0E-4D
+            return [produced: semanticWater,
+                    consumed: nativeMask > 0.0D || semanticWater,
+                    nativeDepthDifferent: Math.abs(depth0 - depth1) > 1.0E-7D]
+        }
+        final def cutoutSeabed = blissCutoutFog(
+                0.82D, 0.82D, 48.0D, 6.0D, 42.0D,
+                true, 0.0D, false, false, false)
+        if (cutoutSeabed.nativeDepthDifferent || !cutoutSeabed.produced
+                || !cutoutSeabed.consumed) {
+            throw new GradleException('Bliss must produce and consume semantic water fog through '
+                    + 'cutout glass when depthtex0 == depthtex1 at the seabed and nativeMask == 0')
+        }
+        final def opaqueForeground = blissCutoutFog(
+                0.25D, 0.25D, 6.0D, 6.0D, 10.0D,
+                true, 0.0D, false, false, false)
+        final def missingEntry = blissCutoutFog(
+                0.82D, 0.82D, 48.0D, 6.0D, 42.0D,
+                false, 0.0D, false, false, false)
+        final def emptyWater = blissCutoutFog(
+                0.82D, 0.82D, 48.0D, 6.0D, 0.0D,
+                true, 0.0D, false, false, false)
+        if (opaqueForeground.produced || opaqueForeground.consumed
+                || missingEntry.produced || missingEntry.consumed
+                || emptyWater.produced || emptyWater.consumed) {
+            throw new GradleException('Bliss semantic fog must leave opaque foreground at/before '
+                    + 'the entry gate, missing entries and empty water intervals unchanged')
+        }
+        final def nativeTranslucent = blissCutoutFog(
+                0.82D, 0.82D, 48.0D, 6.0D, 0.0D,
+                false, 1.0D, false, false, false)
+        if (nativeTranslucent.produced || !nativeTranslucent.consumed) {
+            throw new GradleException('Bliss native translucent-mask consumption must remain '
+                    + 'unchanged when the Nautilus semantic override is inactive')
+        }
+        final def footprintCandidates = [
+                [name: 'opaque-frame', entry: 6.0D, scene: 6.0D, water: 0.0D],
+                [name: 'clear-window', entry: 6.0D, scene: 48.0D, water: 42.0D]
+        ]
+        final def footprintChoice = footprintCandidates.find { candidate ->
+            candidate.scene > candidate.entry + 1.0E-4D && candidate.water > 1.0E-4D
+        }
+        assert footprintChoice.name == 'clear-window'
+        final int blissFootprintStart = adapterSource.indexOf('private static String blissEntryFootprintHelper()')
+        final int blissFootprintDepthCheck = adapterSource.indexOf(
+                'sceneDistance <= candidateGate + 1.0E-4', blissFootprintStart)
+        final int blissFootprintSelected = adapterSource.indexOf('found = true;', blissFootprintStart)
+        if (blissFootprintDepthCheck < blissFootprintStart
+                || blissFootprintSelected <= blissFootprintDepthCheck) {
+            throw new GradleException('Bliss must skip foreground frame samples before choosing '
+                    + 'the reduced-resolution fog representative')
+        }
+
+        final List<URL> runtimeUrls = sourceSets.main.runtimeClasspath.files.collect {
+            it.toURI().toURL()
+        }
+        final Map<String, String> activeBranchFixtures = [
+                photonUvHelper: 'vec2 jitter_offset = taa_offset * 0.66;',
+                photonAnalyticOrderedHelper: 'air_fog_analytic('
+        ]
+        final URLClassLoader loader = new URLClassLoader(
+                runtimeUrls as URL[], (ClassLoader) null)
+        try {
+            final Class<?> adapter = Class.forName(
+                    'com.create.nautilus.client.render.IrisCompositeShaderSource',
+                    true, loader)
+            final def countDirectives = adapter.getDeclaredMethod(
+                    'conditionalDirectiveCount', String.class)
+            countDirectives.setAccessible(true)
+            assert countDirectives.invoke(null,
+                    '#if 1\r\n\t#elif 0\n #else\n\f#endif\n#ifdef A\n#ifndef B\n#endif') == 7
+            assert countDirectives.invoke(null, '#\nif 1\n// #if 0\n#define ifdef 1') == 0
+            // Iris preserves removed preprocessor branches as long runs of empty lines.
+            // This used to retry a greedy cross-line whitespace regex at every line start.
+            final String sparseShader = (' \t\r\n'.repeat(50000) + 'void main() {}\n')
+            final long directiveScanStarted = System.nanoTime()
+            assert countDirectives.invoke(null, sparseShader) == 0
+            final double directiveScanMillis = (System.nanoTime() - directiveScanStarted) / 1.0E6D
+            if (directiveScanMillis > 2000.0D) {
+                throw new GradleException('Sparse shader directive scan regressed to cross-line '
+                        + "backtracking: ${directiveScanMillis} ms")
+            }
+            logger.lifecycle('Sparse shader directive scan passed: 50000 blank lines in {} ms',
+                    String.format(Locale.ROOT, '%.3f', directiveScanMillis))
+            // Invoke the production Sodium injector and inspect its emitted GLSL. The full
+            // occupancy sentinel must discard water, while Iris' event resolver below remains
+            // gated at <= -1.5 and therefore cannot treat -1.25 as an event id.
+            final Class<?> sodiumSource = Class.forName(
+                    'com.create.nautilus.client.render.SodiumOcclusionShaderSource',
+                    true, loader)
+            final Class<?> resourceLocation = Class.forName(
+                    'net.minecraft.resources.ResourceLocation', true, loader)
+            final def resourceFactory = resourceLocation.getMethod(
+                    'fromNamespaceAndPath', String.class, String.class)
+            final Object irisWaterShader = resourceFactory.invoke(
+                    null, 'iris', 'sodium-shader-translucent')
+            final def sodiumInject = sodiumSource.getMethod(
+                    'inject', CharSequence.class, String.class, resourceLocation)
+            final String sodiumFixture = '#version 330\nvoid main() { }\n'
+            final CharSequence sodiumInjected = (CharSequence) sodiumInject.invoke(
+                    null, sodiumFixture, 'FRAGMENT', irisWaterShader)
+            if (sodiumInjected == null) {
+                throw new GradleException('Sodium injector returned null for a valid water fixture')
+            }
+            final String sodiumGenerated = sodiumInjected.toString()
+            final int eventlessSentinel = sodiumGenerated.indexOf(
+                    'if (encodedVoxel == -1.25)')
+            final int eventSentinel = sodiumGenerated.indexOf(
+                    'if (encodedVoxel <= -1.5)')
+            if (eventlessSentinel < 0 || eventSentinel <= eventlessSentinel) {
+                throw new GradleException('Sodium GLSL must recognize -1.25 occupancy before '
+                        + 'the <= -1.5 optical-event branch')
+            }
+            final def beginReload = adapter.getMethod('beginShaderReload')
+            final def finishPhotonReload = adapter.getMethod('finishShaderReload')
+            final def photonAdapterReady = adapter.getMethod('adapterReady')
+            final def beginReloadConfigured = adapter.getMethod(
+                    'beginShaderReload', Integer.TYPE, Integer.TYPE)
+            final def beginReloadTemporal = adapter.getMethod(
+                    'beginShaderReload', Integer.TYPE, Integer.TYPE,
+                    Integer.TYPE, Integer.TYPE, Integer.TYPE, Float.TYPE)
+            final def beginReloadBliss = adapter.getMethod(
+                    'beginShaderReload', Integer.TYPE, Integer.TYPE,
+                    Integer.TYPE, Integer.TYPE, Integer.TYPE, Float.TYPE, Float.TYPE)
+            final def confirmLinkedConsumer = adapter.getMethod(
+                    'confirmLinkedConsumer', Integer.TYPE)
+            final def sceneDepthTransform = adapter.getMethod(
+                    'sceneDepthTransform', Integer.TYPE, Integer.TYPE,
+                    Integer.TYPE, Integer.TYPE)
+            beginReloadTemporal.invoke(null, -1, 1, 1, 0, -1, Float.NaN)
+            activeBranchFixtures.each { String methodName, String fixture ->
+                final def method = adapter.getDeclaredMethod(methodName, String.class)
+                method.setAccessible(true)
+                final String generated = (String) method.invoke(null, fixture)
+                if (generated == null || directiveLine.matcher(generated).find()) {
+                    throw new GradleException("${methodName} generated a conditional "
+                            + 'preprocessor directive for its active fixture')
+                }
+            }
+
+            final def photonUvMethod = adapter.getDeclaredMethod(
+                    'photonUvHelper', String.class)
+            photonUvMethod.setAccessible(true)
+            beginReloadTemporal.invoke(null, -1, 1, 0, 0, -1, Float.NaN)
+            final String photonNoTaa = (String) photonUvMethod.invoke(null,
+                    'uniform vec2 taa_offset;\n'
+                            + 'const float taau_render_scale = 1.0;\n'
+                            + '// vec2 jitter_offset = taa_offset * 0.66;')
+            if (photonNoTaa.contains('taa_offset')
+                    || !photonNoTaa.contains('return coord;')) {
+                throw new GradleException('Photon declarations and comments alone must not '
+                        + 'activate a temporal offset')
+            }
+            beginReloadTemporal.invoke(null, -1, 1, 1, 0, -1, Float.NaN)
+            final String photonTaa = (String) photonUvMethod.invoke(null,
+                    'vec2 jitter_offset = taa_offset * 0.66;')
+            if (!photonTaa.contains('0.33 * taa_offset')) {
+                throw new GradleException('Photon regular TAA must use its active 0.66 NDC '
+                        + 'jitter branch')
+            }
+            if (!photonTaa.contains('return coord + 0.33 * taa_offset;')) {
+                throw new GradleException('Photon regular TAA must invert mask UV back to the '
+                        + 'matching opaque-depth pixel')
+            }
+            beginReloadTemporal.invoke(null, -1, 1, 1, 1, -1, 0.75F)
+            final String photonTaau = (String) photonUvMethod.invoke(null,
+                    'vec2 jitter_offset = taa_offset * rcp(taau_render_scale);')
+            if (!photonTaau.contains(
+                    '(coord - 0.5 * taa_offset) / taau_render_scale')) {
+                throw new GradleException('Photon TAAU must use its active render-scale jitter '
+                        + 'branch and invert both scale and jitter from scene UV to mask UV')
+            }
+            if (!photonTaau.contains(
+                    'coord * taau_render_scale + 0.5 * taa_offset')) {
+                throw new GradleException('Photon TAAU must invert mask UV back to the matching '
+                        + 'opaque-depth pixel')
+            }
+
+            final def patchFragment = adapter.getMethod(
+                    'patchFragment', String.class, String.class)
+
+            final String blissProducerSource = '''
+uniform mat4 gbufferProjectionInverse;
+uniform mat4 gbufferModelViewInverse;
+uniform sampler2D depthtex0;
+uniform sampler2D depthtex1;
+uniform sampler2D colortex2;
+uniform sampler2D colortex7;
+uniform int isEyeInWater;
+vec3 toScreenSpace(vec3 value) { return value; }
+vec4 renderClouds(vec3 position, vec2 noise, vec3 directLight,
+        vec3 indirectLight, out vec3 cloudDepth) {
+    cloudDepth = vec3(0.0);
+    return vec4(position, 1.0);
+}
+vec4 GetVolumetricFog(vec3 position, vec2 noise, vec3 directLight,
+        vec3 indirectLight, vec3 dynamicIndirectLight, inout float alpha) {
+    return vec4(position, alpha);
+}
+vec4 waterVolumetrics_test(vec3 startPosition, vec3 endPosition,
+        float endDepth, float sunDepth, float rayLength, float noise,
+        vec3 absorption, vec3 scattering, vec3 ambient, vec3 directLight,
+        float phase) {
+    return vec4(endPosition - startPosition, 1.0);
+}
+void main() {
+    vec2 tc = vec2(0.5);
+    bool iswater = texture2D(colortex7,tc).a > 0.99;
+    float z0 = texture2D(depthtex0,tc).x;
+    float z = texture2D(depthtex1,tc).x;
+    vec3 viewPos0 = toScreenSpace(vec3(tc, z0));
+    vec3 viewPos1 = toScreenSpace(vec3(tc, z));
+    if(texture2D(colortex2, tc).a > 0.0 || iswater){
+        float noise_1 = 0.0;
+        float noise_2 = 0.0;
+        vec3 directLightColor = vec3(1.0);
+        vec3 indirectLightColor = vec3(1.0);
+        vec3 indirectLightColor_dynamic = vec3(1.0);
+        vec3 cloudDepth = vec3(0.0);
+        vec4 VolumetricFog2 = vec4(0.0, 0.0, 0.0, 1.0);
+        if(!iswater){
+            float atmosphereAlpha = 1.0;
+            VolumetricFog2 = GetVolumetricFog(viewPos1, vec2(noise_1, noise_2),
+                    directLightColor, indirectLightColor,
+                    indirectLightColor_dynamic, atmosphereAlpha);
+        }
+        float estimatedDepth = 1.0;
+        float estimatedSunDepth = 1.0;
+        float Vdiff = 1.0;
+        vec3 totEpsilon = vec3(1.0);
+        vec3 scatterCoef = vec3(1.0);
+        float caveDetection = 0.0;
+        vec3 sunVec = vec3(0.0, 1.0, 0.0);
+        vec4 lightCol = vec4(1.0);
+        vec4 underwaterVlFog = vec4(0.0, 0.0, 0.0, 1.0);
+        if(iswater) underwaterVlFog = waterVolumetrics_test(viewPos0, viewPos1,
+                estimatedDepth, estimatedSunDepth, Vdiff, noise_1, totEpsilon,
+                scatterCoef, indirectLightColor_dynamic,
+                directLightColor * (1.0-caveDetection),
+                dot(normalize(viewPos1), normalize(sunVec*lightCol.a)) );
+        vec4 fogFinal = vec4(underwaterVlFog.rgb * VolumetricFog2.a
+                + VolumetricFog2.rgb, VolumetricFog2.a * underwaterVlFog.a);
+    }
+}
+'''
+            final String blissConsumerSource = '''
+uniform mat4 gbufferProjectionInverse;
+uniform mat4 gbufferModelViewInverse;
+uniform sampler2D colortex13;
+uniform sampler2D depthtex1;
+uniform int isEyeInWater;
+vec4 BilateralUpscale_VLFOG(sampler2D source, vec2 coord) {
+    return texture2D(source, coord);
+}
+void main() {
+    vec2 texcoord = vec2(0.5);
+    float depth = texture2D(depthtex1, texcoord).x;
+    bool isWater = false;
+    bool hand = false;
+    vec3 viewPos = vec3(texcoord, depth);
+    if ((isEyeInWater == 0 && isWater) || (isEyeInWater == 1 && !isWater)){
+        vec3 viewPos0 = vec3(0.0);
+        float Vdiff = distance(viewPos, viewPos0)*mix(5.0,2.0,1.0);
+    }
+    float translucentMasks = 0.0;
+    vec4 vlBehingTranslucents = BilateralUpscale_VLFOG(colortex13, texcoord);
+    if(translucentMasks > 0.0){
+        gl_FragData[0] = vlBehingTranslucents;
+    }
+}
+'''
+            beginReloadBliss.invoke(null, -1, 0, 0, 0, -1, Float.NaN, 1.0F)
+            final String blissProducerPatched = (String) patchFragment.invoke(
+                    null, blissProducerSource, 'composite')
+            final String blissConsumerPatched = (String) patchFragment.invoke(
+                    null, blissConsumerSource, 'composite2')
+            if (blissProducerPatched == blissProducerSource
+                    || blissConsumerPatched == blissConsumerSource
+                    || !blissProducerPatched.contains('nautilusRangeStart = nautilusGate;')
+                    || blissProducerPatched.contains('nautilusRangeStart = min(')
+                    || !blissConsumerPatched.contains(
+                    'if(translucentMasks > 0.0 || nautilusBackgroundOverride)')
+                    || !blissConsumerPatched.contains(
+                    'nautilusSceneDistance > nautilusGate + 1.0E-4')
+                    || !blissConsumerPatched.contains(
+                    'float Vdiff = (nautilusBackgroundOverride ? nautilusBackWaterLength')) {
+                throw new GradleException('Production Bliss producer/consumer patches must use '
+                        + 'semantic entry distance and consume cutout background fog without a '
+                        + 'native depth split or translucent mask')
+            }
+            finishPhotonReload.invoke(null)
+            if (!(Boolean) photonAdapterReady.invoke(null)) {
+                throw new GradleException('Bliss producer and background consumer must publish '
+                        + 'one complete adapter generation together')
+            }
+            beginReloadBliss.invoke(null, -1, 0, 0, 0, -1, Float.NaN, 1.0F)
+            patchFragment.invoke(null, blissProducerSource, 'composite')
+            finishPhotonReload.invoke(null)
+            if ((Boolean) photonAdapterReady.invoke(null)) {
+                throw new GradleException('Bliss producer alone must not publish a partial adapter')
+            }
+            beginReloadBliss.invoke(null, -1, 0, 0, 0, -1, Float.NaN, 1.0F)
+            patchFragment.invoke(null, blissConsumerSource, 'composite2')
+            finishPhotonReload.invoke(null)
+            if ((Boolean) photonAdapterReady.invoke(null)) {
+                throw new GradleException('Bliss background consumer alone must not publish a '
+                        + 'partial adapter')
+            }
+
+            // The pre-transform source may still contain pack conditionals which Iris will
+            // consume itself.  A patch must remain accepted when it preserves those existing
+            // directives; only a newly injected conditional is unsafe at this boundary.
+            beginReloadTemporal.invoke(null, -1, 0, 0, 0, -1, Float.NaN)
+            final String photonFrontVl = '''
+uniform mat4 gbufferProjectionInverse;
+uniform mat4 gbufferModelViewInverse;
+uniform int isEyeInWater;
+uniform sampler2D depthtex0;
+uniform sampler2D depthtex1;
+in vec2 uv;
+mat2x3 raymarch_water_fog(vec3 startPos, vec3 endPos) {
+    return mat2x3(startPos, endPos);
+}
+mat2x3 raymarch_air_fog(vec3 startPos, vec3 endPos) {
+    return mat2x3(startPos, endPos);
+}
+void main() {
+    vec3 world_start_pos = gbufferModelViewInverse[3].xyz;
+    vec3 world_end_pos = vec3(1.0);
+    vec3 world_back_pos = vec3(2.0);
+    switch (isEyeInWater) {
+        case 0:
+            mat2x3 airFog = raymarch_air_fog(world_start_pos, world_end_pos);
+            break;
+        case 1:
+            mat2x3 fog = raymarch_water_fog(world_start_pos, world_end_pos);
+            break;
+    }
+}
+'''
+            final String photonFrontPatched = (String) patchFragment.invoke(
+                    null, photonFrontVl, 'composite')
+            if (photonFrontPatched == photonFrontVl
+                    || !photonFrontPatched.contains(
+                    '// CREATE_NAUTILUS_WATER_BOUNDARY')) {
+                throw new GradleException('Photon c0 VL fixture did not receive the '
+                        + '0.4.296 pixel EntryDepth interval')
+            }
+            final String photonWithPackDirectives = '''
+#if defined WORLD_OVERWORLD
+mat2x3 air_fog_analytic(vec3 a, vec3 b, bool sky, float light, float density) {
+    return mat2x3(0.0);
+}
+#endif
+mat2x3 water_fog_simple(vec3 light, vec3 ambient, vec3 absorption,
+        vec2 levels, float distance, float LoV, float depth) {
+    return mat2x3(0.0);
+}
+vec3 blend_layers_with_fog(vec3 background, vec4 translucent,
+        vec3 front, vec3 back, bool isTranslucent, bool sky,
+        bool frontHand, bool backHand) {
+    mat2x3 analytic_fog = air_fog_analytic(front, back, sky, 1.0, 1.0);
+    return background * analytic_fog[1] + analytic_fog[0];
+}
+uniform int isEyeInWater;
+uniform mat4 gbufferProjectionInverse;
+uniform mat4 gbufferModelViewInverse;
+uniform vec3 cameraPosition;
+in vec2 uv;
+void main() {
+    vec3 camera_world = gbufferModelViewInverse[3].xyz + cameraPosition;
+    vec3 front_position_world = vec3(1.0);
+    vec3 world_back_pos = vec3(2.0);
+    vec3 back_position_world = world_back_pos;
+    float view_distance = 1.0;
+    bool is_translucent = true;
+    bool is_sky = false;
+    bool front_is_hand = false;
+    bool back_is_hand = false;
+    vec4 translucent_color = vec4(0.0);
+    vec3 fog_transmittance = vec3(1.0);
+    vec3 fog_scattering = vec3(0.0);
+    vec3 fragment_color = blend_layers_with_fog(vec3(0.0), translucent_color,
+            front_position_world, back_position_world, is_translucent,
+            is_sky, front_is_hand, back_is_hand);
+    fragment_color = fragment_color * fog_transmittance + fog_scattering;
+}
+'''
+            final String photonBlendPatched = (String) patchFragment.invoke(
+                    null, photonWithPackDirectives, 'composite')
+            if (photonBlendPatched == photonWithPackDirectives
+                    || !photonBlendPatched.contains(
+                    '// CREATE_NAUTILUS_WATER_BOUNDARY')) {
+                throw new GradleException('Photon c1 VL fixture did not receive ordered '
+                        + 'behind-translucent medium composition')
+            }
+            finishPhotonReload.invoke(null)
+            if (!(Boolean) photonAdapterReady.invoke(null)) {
+                throw new GradleException('Photon c0/c1 VL fixtures patched their sources but '
+                        + 'did not publish one complete adapter generation')
+            }
+
+            final def entrySamplePattern =
+                    ~/(?s)texture\s*\(\s*NautilusWaterEntryDepth\s*,/
+            def assertSingleEntrySample = { String patched, String label ->
+                final def matcher = entrySamplePattern.matcher(patched)
+                int samples = 0
+                while (matcher.find()) samples++
+                if (samples != 1
+                        || !patched.contains('nautilus_entry_candidate(nautilusMaskUv)')
+                        || !patched.contains(
+                        'nautilus_resolve_optical_event(entryDepth, entryDirection, uv, cameraWater,')
+                        || !patched.contains(
+                        'uniform usampler2D NautilusWaterEntryDirection;')
+                        || !patched.contains('texture(NautilusWaterVoxelAtlas,')
+                        || !patched.contains(
+                        'abs(selectedMetadata.z - float(selectedSlot)) > 0.25')
+                        || !patched.contains(
+                        'abs(selectedMetadata.w - d7.z) > 0.25')
+                        || !patched.contains('vec3 semanticHit = localHit;')
+                        || !patched.contains('vec3 primary = floor(semanticHit);')
+                        || !patched.contains(
+                        'float primaryEncoded = nautilus_atlas_voxel(')
+                         || !patched.contains(
+                         'int nautilus_direction_slot(float encoded, int directionCode)')
+                         || !patched.contains('int directionCode = int(entryDirection);')
+                         || !patched.contains('int expectedAxis = (directionCode - 1) / 2;')
+                         || !patched.contains(
+                         'primaryEncoded, directionCode);')
+                         || !patched.contains('if (primaryEncoded <= -1.5)')
+                         || patched.contains('primaryEncoded == -1.25')
+                         || patched.contains('primaryEncoded == -1.25F')
+                         || !patched.contains(
+                         'int slot = nautilus_direction_slot(encoded, directionCode);')
+                         || !patched.contains(
+                         'if (candidateMetadataAxis != expectedAxis) continue;')
+                         || !patched.contains(
+                         'if (selectedMetadataAxis != selectedAxis) return false;')
+                         || patched.contains('closestFaceError')
+                         || patched.contains('primaryAxisCount')
+                        || !patched.contains('for (int ox = -1; ox <= 1; ++ox)')
+                        || !patched.contains('bool boundaryCompatible = true;')
+                        || !patched.contains('bool expectedFaceNear = expectedFaceFraction < cellTolerance')
+                        || !patched.contains('candidateOutwardCode = candidateMetadata.y > 2.5')
+                        || patched.contains('selectedSemanticHit')
+                        || patched.contains('* (expectedOutward / lookupAxisDirection)')
+                        || patched.contains('expectedAxisStep')
+                        || !patched.contains('NautilusWaterEntryClearReversed')
+                        || !patched.contains('eyeInWater != cameraWater')
+                        || patched.contains('segments = cameraWater != 0')
+                        || patched.contains('uniform sampler2D NautilusBoundaryGateDepth')
+                        || patched.contains('uniform sampler2D NautilusWaterBoundaryDepth')
+                        || patched.contains('uniform sampler2D NautilusWaterBoundaryStatus')) {
+                    throw new GradleException("${label} must sample exactly one EntryDepth inside "
+                            + 'the bounds guard, resolve one packed signed-direction atlas event, reject '
+                            + 'clear depth and use the frozen camera medium')
+                }
+            }
+            def assertDryOnlyPhotonOverride = { String patched, String label ->
+                final String declaration = 'bool nautilusOverride ='
+                final int overrideStart = patched.indexOf(declaration)
+                final int overrideEnd = overrideStart < 0 ? -1
+                        : patched.indexOf(';', overrideStart)
+                final String overrideExpression = overrideEnd < 0 ? ''
+                        : patched.substring(overrideStart, overrideEnd)
+                if (patched.count(declaration) != 1
+                        || !overrideExpression.contains('isEyeInWater == 0')
+                        || overrideExpression.contains('isEyeInWater == 1')) {
+                    throw new GradleException("${label} must let exactly one dry-camera "
+                            + 'Nautilus override run while preserving the native wet-camera path')
+                }
+            }
+            assertDryOnlyPhotonOverride(photonFrontPatched, 'Photon c0 VL fixture')
+            assertDryOnlyPhotonOverride(photonBlendPatched, 'Photon c1 VL fixture')
+            final def volumetricDirectEntrySample =
+                    entrySamplePattern.matcher(photonFrontPatched)
+            if (volumetricDirectEntrySample.find()
+                    || !photonFrontPatched.contains(
+                    'nautilus_photon_decode_entry_footprint(')
+                    || !photonFrontPatched.contains(
+                    'fwidth(maskUv * vec2(entrySize))')
+                    || !photonFrontPatched.contains('texelFetch(')
+                    || !photonFrontPatched.contains(
+                    'NautilusWaterEntryDepth, entryTexel, 0).r')) {
+                throw new GradleException('Photon c0 must resolve the full-resolution EntryDepth '
+                        + 'over its stable 1x1 or 2x2 volumetric pixel footprint')
+            }
+             if (photonFrontPatched.contains('candidateGate < gate')
+                     || !photonFrontPatched.contains('for (int y = 1; y >= 0; --y)')
+                     || !photonFrontPatched.contains('nautilusResolvedMaskUv')
+                     || !photonFrontPatched.contains('nautilus_photon_scene_uv(')
+                     || !photonFrontPatched.contains('nautilusSceneUv * 2.0 - 1.0')
+                     || photonFrontPatched.contains(
+                     'nautilusResolvedMaskUv * 2.0 - 1.0')
+                     || !photonFrontPatched.contains(
+                     'depthtex0, nautilusDepthTexel, 0).r')
+                    || photonFrontPatched.contains(
+                    'depthtex1, nautilusDepthTexel, 0).r')
+                    || !photonFrontPatched.contains('bool firstContains = value.r >= 0.0')) {
+                throw new GradleException('Photon c0 must use one fixed full-resolution '
+                        + 'representative for both the finite interval and its front-layer ray')
+            }
+            if (!photonFrontPatched.contains('switch (nautilusEyeInWater)')
+                    || !photonFrontPatched.contains('nautilusEyeInWater = 1;')
+                    || !photonFrontPatched.contains(
+                    'world_start_pos = nautilusCameraWorld')
+                    || photonFrontPatched.contains(
+                    'nautilus_photon_apply_analytic_medium(')) {
+                throw new GradleException('Photon volumetric fixture must feed the 0.4.296 '
+                        + 'pixel interval to the native c0 water raymarch')
+            }
+            assertSingleEntrySample(photonBlendPatched, 'Photon c1 VL fixture')
+            if (!photonBlendPatched.contains(
+                    'bool nautilusOverride = is_translucent && !back_is_hand')
+                    || !photonBlendPatched.contains(
+                    'nautilusFrontDistance, nautilusSceneDistance,')
+                    || !photonBlendPatched.contains(
+                    'fragment_color = fragment_color')
+                    || !photonBlendPatched.contains(
+                    '* (1.0 - translucent_color.a)')
+                    || photonBlendPatched.contains(
+                    'float nautilusMediumStart = is_translucent')) {
+                throw new GradleException('Photon c1 must fog only the background range behind '
+                        + 'a translucent layer, then blend that layer in front')
+            }
+
+            // A c0-only or c1-only VL rewrite would corrupt transparency ordering. Both stages
+            // are therefore one atomic adapter contract.
+            beginReloadTemporal.invoke(null, -1, 0, 0, 0, -1, Float.NaN)
+            patchFragment.invoke(null, photonFrontVl, 'composite')
+            finishPhotonReload.invoke(null)
+            if ((Boolean) photonAdapterReady.invoke(null)) {
+                throw new GradleException('Photon c0 alone must not publish a partial VL adapter')
+            }
+            beginReloadTemporal.invoke(null, -1, 0, 0, 0, -1, Float.NaN)
+            patchFragment.invoke(null, photonWithPackDirectives, 'composite')
+            finishPhotonReload.invoke(null)
+            if ((Boolean) photonAdapterReady.invoke(null)) {
+                throw new GradleException('Photon c1 alone must not publish a partial VL adapter')
+            }
+
+            final String photonAnalyticSource = '''
+mat2x3 water_fog_simple(vec3 a) { return mat2x3(0.0); }
+mat2x3 air_fog_analytic(vec3 a) { return mat2x3(0.0); }
+vec3 blend_layers_with_fog(vec3 a) { return a; }
+uniform mat4 gbufferProjectionInverse;
+uniform mat4 gbufferModelViewInverse;
+uniform vec3 cameraPosition;
+uniform int isEyeInWater;
+in vec2 uv;
+void main() {
+    vec3 front_position_world = vec3(1.0);
+    vec3 back_position_world = vec3(2.0);
+    float view_distance = 1.0;
+    vec3 fragment_color = vec3(0.0);
+    fragment_color = blend_layers_with_fog(fragment_color);
+    vec3 camera = gbufferModelViewInverse[3].xyz + cameraPosition;
+    if (isEyeInWater == 1) {
+        mat2x3 analytic_fog = water_fog_simple(front_position_world);
+    }
+}
+'''
+            beginReloadTemporal.invoke(null, -1, 0, 0, 0, -1, Float.NaN)
+            final String photonAnalyticPatched = (String) patchFragment.invoke(
+                    null, photonAnalyticSource, 'composite')
+            if (photonAnalyticPatched == photonAnalyticSource
+                    || !photonAnalyticPatched.contains(
+                    '// CREATE_NAUTILUS_WATER_BOUNDARY')) {
+                throw new GradleException('Photon analytic fixture did not receive EntryDepth')
+            }
+            assertSingleEntrySample(photonAnalyticPatched, 'Photon analytic fixture')
+            assertDryOnlyPhotonOverride(photonAnalyticPatched, 'Photon analytic fixture')
+            finishPhotonReload.invoke(null)
+            if (!(Boolean) photonAdapterReady.invoke(null)) {
+                throw new GradleException('Photon analytic fixture patched source but did not '
+                        + 'publish a consumable adapter generation')
+            }
+
+            final String blissNative = '''
+vec4 waterVolumetrics_test(vec3 position) { return vec4(position, 1.0); }
+uniform mat4 gbufferProjectionInverse;
+void main() {
+    vec3 viewPos0 = vec3(0.0);
+    vec4 fog = waterVolumetrics_test(viewPos0);
+}
+'''
+            final String complementaryNative = '''
+float GetWaterFog(float distance) { return distance; }
+uniform mat4 gbufferProjectionInverse;
+void main() {
+    float fog = GetWaterFog(1.0);
+}
+'''
+            beginReloadTemporal.invoke(null, -1, 0, 0, 0, -1, Float.NaN)
+            if (patchFragment.invoke(null, blissNative, 'composite') != blissNative
+                    || patchFragment.invoke(null, complementaryNative, 'deferred1')
+                    != complementaryNative) {
+                throw new GradleException('Incomplete or unsupported Bliss/Complementary signatures '
+                        + 'must remain byte-for-byte native')
+            }
+            finishPhotonReload.invoke(null)
+            if ((Boolean) photonAdapterReady.invoke(null)) {
+                throw new GradleException('Incomplete native fixtures must not publish an adapter')
+            }
+
+            // Identical native sources and options must remain byte-for-byte stable across reloads
+            // so Iris and the driver can reuse their source-keyed caches. Each Program still owns
+            // its distinct generation, and later option snapshots cannot mutate an older pipeline.
+            final def currentBuildGeneration = adapter.getMethod(
+                    'currentBuildGeneration')
+            final def adapterReadyFor = adapter.getMethod(
+                    'adapterReady', Integer.TYPE)
+            beginReloadTemporal.invoke(null, -1, 0, 0, 0, -1, Float.NaN)
+            final int cachedGeneration = (Integer) currentBuildGeneration.invoke(null)
+            final String cachedFront = (String) patchFragment.invoke(
+                    null, photonFrontVl, 'composite')
+            if (cachedFront == photonFrontVl) {
+                throw new GradleException('Cached Photon fixture did not patch')
+            }
+            final String cachedBlend = (String) patchFragment.invoke(
+                    null, photonWithPackDirectives, 'composite')
+            if (cachedBlend == photonWithPackDirectives) {
+                throw new GradleException('Cached Photon c1 fixture did not patch')
+            }
+            finishPhotonReload.invoke(null)
+            if (!(Boolean) adapterReadyFor.invoke(null, cachedGeneration)) {
+                throw new GradleException('Cached Photon generation was not published as ready')
+            }
+            confirmLinkedConsumer.invoke(null, cachedGeneration)
+            final Object cachedTransform = sceneDepthTransform.invoke(
+                    null, cachedGeneration, 1, 854, 480)
+            if (cachedTransform == null) {
+                throw new GradleException('Cached Photon generation lost its option snapshot')
+            }
+
+            beginReloadTemporal.invoke(null, -1, 0, 0, 0, -1, Float.NaN)
+            final int repeatedGeneration = (Integer) currentBuildGeneration.invoke(null)
+            final String repeatedFront = (String) patchFragment.invoke(
+                    null, photonFrontVl, 'composite')
+            final String repeatedBlend = (String) patchFragment.invoke(
+                    null, photonWithPackDirectives, 'composite')
+            finishPhotonReload.invoke(null)
+            if (repeatedGeneration <= cachedGeneration
+                    || !(Boolean) adapterReadyFor.invoke(null, repeatedGeneration)
+                    || repeatedFront != cachedFront || repeatedBlend != cachedBlend) {
+                throw new GradleException('Identical Photon reloads must publish distinct ready '
+                        + 'generations while emitting byte-for-byte identical GLSL')
+            }
+
+            final String photonFrontTaa = photonFrontVl.replace(
+                    'in vec2 uv;', 'uniform vec2 taa_offset;\nin vec2 uv;\n'
+                            + 'vec2 jitter_offset = taa_offset * 0.66;')
+            final String photonBlendTaa = photonWithPackDirectives.replace(
+                    'in vec2 uv;', 'uniform vec2 taa_offset;\nin vec2 uv;\n'
+                            + 'vec2 jitter_offset = taa_offset * 0.66;')
+            beginReloadTemporal.invoke(null, -1, 0, 1, 0, -1, Float.NaN)
+            final int changedOptionGeneration = (Integer) currentBuildGeneration.invoke(null)
+            final String changedFront = (String) patchFragment.invoke(
+                    null, photonFrontTaa, 'composite')
+            final String changedBlend = (String) patchFragment.invoke(
+                    null, photonBlendTaa, 'composite')
+            finishPhotonReload.invoke(null)
+            final Object preservedTransform = sceneDepthTransform.invoke(
+                    null, cachedGeneration, 1, 854, 480)
+            if (changedOptionGeneration <= repeatedGeneration
+                    || !(Boolean) adapterReadyFor.invoke(null, changedOptionGeneration)
+                    || changedFront == cachedFront || changedBlend == cachedBlend
+                    || preservedTransform == null
+                    || preservedTransform.class.getMethod('scale').invoke(preservedTransform)
+                    != cachedTransform.class.getMethod('scale').invoke(cachedTransform)
+                    || preservedTransform.class.getMethod('offsetU').invoke(preservedTransform)
+                    != cachedTransform.class.getMethod('offsetU').invoke(cachedTransform)
+                    || preservedTransform.class.getMethod('offsetV').invoke(preservedTransform)
+                    != cachedTransform.class.getMethod('offsetV').invoke(cachedTransform)) {
+                throw new GradleException('A later Photon option snapshot must not overwrite '
+                        + 'the depth transform owned by an older cached generation')
+            }
+            confirmLinkedConsumer.invoke(null, changedOptionGeneration)
+            final Object changedTransform = sceneDepthTransform.invoke(
+                    null, changedOptionGeneration, 1, 854, 480)
+            if (changedTransform == null
+                    || changedTransform == cachedTransform) {
+                throw new GradleException('Enabling Photon TAA must keep its own changed '
+                        + 'depth transform instead of reusing the older no-TAA snapshot')
+            }
+
+            // Unsupported later pipelines must not invalidate an already cached Photon generation.
+            beginReloadTemporal.invoke(null, -1, 0, 0, 0, -1, Float.NaN)
+            final int unsupportedGeneration = (Integer) currentBuildGeneration.invoke(null)
+            patchFragment.invoke(null, blissNative, 'composite')
+            finishPhotonReload.invoke(null)
+            if ((Boolean) adapterReadyFor.invoke(null, unsupportedGeneration)
+                    || !(Boolean) adapterReadyFor.invoke(null, cachedGeneration)) {
+                throw new GradleException('An unsupported later pipeline must remain native '
+                        + 'without invalidating an already linked Photon generation')
+            }
+        } finally {
+            loader.close()
+        }
+        logger.lifecycle('Iris shader patch safety passed: Photon c0 front raymarch plus c1 '
+                + 'ordered translucent blending, atomic generation binding, native fallback '
+                + 'and no post-AST rewrite')
+    }
+}
+
+apply from: 'gradle/verify-fog-compat.gradle'
+apply from: 'gradle/verify-virtual-water-material.gradle'
+apply from: 'gradle/verify-virtual-water-mesh.gradle'
+apply from: 'gradle/verify-water-view-transform.gradle'
+apply from: 'gradle/verify-physics-state.gradle'
+apply from: 'gradle/verify-gas-transfer.gradle'
+apply from: 'gradle/verify-network-lifecycle.gradle'
+
+tasks.named('check').configure {
+    dependsOn tasks.named('verifyPhysicsState')
+    dependsOn tasks.named('verifyGasTransfer')
+    dependsOn tasks.named('verifyNetworkLifecycle')
+    dependsOn tasks.named('verifyVirtualWaterMaterial')
+    dependsOn tasks.named('verifyVirtualWaterMesh')
+    dependsOn tasks.named('verifyWaterViewTransform')
+    dependsOn verifyVoxelAtlasPacking
+    dependsOn verifyApertureEntryDepth
+    dependsOn verifyMixinSourceSafety
+    dependsOn verifyIrisShaderPatchSafety
+}
+
+// A sources archive is documentation, not an installable mod. Gradle's default
+// sourcesJar also copies resources, which would leave the unexpanded
+// ${mod_id} template in META-INF/neoforge.mods.toml. If a user accidentally put
+// that archive in mods/, NeoForge would try to parse it and abort discovery.
+// Keep source archives source-only so an accidental copy is ignored safely.
+tasks.named('sourcesJar', Jar).configure {
+    exclude 'META-INF/**'
+    exclude 'pack.mcmeta'
+    exclude '*.mixins.json'
+    exclude 'assets/**'
+}
+
+publishing {
+    publications {
+        register('mavenJava', MavenPublication) {
+            from components.java
+        }
+    }
+}

@@ -1,0 +1,80 @@
+{
+  "loader": "neoforge:obj",
+  "model": "create_nautilus:models/block/exported/gas_pump/item.obj",
+  "flip_v": true,
+  "automatic_culling": false,
+  "emissive_ambient": false,
+  "shade_quads": true,
+  "textures": {
+    "t0": "create_nautilus:block/exported/gas_pump/texture_0",
+    "t1": "create_nautilus:block/exported/gas_pump/texture_1",
+    "t2": "create_nautilus:block/exported/gas_pump/texture_2",
+    "particle": "create_nautilus:block/exported/gas_pump/texture_0"
+  },
+  "parent": "minecraft:block/block",
+  "render_type": "minecraft:cutout",
+  "ambientocclusion": true,
+  "credit": "Exact baked user geometry; NeoForge OBJ retains mesh and arbitrary rotations",
+  "display": {
+    "gui": {
+      "rotation": [
+        30,
+        135,
+        0
+      ],
+      "scale": [
+        0.625,
+        0.625,
+        0.625
+      ]
+    },
+    "ground": {
+      "translation": [
+        0,
+        3,
+        0
+      ],
+      "scale": [
+        0.25,
+        0.25,
+        0.25
+      ]
+    },
+    "fixed": {
+      "scale": [
+        0.5,
+        0.5,
+        0.5
+      ]
+    },
+    "thirdperson_righthand": {
+      "rotation": [
+        75,
+        45,
+        0
+      ],
+      "translation": [
+        0,
+        2.5,
+        0
+      ],
+      "scale": [
+        0.375,
+        0.375,
+        0.375
+      ]
+    },
+    "firstperson_righthand": {
+      "rotation": [
+        0,
+        45,
+        0
+      ],
+      "scale": [
+        0.4,
+        0.4,
+        0.4
+      ]
+    }
+  }
+}

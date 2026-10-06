@@ -1,0 +1,110 @@
+{
+  "credit": "Create: Nautilus - modeled in Blockbench on a 16x16 grid",
+  "parent": "minecraft:block/block",
+  "textures": {
+    "gear": "create:block/cogwheel",
+    "axis": "create:block/cogwheel_axis",
+    "particle": "create:block/cogwheel"
+  },
+  "elements": [
+    {
+      "name": "Pump gear hub",
+      "from": [
+        6,
+        14,
+        6
+      ],
+      "to": [
+        10,
+        16,
+        10
+      ],
+      "faces": {
+        "down": {
+          "texture": "#axis"
+        },
+        "up": {
+          "texture": "#axis"
+        },
+        "north": {
+          "texture": "#axis"
+        },
+        "south": {
+          "texture": "#axis"
+        },
+        "west": {
+          "texture": "#axis"
+        },
+        "east": {
+          "texture": "#axis"
+        }
+      }
+    },
+    {
+      "name": "Pump gear east-west",
+      "from": [
+        2,
+        15,
+        6
+      ],
+      "to": [
+        14,
+        16,
+        10
+      ],
+      "faces": {
+        "down": {
+          "texture": "#gear"
+        },
+        "up": {
+          "texture": "#gear"
+        },
+        "north": {
+          "texture": "#gear"
+        },
+        "south": {
+          "texture": "#gear"
+        },
+        "west": {
+          "texture": "#gear"
+        },
+        "east": {
+          "texture": "#gear"
+        }
+      }
+    },
+    {
+      "name": "Pump gear north-south",
+      "from": [
+        6,
+        15,
+        2
+      ],
+      "to": [
+        10,
+        16,
+        14
+      ],
+      "faces": {
+        "down": {
+          "texture": "#gear"
+        },
+        "up": {
+          "texture": "#gear"
+        },
+        "north": {
+          "texture": "#gear"
+        },
+        "south": {
+          "texture": "#gear"
+        },
+        "west": {
+          "texture": "#gear"
+        },
+        "east": {
+          "texture": "#gear"
+        }
+      }
+    }
+  ]
+}

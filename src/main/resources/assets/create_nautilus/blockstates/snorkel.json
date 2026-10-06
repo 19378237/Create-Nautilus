@@ -1,0 +1,19 @@
+{
+  "variants": {
+    "facing=north": {
+      "model": "create_nautilus:block/snorkel"
+    },
+    "facing=east": {
+      "model": "create_nautilus:block/snorkel",
+      "y": 90
+    },
+    "facing=south": {
+      "model": "create_nautilus:block/snorkel",
+      "y": 180
+    },
+    "facing=west": {
+      "model": "create_nautilus:block/snorkel",
+      "y": 270
+    }
+  }
+}

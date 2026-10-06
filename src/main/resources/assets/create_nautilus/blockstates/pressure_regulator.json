@@ -1,0 +1,10 @@
+{"variants":{
+  "facing=north,powered=false":{"model":"create_nautilus:block/pressure_regulator"},
+  "facing=east,powered=false":{"model":"create_nautilus:block/pressure_regulator","y":90},
+  "facing=south,powered=false":{"model":"create_nautilus:block/pressure_regulator","y":180},
+  "facing=west,powered=false":{"model":"create_nautilus:block/pressure_regulator","y":270},
+  "facing=north,powered=true":{"model":"create_nautilus:block/pressure_regulator_powered"},
+  "facing=east,powered=true":{"model":"create_nautilus:block/pressure_regulator_powered","y":90},
+  "facing=south,powered=true":{"model":"create_nautilus:block/pressure_regulator_powered","y":180},
+  "facing=west,powered=true":{"model":"create_nautilus:block/pressure_regulator_powered","y":270}
+}}

@@ -1,0 +1,2097 @@
+{
+  "textures": {
+    "t0": "create_nautilus:block/exported/gas_pipe/texture_0",
+    "particle": "create_nautilus:block/exported/gas_pipe/texture_0"
+  },
+  "display": {
+    "gui": {
+      "rotation": [
+        30,
+        135,
+        0
+      ],
+      "scale": [
+        0.625,
+        0.625,
+        0.625
+      ]
+    },
+    "ground": {
+      "translation": [
+        0,
+        3,
+        0
+      ],
+      "scale": [
+        0.25,
+        0.25,
+        0.25
+      ]
+    },
+    "fixed": {
+      "scale": [
+        0.5,
+        0.5,
+        0.5
+      ]
+    },
+    "thirdperson_righthand": {
+      "rotation": [
+        75,
+        45,
+        0
+      ],
+      "translation": [
+        0,
+        2.5,
+        0
+      ],
+      "scale": [
+        0.375,
+        0.375,
+        0.375
+      ]
+    },
+    "firstperson_righthand": {
+      "rotation": [
+        0,
+        45,
+        0
+      ],
+      "scale": [
+        0.4,
+        0.4,
+        0.4
+      ]
+    }
+  },
+  "render_type": "minecraft:cutout",
+  "parent": "minecraft:block/block",
+  "elements": [
+    {
+      "name": "vertical/copper/040",
+      "from": [
+        5.5,
+        2.0999999999999996,
+        5.5
+      ],
+      "to": [
+        10.5,
+        13.9,
+        10.5
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            0.0,
+            1.05,
+            2.5,
+            6.95
+          ],
+          "texture": "#t0",
+          "rotation": 180
+        },
+        "east": {
+          "uv": [
+            2.5,
+            1.05,
+            5.0,
+            6.95
+          ],
+          "texture": "#t0",
+          "rotation": 180
+        },
+        "south": {
+          "uv": [
+            5.0,
+            6.95,
+            7.5,
+            1.05
+          ],
+          "texture": "#t0"
+        },
+        "west": {
+          "uv": [
+            0.0,
+            6.95,
+            2.5,
+            1.05
+          ],
+          "texture": "#t0"
+        }
+      }
+    },
+    {
+      "name": "vertical/body_continuation/down",
+      "from": [
+        5.5,
+        0.0,
+        5.5
+      ],
+      "to": [
+        10.5,
+        2.0999999999999996,
+        10.5
+      ],
+      "faces": {
+        "west": {
+          "uv": [
+            0.0,
+            1.05,
+            2.5,
+            0.0
+          ],
+          "texture": "#t0"
+        },
+        "east": {
+          "uv": [
+            2.5,
+            0.0,
+            5.0,
+            1.05
+          ],
+          "rotation": 180,
+          "texture": "#t0"
+        },
+        "north": {
+          "uv": [
+            0.0,
+            0.0,
+            2.5,
+            1.05
+          ],
+          "rotation": 180,
+          "texture": "#t0"
+        },
+        "south": {
+          "uv": [
+            5.0,
+            1.05,
+            7.5,
+            0.0
+          ],
+          "texture": "#t0"
+        }
+      }
+    },
+    {
+      "name": "vertical/body_continuation/up",
+      "from": [
+        5.5,
+        13.9,
+        5.5
+      ],
+      "to": [
+        10.5,
+        16.0,
+        10.5
+      ],
+      "faces": {
+        "west": {
+          "uv": [
+            0.0,
+            8.0,
+            2.5,
+            6.95
+          ],
+          "texture": "#t0"
+        },
+        "east": {
+          "uv": [
+            2.5,
+            6.95,
+            5.0,
+            8.0
+          ],
+          "rotation": 180,
+          "texture": "#t0"
+        },
+        "north": {
+          "uv": [
+            0.0,
+            6.95,
+            2.5,
+            8.0
+          ],
+          "rotation": 180,
+          "texture": "#t0"
+        },
+        "south": {
+          "uv": [
+            5.0,
+            8.0,
+            7.5,
+            6.95
+          ],
+          "texture": "#t0"
+        }
+      }
+    },
+    {
+      "name": "vertical/brass/002/coupling_up",
+      "from": [
+        5.0,
+        14.5,
+        5.0
+      ],
+      "to": [
+        11.0,
+        16,
+        5.05
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            0.025,
+            9.0,
+            3.025,
+            8.0
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65538
+        },
+        "east": {
+          "uv": [
+            0.025,
+            9.0,
+            0.05,
+            8.0
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65538
+        },
+        "west": {
+          "uv": [
+            0.025,
+            8.0,
+            0.05,
+            9.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "up": {
+          "uv": [
+            8.02459,
+            0.02459,
+            10.97541,
+            0.04918
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "down": {
+          "uv": [
+            0.025,
+            12.05,
+            3.025,
+            12.025
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "vertical/brass/003/coupling_up",
+      "from": [
+        5.0,
+        14.5,
+        10.95
+      ],
+      "to": [
+        11.0,
+        16.0,
+        11.0
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            3.0,
+            9.0,
+            3.025,
+            8.0
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65538
+        },
+        "south": {
+          "uv": [
+            0.025,
+            8.0,
+            3.025,
+            9.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "west": {
+          "uv": [
+            3.0,
+            8.0,
+            3.025,
+            9.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "up": {
+          "uv": [
+            8.02459,
+            2.95082,
+            10.97541,
+            2.97541
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "down": {
+          "uv": [
+            0.025,
+            15.025,
+            3.025,
+            15.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "vertical/brass/006/coupling_up",
+      "from": [
+        5.0,
+        15.25,
+        5.05
+      ],
+      "to": [
+        11.0,
+        16.0,
+        5.5
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            0.05,
+            8.5,
+            0.275,
+            8.0
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65538
+        },
+        "west": {
+          "uv": [
+            0.05,
+            8.0,
+            0.275,
+            8.5
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "up": {
+          "uv": [
+            8.02459,
+            0.04918,
+            10.97541,
+            0.27049
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "vertical/brass/007/coupling_up",
+      "from": [
+        5.0,
+        15.25,
+        10.5
+      ],
+      "to": [
+        11.0,
+        16.0,
+        10.95
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            2.775,
+            8.5,
+            3.0,
+            8.0
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65538
+        },
+        "west": {
+          "uv": [
+            2.775,
+            8.0,
+            3.0,
+            8.5
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "up": {
+          "uv": [
+            8.02459,
+            2.72951,
+            10.97541,
+            2.95082
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "vertical/brass/010/coupling_up",
+      "from": [
+        5.0,
+        15.5,
+        5.5
+      ],
+      "to": [
+        6.25,
+        16.0,
+        6.25
+      ],
+      "faces": {
+        "west": {
+          "uv": [
+            0.275,
+            8.0,
+            0.65,
+            8.333335
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "up": {
+          "uv": [
+            8.02459,
+            0.27049,
+            8.639345,
+            0.639345
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "vertical/brass/011/coupling_up",
+      "from": [
+        5.0,
+        15.5,
+        9.75
+      ],
+      "to": [
+        6.25,
+        16.0,
+        10.5
+      ],
+      "faces": {
+        "west": {
+          "uv": [
+            2.4,
+            8.0,
+            2.775,
+            8.333335
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "up": {
+          "uv": [
+            8.02459,
+            2.360655,
+            8.639345,
+            2.72951
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "vertical/brass/014/coupling_up",
+      "from": [
+        9.75,
+        15.5,
+        5.5
+      ],
+      "to": [
+        11.0,
+        16.0,
+        6.25
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            0.275,
+            8.333335,
+            0.65,
+            8.0
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65538
+        },
+        "up": {
+          "uv": [
+            10.360655,
+            0.27049,
+            10.97541,
+            0.639345
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "vertical/brass/015/coupling_up",
+      "from": [
+        9.75,
+        15.5,
+        9.75
+      ],
+      "to": [
+        11.0,
+        16.0,
+        10.5
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            2.4,
+            8.333335,
+            2.775,
+            8.0
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65538
+        },
+        "up": {
+          "uv": [
+            10.360655,
+            2.360655,
+            10.97541,
+            2.72951
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "vertical/brass/017/coupling_up",
+      "from": [
+        5.0,
+        15.5,
+        6.25
+      ],
+      "to": [
+        6.25,
+        16.0,
+        9.75
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            12.625,
+            1.0,
+            14.375,
+            0.0
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65538
+        },
+        "west": {
+          "uv": [
+            0.65,
+            8.0,
+            2.4,
+            8.333335
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "up": {
+          "uv": [
+            8.02459,
+            0.639345,
+            8.639345,
+            2.360655
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "vertical/brass/019/coupling_up",
+      "from": [
+        9.75,
+        15.5,
+        6.25
+      ],
+      "to": [
+        11.0,
+        16.0,
+        9.75
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            0.65,
+            8.333335,
+            2.4,
+            8.0
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65538
+        },
+        "west": {
+          "uv": [
+            12.625,
+            0.0,
+            14.375,
+            1.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "up": {
+          "uv": [
+            10.360655,
+            0.639345,
+            10.97541,
+            2.360655
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "vertical/brass/022/coupling_up",
+      "from": [
+        5.0,
+        15.25,
+        5.5
+      ],
+      "to": [
+        11.0,
+        15.5,
+        6.25
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            0.275,
+            8.5,
+            0.65,
+            8.333335
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65538
+        },
+        "west": {
+          "uv": [
+            0.275,
+            8.333335,
+            0.65,
+            8.5
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "vertical/brass/023/coupling_up",
+      "from": [
+        5.0,
+        15.25,
+        9.75
+      ],
+      "to": [
+        11.0,
+        15.5,
+        10.5
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            2.4,
+            8.5,
+            2.775,
+            8.333335
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65538
+        },
+        "west": {
+          "uv": [
+            2.4,
+            8.333335,
+            2.775,
+            8.5
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "vertical/brass/025/coupling_up",
+      "from": [
+        5.0,
+        15.25,
+        6.25
+      ],
+      "to": [
+        6.25,
+        15.5,
+        9.75
+      ],
+      "faces": {
+        "west": {
+          "uv": [
+            0.65,
+            8.333335,
+            2.4,
+            8.5
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "vertical/brass/027/coupling_up",
+      "from": [
+        9.75,
+        15.25,
+        6.25
+      ],
+      "to": [
+        11.0,
+        15.5,
+        9.75
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            0.65,
+            8.5,
+            2.4,
+            8.333335
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "vertical/brass/029/coupling_up",
+      "from": [
+        5.0,
+        14.5,
+        5.05
+      ],
+      "to": [
+        5.05,
+        15.25,
+        10.95
+      ],
+      "faces": {
+        "west": {
+          "uv": [
+            0.05,
+            8.5,
+            3.0,
+            9.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "down": {
+          "uv": [
+            0.025,
+            15.0,
+            0.05,
+            12.05
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "vertical/brass/031/coupling_up",
+      "from": [
+        10.95,
+        14.5,
+        5.05
+      ],
+      "to": [
+        11.0,
+        15.25,
+        10.95
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            0.05,
+            9.0,
+            3.0,
+            8.5
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65538
+        },
+        "down": {
+          "uv": [
+            3.0,
+            15.0,
+            3.025,
+            12.05
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "vertical/charcoal/034/coupling_up",
+      "from": [
+        5.05,
+        13.9,
+        5.05
+      ],
+      "to": [
+        10.95,
+        14.5,
+        5.5
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            8.05,
+            8.5,
+            11.0,
+            8.0
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65538
+        },
+        "east": {
+          "uv": [
+            8.05,
+            8.5,
+            8.275,
+            8.0
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65538
+        },
+        "west": {
+          "uv": [
+            8.05,
+            8.0,
+            8.275,
+            8.5
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "down": {
+          "uv": [
+            8.05,
+            12.275,
+            11.0,
+            12.05
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "vertical/charcoal/035/coupling_up",
+      "from": [
+        5.05,
+        13.9,
+        10.5
+      ],
+      "to": [
+        10.95,
+        14.5,
+        10.95
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            10.775,
+            8.5,
+            11.0,
+            8.0
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65538
+        },
+        "south": {
+          "uv": [
+            8.05,
+            8.0,
+            11.0,
+            8.5
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "west": {
+          "uv": [
+            10.775,
+            8.0,
+            11.0,
+            8.5
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "down": {
+          "uv": [
+            8.05,
+            15.0,
+            11.0,
+            14.775
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "vertical/charcoal/037/coupling_up",
+      "from": [
+        5.05,
+        13.9,
+        5.5
+      ],
+      "to": [
+        5.5,
+        14.5,
+        10.5
+      ],
+      "faces": {
+        "west": {
+          "uv": [
+            8.275,
+            8.0,
+            10.775,
+            8.5
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "down": {
+          "uv": [
+            8.05,
+            14.775,
+            8.275,
+            12.275
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "vertical/charcoal/039/coupling_up",
+      "from": [
+        10.5,
+        13.9,
+        5.5
+      ],
+      "to": [
+        10.95,
+        14.5,
+        10.5
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            8.275,
+            8.5,
+            10.775,
+            8.0
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65538
+        },
+        "down": {
+          "uv": [
+            10.775,
+            14.775,
+            11.0,
+            12.275
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "vertical/brass/043/coupling_up",
+      "from": [
+        6.25,
+        15.5,
+        5.5
+      ],
+      "to": [
+        9.75,
+        16.0,
+        6.25
+      ],
+      "faces": {
+        "south": {
+          "uv": [
+            12.625,
+            0.0,
+            14.375,
+            1.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "up": {
+          "uv": [
+            8.639345,
+            0.27049,
+            10.360655,
+            0.639345
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "vertical/brass/044/coupling_up",
+      "from": [
+        6.25,
+        15.5,
+        9.75
+      ],
+      "to": [
+        9.75,
+        16.0,
+        10.5
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            12.625,
+            1.0,
+            14.375,
+            0.0
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65538
+        },
+        "up": {
+          "uv": [
+            8.639345,
+            2.360655,
+            10.360655,
+            2.72951
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "vertical/copper/046/cap_up",
+      "from": [
+        6.25,
+        13.9,
+        6.25
+      ],
+      "to": [
+        9.75,
+        15.5,
+        9.75
+      ],
+      "faces": {
+        "up": {
+          "uv": [
+            12.0,
+            5.75,
+            13.75,
+            4.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "vertical/brass/000/coupling_down",
+      "from": [
+        5,
+        0,
+        5
+      ],
+      "to": [
+        11,
+        1.5,
+        5.05
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            0.025,
+            8.0,
+            3.025,
+            9.0
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65537
+        },
+        "east": {
+          "uv": [
+            0.025,
+            8.0,
+            0.05,
+            9.0
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65537
+        },
+        "west": {
+          "uv": [
+            0.025,
+            9.0,
+            0.05,
+            8.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        },
+        "up": {
+          "uv": [
+            0.025,
+            12.025,
+            3.025,
+            12.05
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        },
+        "down": {
+          "uv": [
+            8.02459,
+            0.04918,
+            10.97541,
+            0.02459
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        }
+      }
+    },
+    {
+      "name": "vertical/brass/001/coupling_down",
+      "from": [
+        5.0,
+        0.0,
+        10.95
+      ],
+      "to": [
+        11.0,
+        1.5,
+        11
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            3.0,
+            8.0,
+            3.025,
+            9.0
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65537
+        },
+        "south": {
+          "uv": [
+            0.025,
+            9.0,
+            3.025,
+            8.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        },
+        "west": {
+          "uv": [
+            3.0,
+            9.0,
+            3.025,
+            8.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        },
+        "up": {
+          "uv": [
+            0.025,
+            15.0,
+            3.025,
+            15.025
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        },
+        "down": {
+          "uv": [
+            8.02459,
+            2.97541,
+            10.97541,
+            2.95082
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        }
+      }
+    },
+    {
+      "name": "vertical/brass/004/coupling_down",
+      "from": [
+        5.0,
+        0.0,
+        5.05
+      ],
+      "to": [
+        11.0,
+        0.75,
+        5.5
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            0.05,
+            8.0,
+            0.275,
+            8.5
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65537
+        },
+        "west": {
+          "uv": [
+            0.05,
+            8.5,
+            0.275,
+            8.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        },
+        "down": {
+          "uv": [
+            8.02459,
+            0.27049,
+            10.97541,
+            0.04918
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        }
+      }
+    },
+    {
+      "name": "vertical/brass/005/coupling_down",
+      "from": [
+        5.0,
+        0.0,
+        10.5
+      ],
+      "to": [
+        11.0,
+        0.75,
+        10.95
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            2.775,
+            8.0,
+            3.0,
+            8.5
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65537
+        },
+        "west": {
+          "uv": [
+            2.775,
+            8.5,
+            3.0,
+            8.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        },
+        "down": {
+          "uv": [
+            8.02459,
+            2.95082,
+            10.97541,
+            2.72951
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        }
+      }
+    },
+    {
+      "name": "vertical/brass/008/coupling_down",
+      "from": [
+        5.0,
+        0.0,
+        5.5
+      ],
+      "to": [
+        6.25,
+        0.5,
+        6.25
+      ],
+      "faces": {
+        "west": {
+          "uv": [
+            0.275,
+            8.333335,
+            0.65,
+            8.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        },
+        "down": {
+          "uv": [
+            8.02459,
+            0.639345,
+            8.639345,
+            0.27049
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        }
+      }
+    },
+    {
+      "name": "vertical/brass/009/coupling_down",
+      "from": [
+        5.0,
+        0.0,
+        9.75
+      ],
+      "to": [
+        6.25,
+        0.5,
+        10.5
+      ],
+      "faces": {
+        "west": {
+          "uv": [
+            2.4,
+            8.333335,
+            2.775,
+            8.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        },
+        "down": {
+          "uv": [
+            8.02459,
+            2.72951,
+            8.639345,
+            2.360655
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        }
+      }
+    },
+    {
+      "name": "vertical/brass/012/coupling_down",
+      "from": [
+        9.75,
+        0.0,
+        5.5
+      ],
+      "to": [
+        11.0,
+        0.5,
+        6.25
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            0.275,
+            8.0,
+            0.65,
+            8.333335
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65537
+        },
+        "down": {
+          "uv": [
+            10.360655,
+            0.639345,
+            10.97541,
+            0.27049
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        }
+      }
+    },
+    {
+      "name": "vertical/brass/013/coupling_down",
+      "from": [
+        9.75,
+        0.0,
+        9.75
+      ],
+      "to": [
+        11.0,
+        0.5,
+        10.5
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            2.4,
+            8.0,
+            2.775,
+            8.333335
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65537
+        },
+        "down": {
+          "uv": [
+            10.360655,
+            2.72951,
+            10.97541,
+            2.360655
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        }
+      }
+    },
+    {
+      "name": "vertical/brass/016/coupling_down",
+      "from": [
+        5.0,
+        0.0,
+        6.25
+      ],
+      "to": [
+        6.25,
+        0.5,
+        9.75
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            12.625,
+            0.0,
+            14.375,
+            1.0
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65537
+        },
+        "west": {
+          "uv": [
+            0.65,
+            8.333335,
+            2.4,
+            8.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        },
+        "down": {
+          "uv": [
+            8.02459,
+            2.360655,
+            8.639345,
+            0.639345
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        }
+      }
+    },
+    {
+      "name": "vertical/brass/018/coupling_down",
+      "from": [
+        9.75,
+        0.0,
+        6.25
+      ],
+      "to": [
+        11.0,
+        0.5,
+        9.75
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            0.65,
+            8.0,
+            2.4,
+            8.333335
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65537
+        },
+        "west": {
+          "uv": [
+            12.625,
+            1.0,
+            14.375,
+            0.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        },
+        "down": {
+          "uv": [
+            10.360655,
+            2.360655,
+            10.97541,
+            0.639345
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        }
+      }
+    },
+    {
+      "name": "vertical/brass/020/coupling_down",
+      "from": [
+        5.0,
+        0.5,
+        5.5
+      ],
+      "to": [
+        11.0,
+        0.75,
+        6.25
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            0.275,
+            8.333335,
+            0.65,
+            8.5
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65537
+        },
+        "west": {
+          "uv": [
+            0.275,
+            8.5,
+            0.65,
+            8.333335
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        }
+      }
+    },
+    {
+      "name": "vertical/brass/021/coupling_down",
+      "from": [
+        5.0,
+        0.5,
+        9.75
+      ],
+      "to": [
+        11.0,
+        0.75,
+        10.5
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            2.4,
+            8.333335,
+            2.775,
+            8.5
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65537
+        },
+        "west": {
+          "uv": [
+            2.4,
+            8.5,
+            2.775,
+            8.333335
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        }
+      }
+    },
+    {
+      "name": "vertical/brass/024/coupling_down",
+      "from": [
+        5.0,
+        0.5,
+        6.25
+      ],
+      "to": [
+        6.25,
+        0.75,
+        9.75
+      ],
+      "faces": {
+        "west": {
+          "uv": [
+            0.65,
+            8.5,
+            2.4,
+            8.333335
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        }
+      }
+    },
+    {
+      "name": "vertical/brass/026/coupling_down",
+      "from": [
+        9.75,
+        0.5,
+        6.25
+      ],
+      "to": [
+        11.0,
+        0.75,
+        9.75
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            0.65,
+            8.333335,
+            2.4,
+            8.5
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65537
+        }
+      }
+    },
+    {
+      "name": "vertical/brass/028/coupling_down",
+      "from": [
+        5.0,
+        0.75,
+        5.05
+      ],
+      "to": [
+        5.05,
+        1.5,
+        10.95
+      ],
+      "faces": {
+        "west": {
+          "uv": [
+            0.05,
+            9.0,
+            3.0,
+            8.5
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        },
+        "up": {
+          "uv": [
+            0.025,
+            12.05,
+            0.05,
+            15.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        }
+      }
+    },
+    {
+      "name": "vertical/brass/030/coupling_down",
+      "from": [
+        10.95,
+        0.75,
+        5.05
+      ],
+      "to": [
+        11.0,
+        1.5,
+        10.95
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            0.05,
+            8.5,
+            3.0,
+            9.0
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65537
+        },
+        "up": {
+          "uv": [
+            3.0,
+            12.05,
+            3.025,
+            15.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        }
+      }
+    },
+    {
+      "name": "vertical/charcoal/032/coupling_down",
+      "from": [
+        5.05,
+        1.5,
+        5.05
+      ],
+      "to": [
+        10.95,
+        2.0999999999999996,
+        5.5
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            8.05,
+            8.0,
+            11.0,
+            8.5
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65537
+        },
+        "east": {
+          "uv": [
+            8.05,
+            8.0,
+            8.275,
+            8.5
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65537
+        },
+        "west": {
+          "uv": [
+            8.05,
+            8.5,
+            8.275,
+            8.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        },
+        "up": {
+          "uv": [
+            8.05,
+            12.05,
+            11.0,
+            12.275
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        }
+      }
+    },
+    {
+      "name": "vertical/charcoal/033/coupling_down",
+      "from": [
+        5.05,
+        1.5,
+        10.5
+      ],
+      "to": [
+        10.95,
+        2.0999999999999996,
+        10.95
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            10.775,
+            8.0,
+            11.0,
+            8.5
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65537
+        },
+        "south": {
+          "uv": [
+            8.05,
+            8.5,
+            11.0,
+            8.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        },
+        "west": {
+          "uv": [
+            10.775,
+            8.5,
+            11.0,
+            8.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        },
+        "up": {
+          "uv": [
+            8.05,
+            14.775,
+            11.0,
+            15.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        }
+      }
+    },
+    {
+      "name": "vertical/charcoal/036/coupling_down",
+      "from": [
+        5.05,
+        1.5,
+        5.5
+      ],
+      "to": [
+        5.5,
+        2.0999999999999996,
+        10.5
+      ],
+      "faces": {
+        "west": {
+          "uv": [
+            8.275,
+            8.5,
+            10.775,
+            8.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        },
+        "up": {
+          "uv": [
+            8.05,
+            12.275,
+            8.275,
+            14.775
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        }
+      }
+    },
+    {
+      "name": "vertical/charcoal/038/coupling_down",
+      "from": [
+        10.5,
+        1.5,
+        5.5
+      ],
+      "to": [
+        10.95,
+        2.0999999999999996,
+        10.5
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            8.275,
+            8.0,
+            10.775,
+            8.5
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65537
+        },
+        "up": {
+          "uv": [
+            10.775,
+            12.275,
+            11.0,
+            14.775
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        }
+      }
+    },
+    {
+      "name": "vertical/brass/041/coupling_down",
+      "from": [
+        6.25,
+        0.0,
+        5.5
+      ],
+      "to": [
+        9.75,
+        0.5,
+        6.25
+      ],
+      "faces": {
+        "south": {
+          "uv": [
+            12.625,
+            1.0,
+            14.375,
+            0.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        },
+        "down": {
+          "uv": [
+            8.639345,
+            0.639345,
+            10.360655,
+            0.27049
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        }
+      }
+    },
+    {
+      "name": "vertical/brass/042/coupling_down",
+      "from": [
+        6.25,
+        0.0,
+        9.75
+      ],
+      "to": [
+        9.75,
+        0.5,
+        10.5
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            12.625,
+            0.0,
+            14.375,
+            1.0
+          ],
+          "texture": "#t0",
+          "rotation": 180,
+          "tintindex": 65537
+        },
+        "down": {
+          "uv": [
+            8.639345,
+            2.72951,
+            10.360655,
+            2.360655
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        }
+      }
+    },
+    {
+      "name": "vertical/copper/045/cap_down",
+      "from": [
+        6.25,
+        0.5,
+        6.25
+      ],
+      "to": [
+        9.75,
+        2.0999999999999996,
+        9.75
+      ],
+      "faces": {
+        "down": {
+          "uv": [
+            12.0,
+            4.0,
+            13.75,
+            5.75
+          ],
+          "texture": "#t0",
+          "tintindex": 65537
+        }
+      }
+    }
+  ]
+}

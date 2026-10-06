@@ -1,0 +1,2458 @@
+{
+  "textures": {
+    "t0": "create_nautilus:block/exported/gas_pipe/texture_0",
+    "particle": "create_nautilus:block/exported/gas_pipe/texture_0"
+  },
+  "display": {
+    "gui": {
+      "rotation": [
+        30,
+        135,
+        0
+      ],
+      "scale": [
+        0.625,
+        0.625,
+        0.625
+      ]
+    },
+    "ground": {
+      "translation": [
+        0,
+        3,
+        0
+      ],
+      "scale": [
+        0.25,
+        0.25,
+        0.25
+      ]
+    },
+    "fixed": {
+      "scale": [
+        0.5,
+        0.5,
+        0.5
+      ]
+    },
+    "thirdperson_righthand": {
+      "rotation": [
+        75,
+        45,
+        0
+      ],
+      "translation": [
+        0,
+        2.5,
+        0
+      ],
+      "scale": [
+        0.375,
+        0.375,
+        0.375
+      ]
+    },
+    "firstperson_righthand": {
+      "rotation": [
+        0,
+        45,
+        0
+      ],
+      "scale": [
+        0.4,
+        0.4,
+        0.4
+      ]
+    }
+  },
+  "render_type": "minecraft:cutout",
+  "parent": "minecraft:block/block",
+  "elements": [
+    {
+      "name": "elbow/surface/down",
+      "from": [
+        0.0,
+        5.5,
+        5.5
+      ],
+      "to": [
+        10.5,
+        5.5,
+        10.5
+      ],
+      "faces": {
+        "down": {
+          "texture": "#t0",
+          "uv": [
+            5,
+            8,
+            7.5,
+            2.75
+          ],
+          "rotation": 90
+        }
+      }
+    },
+    {
+      "name": "elbow/surface/west",
+      "from": [
+        10.5,
+        5.5,
+        5.5
+      ],
+      "to": [
+        10.5,
+        16.0,
+        10.5
+      ],
+      "faces": {
+        "east": {
+          "texture": "#t0",
+          "uv": [
+            0,
+            8,
+            2.5,
+            2.75
+          ]
+        }
+      }
+    },
+    {
+      "name": "elbow/surface/up_east_arm",
+      "from": [
+        0.0,
+        10.5,
+        5.5
+      ],
+      "to": [
+        5.5,
+        10.5,
+        10.5
+      ],
+      "faces": {
+        "up": {
+          "texture": "#t0",
+          "uv": [
+            0,
+            8,
+            2.5,
+            5.25
+          ],
+          "rotation": 270
+        }
+      }
+    },
+    {
+      "name": "elbow/surface/east_up_arm",
+      "from": [
+        5.5,
+        10.5,
+        5.5
+      ],
+      "to": [
+        5.5,
+        16.0,
+        10.5
+      ],
+      "faces": {
+        "west": {
+          "texture": "#t0",
+          "uv": [
+            2.5,
+            5.25,
+            5,
+            8
+          ],
+          "rotation": 180
+        }
+      }
+    },
+    {
+      "name": "elbow/surface/north_east_arm",
+      "from": [
+        0.0,
+        5.5,
+        10.5
+      ],
+      "to": [
+        5.5,
+        10.5,
+        10.5
+      ],
+      "faces": {
+        "south": {
+          "texture": "#t0",
+          "uv": [
+            0,
+            8,
+            2.5,
+            5.25
+          ],
+          "rotation": 270
+        }
+      }
+    },
+    {
+      "name": "elbow/surface/north_up_arm",
+      "from": [
+        5.5,
+        10.5,
+        10.5
+      ],
+      "to": [
+        10.5,
+        16.0,
+        10.5
+      ],
+      "faces": {
+        "south": {
+          "texture": "#t0",
+          "uv": [
+            0,
+            5.25,
+            2.5,
+            8
+          ],
+          "rotation": 180
+        }
+      }
+    },
+    {
+      "name": "elbow/surface/north_turn_0_across",
+      "from": [
+        5.5,
+        5.5,
+        10.5
+      ],
+      "to": [
+        10.5,
+        6.5,
+        10.5
+      ],
+      "faces": {
+        "south": {
+          "texture": "#t0",
+          "uv": [
+            0.02,
+            5.02,
+            0.48,
+            5.48
+          ]
+        }
+      }
+    },
+    {
+      "name": "elbow/surface/north_turn_0_along",
+      "from": [
+        9.5,
+        6.5,
+        10.5
+      ],
+      "to": [
+        10.5,
+        10.5,
+        10.5
+      ],
+      "faces": {
+        "south": {
+          "texture": "#t0",
+          "uv": [
+            0.02,
+            5.02,
+            0.48,
+            5.48
+          ]
+        }
+      }
+    },
+    {
+      "name": "elbow/surface/north_turn_1_across",
+      "from": [
+        5.5,
+        6.5,
+        10.5
+      ],
+      "to": [
+        9.5,
+        7.5,
+        10.5
+      ],
+      "faces": {
+        "south": {
+          "texture": "#t0",
+          "uv": [
+            0.52,
+            5.02,
+            0.98,
+            5.48
+          ]
+        }
+      }
+    },
+    {
+      "name": "elbow/surface/north_turn_1_along",
+      "from": [
+        8.5,
+        7.5,
+        10.5
+      ],
+      "to": [
+        9.5,
+        10.5,
+        10.5
+      ],
+      "faces": {
+        "south": {
+          "texture": "#t0",
+          "uv": [
+            0.52,
+            5.02,
+            0.98,
+            5.48
+          ]
+        }
+      }
+    },
+    {
+      "name": "elbow/surface/north_turn_2_across",
+      "from": [
+        5.5,
+        7.5,
+        10.5
+      ],
+      "to": [
+        8.5,
+        8.5,
+        10.5
+      ],
+      "faces": {
+        "south": {
+          "texture": "#t0",
+          "uv": [
+            1.02,
+            5.02,
+            1.48,
+            5.48
+          ]
+        }
+      }
+    },
+    {
+      "name": "elbow/surface/north_turn_2_along",
+      "from": [
+        7.5,
+        8.5,
+        10.5
+      ],
+      "to": [
+        8.5,
+        10.5,
+        10.5
+      ],
+      "faces": {
+        "south": {
+          "texture": "#t0",
+          "uv": [
+            1.02,
+            5.02,
+            1.48,
+            5.48
+          ]
+        }
+      }
+    },
+    {
+      "name": "elbow/surface/north_turn_3_across",
+      "from": [
+        5.5,
+        8.5,
+        10.5
+      ],
+      "to": [
+        7.5,
+        9.5,
+        10.5
+      ],
+      "faces": {
+        "south": {
+          "texture": "#t0",
+          "uv": [
+            1.52,
+            5.02,
+            1.98,
+            5.48
+          ]
+        }
+      }
+    },
+    {
+      "name": "elbow/surface/north_turn_3_along",
+      "from": [
+        6.5,
+        9.5,
+        10.5
+      ],
+      "to": [
+        7.5,
+        10.5,
+        10.5
+      ],
+      "faces": {
+        "south": {
+          "texture": "#t0",
+          "uv": [
+            1.52,
+            5.02,
+            1.98,
+            5.48
+          ]
+        }
+      }
+    },
+    {
+      "name": "elbow/surface/north_turn_4_across",
+      "from": [
+        5.5,
+        9.5,
+        10.5
+      ],
+      "to": [
+        6.5,
+        10.5,
+        10.5
+      ],
+      "faces": {
+        "south": {
+          "texture": "#t0",
+          "uv": [
+            2.02,
+            5.02,
+            2.48,
+            5.48
+          ]
+        }
+      }
+    },
+    {
+      "name": "elbow/surface/south_east_arm",
+      "from": [
+        0.0,
+        5.5,
+        5.5
+      ],
+      "to": [
+        5.5,
+        10.5,
+        5.5
+      ],
+      "faces": {
+        "north": {
+          "texture": "#t0",
+          "uv": [
+            5,
+            5.25,
+            7.5,
+            8
+          ],
+          "rotation": 270
+        }
+      }
+    },
+    {
+      "name": "elbow/surface/south_up_arm",
+      "from": [
+        5.5,
+        10.5,
+        5.5
+      ],
+      "to": [
+        10.5,
+        16.0,
+        5.5
+      ],
+      "faces": {
+        "north": {
+          "texture": "#t0",
+          "uv": [
+            5,
+            8,
+            7.5,
+            5.25
+          ]
+        }
+      }
+    },
+    {
+      "name": "elbow/surface/south_turn_0_across",
+      "from": [
+        5.5,
+        5.5,
+        5.5
+      ],
+      "to": [
+        10.5,
+        6.5,
+        5.5
+      ],
+      "faces": {
+        "north": {
+          "texture": "#t0",
+          "uv": [
+            5.02,
+            5.02,
+            5.48,
+            5.48
+          ]
+        }
+      }
+    },
+    {
+      "name": "elbow/surface/south_turn_0_along",
+      "from": [
+        9.5,
+        6.5,
+        5.5
+      ],
+      "to": [
+        10.5,
+        10.5,
+        5.5
+      ],
+      "faces": {
+        "north": {
+          "texture": "#t0",
+          "uv": [
+            5.02,
+            5.02,
+            5.48,
+            5.48
+          ]
+        }
+      }
+    },
+    {
+      "name": "elbow/surface/south_turn_1_across",
+      "from": [
+        5.5,
+        6.5,
+        5.5
+      ],
+      "to": [
+        9.5,
+        7.5,
+        5.5
+      ],
+      "faces": {
+        "north": {
+          "texture": "#t0",
+          "uv": [
+            5.52,
+            5.02,
+            5.98,
+            5.48
+          ]
+        }
+      }
+    },
+    {
+      "name": "elbow/surface/south_turn_1_along",
+      "from": [
+        8.5,
+        7.5,
+        5.5
+      ],
+      "to": [
+        9.5,
+        10.5,
+        5.5
+      ],
+      "faces": {
+        "north": {
+          "texture": "#t0",
+          "uv": [
+            5.52,
+            5.02,
+            5.98,
+            5.48
+          ]
+        }
+      }
+    },
+    {
+      "name": "elbow/surface/south_turn_2_across",
+      "from": [
+        5.5,
+        7.5,
+        5.5
+      ],
+      "to": [
+        8.5,
+        8.5,
+        5.5
+      ],
+      "faces": {
+        "north": {
+          "texture": "#t0",
+          "uv": [
+            6.02,
+            5.02,
+            6.48,
+            5.48
+          ]
+        }
+      }
+    },
+    {
+      "name": "elbow/surface/south_turn_2_along",
+      "from": [
+        7.5,
+        8.5,
+        5.5
+      ],
+      "to": [
+        8.5,
+        10.5,
+        5.5
+      ],
+      "faces": {
+        "north": {
+          "texture": "#t0",
+          "uv": [
+            6.02,
+            5.02,
+            6.48,
+            5.48
+          ]
+        }
+      }
+    },
+    {
+      "name": "elbow/surface/south_turn_3_across",
+      "from": [
+        5.5,
+        8.5,
+        5.5
+      ],
+      "to": [
+        7.5,
+        9.5,
+        5.5
+      ],
+      "faces": {
+        "north": {
+          "texture": "#t0",
+          "uv": [
+            6.52,
+            5.02,
+            6.98,
+            5.48
+          ]
+        }
+      }
+    },
+    {
+      "name": "elbow/surface/south_turn_3_along",
+      "from": [
+        6.5,
+        9.5,
+        5.5
+      ],
+      "to": [
+        7.5,
+        10.5,
+        5.5
+      ],
+      "faces": {
+        "north": {
+          "texture": "#t0",
+          "uv": [
+            6.52,
+            5.02,
+            6.98,
+            5.48
+          ]
+        }
+      }
+    },
+    {
+      "name": "elbow/surface/south_turn_4_across",
+      "from": [
+        5.5,
+        9.5,
+        5.5
+      ],
+      "to": [
+        6.5,
+        10.5,
+        5.5
+      ],
+      "faces": {
+        "north": {
+          "texture": "#t0",
+          "uv": [
+            7.02,
+            5.02,
+            7.48,
+            5.48
+          ]
+        }
+      }
+    },
+    {
+      "name": "elbow/brass/000/coupling_up",
+      "from": [
+        5.0,
+        14.5,
+        10.95
+      ],
+      "to": [
+        11.0,
+        16,
+        11.0
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            0.025,
+            8.0,
+            0.05,
+            9.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "west": {
+          "uv": [
+            0.025,
+            9.0,
+            0.05,
+            8.0
+          ],
+          "rotation": 180,
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "down": {
+          "uv": [
+            0.025,
+            12.05,
+            3.025,
+            12.025
+          ],
+          "rotation": 180,
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "up": {
+          "uv": [
+            8.02459,
+            0.02459,
+            10.97541,
+            0.049181
+          ],
+          "rotation": 180,
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "south": {
+          "uv": [
+            0.025,
+            9.0,
+            3.025,
+            8.0
+          ],
+          "rotation": 180,
+          "texture": "#t0",
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "elbow/brass/001/coupling_up",
+      "from": [
+        5.0,
+        14.5,
+        5.0
+      ],
+      "to": [
+        11.0,
+        16.0,
+        5.050000000000001
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            3.0,
+            8.0,
+            3.025,
+            9.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "west": {
+          "uv": [
+            3.0,
+            9.0,
+            3.025,
+            8.0
+          ],
+          "rotation": 180,
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "down": {
+          "uv": [
+            0.025,
+            15.025,
+            3.025,
+            15.0
+          ],
+          "rotation": 180,
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "up": {
+          "uv": [
+            8.02459,
+            2.95082,
+            10.97541,
+            2.97541
+          ],
+          "rotation": 180,
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "north": {
+          "uv": [
+            0.025,
+            8.0,
+            3.025,
+            9.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "elbow/brass/002/coupling_up",
+      "from": [
+        10.95,
+        14.5,
+        5.050000000000001
+      ],
+      "to": [
+        11.0,
+        15.25,
+        10.95
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            0.05,
+            8.5,
+            3.0,
+            9.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "down": {
+          "uv": [
+            0.025,
+            15.0,
+            0.05,
+            12.05
+          ],
+          "rotation": 180,
+          "texture": "#t0",
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "elbow/brass/003/coupling_up",
+      "from": [
+        5.0,
+        14.5,
+        5.050000000000001
+      ],
+      "to": [
+        5.050000000000001,
+        15.25,
+        10.95
+      ],
+      "faces": {
+        "west": {
+          "uv": [
+            0.05,
+            9.0,
+            3.0,
+            8.5
+          ],
+          "rotation": 180,
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "down": {
+          "uv": [
+            3.0,
+            15.0,
+            3.025,
+            12.05
+          ],
+          "rotation": 180,
+          "texture": "#t0",
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "elbow/brass/004/coupling_up",
+      "from": [
+        5.0,
+        15.25,
+        10.5
+      ],
+      "to": [
+        11.0,
+        16.0,
+        10.95
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            0.05,
+            8.0,
+            0.275,
+            8.5
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "west": {
+          "uv": [
+            0.05,
+            8.5,
+            0.275,
+            8.0
+          ],
+          "rotation": 180,
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "up": {
+          "uv": [
+            8.02459,
+            0.049181,
+            10.97541,
+            0.270492
+          ],
+          "rotation": 180,
+          "texture": "#t0",
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "elbow/brass/005/coupling_up",
+      "from": [
+        5.0,
+        15.25,
+        5.050000000000001
+      ],
+      "to": [
+        11.0,
+        16.0,
+        5.5
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            2.775,
+            8.0,
+            3.0,
+            8.5
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "west": {
+          "uv": [
+            2.775,
+            8.5,
+            3.0,
+            8.0
+          ],
+          "rotation": 180,
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "up": {
+          "uv": [
+            8.02459,
+            2.729508,
+            10.97541,
+            2.95082
+          ],
+          "rotation": 180,
+          "texture": "#t0",
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "elbow/brass/006/coupling_up",
+      "from": [
+        5.0,
+        15.25,
+        9.75
+      ],
+      "to": [
+        11.0,
+        15.5,
+        10.5
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            0.275,
+            8.333334,
+            0.65,
+            8.5
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "west": {
+          "uv": [
+            0.275,
+            8.5,
+            0.65,
+            8.333334
+          ],
+          "rotation": 180,
+          "texture": "#t0",
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "elbow/brass/007/coupling_up",
+      "from": [
+        5.0,
+        15.25,
+        5.5
+      ],
+      "to": [
+        11.0,
+        15.5,
+        6.25
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            2.4,
+            8.333334,
+            2.775,
+            8.5
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "west": {
+          "uv": [
+            2.4,
+            8.5,
+            2.775,
+            8.333334
+          ],
+          "rotation": 180,
+          "texture": "#t0",
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "elbow/brass/008/coupling_up",
+      "from": [
+        9.75,
+        15.25,
+        6.25
+      ],
+      "to": [
+        11.0,
+        15.5,
+        9.75
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            0.65,
+            8.333334,
+            2.4,
+            8.5
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "elbow/brass/009/coupling_up",
+      "from": [
+        5.0,
+        15.25,
+        6.25
+      ],
+      "to": [
+        6.25,
+        15.5,
+        9.75
+      ],
+      "faces": {
+        "west": {
+          "uv": [
+            0.65,
+            8.5,
+            2.4,
+            8.333334
+          ],
+          "rotation": 180,
+          "texture": "#t0",
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "elbow/brass/010/coupling_up",
+      "from": [
+        9.75,
+        15.5,
+        9.75
+      ],
+      "to": [
+        11.0,
+        16.0,
+        10.5
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            0.275,
+            8.0,
+            0.65,
+            8.333334
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "up": {
+          "uv": [
+            8.02459,
+            0.270492,
+            8.639344,
+            0.639344
+          ],
+          "rotation": 180,
+          "texture": "#t0",
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "elbow/brass/011/coupling_up",
+      "from": [
+        9.75,
+        15.5,
+        5.5
+      ],
+      "to": [
+        11.0,
+        16.0,
+        6.25
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            2.4,
+            8.0,
+            2.775,
+            8.333334
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "up": {
+          "uv": [
+            8.02459,
+            2.360656,
+            8.639344,
+            2.729508
+          ],
+          "rotation": 180,
+          "texture": "#t0",
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "elbow/brass/012/coupling_up",
+      "from": [
+        5.0,
+        15.5,
+        9.75
+      ],
+      "to": [
+        6.25,
+        16.0,
+        10.5
+      ],
+      "faces": {
+        "west": {
+          "uv": [
+            0.275,
+            8.333334,
+            0.65,
+            8.0
+          ],
+          "rotation": 180,
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "up": {
+          "uv": [
+            10.360656,
+            0.270492,
+            10.97541,
+            0.639344
+          ],
+          "rotation": 180,
+          "texture": "#t0",
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "elbow/brass/013/coupling_up",
+      "from": [
+        5.0,
+        15.5,
+        5.5
+      ],
+      "to": [
+        6.25,
+        16.0,
+        6.25
+      ],
+      "faces": {
+        "west": {
+          "uv": [
+            2.4,
+            8.333334,
+            2.775,
+            8.0
+          ],
+          "rotation": 180,
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "up": {
+          "uv": [
+            10.360656,
+            2.360656,
+            10.97541,
+            2.729508
+          ],
+          "rotation": 180,
+          "texture": "#t0",
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "elbow/brass/014/coupling_up",
+      "from": [
+        9.75,
+        15.5,
+        6.25
+      ],
+      "to": [
+        11.0,
+        16.0,
+        9.75
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            0.65,
+            8.0,
+            2.4,
+            8.333334
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "west": {
+          "uv": [
+            12.625,
+            1.0,
+            14.375,
+            0.0
+          ],
+          "rotation": 180,
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "up": {
+          "uv": [
+            8.02459,
+            0.639344,
+            8.639344,
+            2.360656
+          ],
+          "rotation": 180,
+          "texture": "#t0",
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "elbow/brass/015/coupling_up",
+      "from": [
+        5.0,
+        15.5,
+        6.25
+      ],
+      "to": [
+        6.25,
+        16.0,
+        9.75
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            12.625,
+            0.0,
+            14.375,
+            1.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "west": {
+          "uv": [
+            0.65,
+            8.333334,
+            2.4,
+            8.0
+          ],
+          "rotation": 180,
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "up": {
+          "uv": [
+            10.360656,
+            0.639344,
+            10.97541,
+            2.360656
+          ],
+          "rotation": 180,
+          "texture": "#t0",
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "elbow/charcoal/016/coupling_up",
+      "from": [
+        5.050000000000001,
+        13.9,
+        10.5
+      ],
+      "to": [
+        10.95,
+        14.5,
+        10.95
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            8.05,
+            8.0,
+            8.275,
+            8.5
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "west": {
+          "uv": [
+            8.05,
+            8.5,
+            8.275,
+            8.0
+          ],
+          "rotation": 180,
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "down": {
+          "uv": [
+            8.05,
+            12.275,
+            11.0,
+            12.05
+          ],
+          "rotation": 180,
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "south": {
+          "uv": [
+            8.05,
+            8.5,
+            11.0,
+            8.0
+          ],
+          "rotation": 180,
+          "texture": "#t0",
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "elbow/charcoal/017/coupling_up",
+      "from": [
+        5.050000000000001,
+        13.9,
+        5.050000000000001
+      ],
+      "to": [
+        10.95,
+        14.5,
+        5.5
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            10.775,
+            8.0,
+            11.0,
+            8.5
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "west": {
+          "uv": [
+            10.775,
+            8.5,
+            11.0,
+            8.0
+          ],
+          "rotation": 180,
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "down": {
+          "uv": [
+            8.05,
+            15.0,
+            11.0,
+            14.775
+          ],
+          "rotation": 180,
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "north": {
+          "uv": [
+            8.05,
+            8.0,
+            11.0,
+            8.5
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "elbow/charcoal/018/coupling_up",
+      "from": [
+        10.5,
+        13.9,
+        5.5
+      ],
+      "to": [
+        10.95,
+        14.5,
+        10.5
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            8.275,
+            8.0,
+            10.775,
+            8.5
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "down": {
+          "uv": [
+            8.05,
+            14.775,
+            8.275,
+            12.275
+          ],
+          "rotation": 180,
+          "texture": "#t0",
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "elbow/charcoal/019/coupling_up",
+      "from": [
+        5.050000000000001,
+        13.9,
+        5.5
+      ],
+      "to": [
+        5.5,
+        14.5,
+        10.5
+      ],
+      "faces": {
+        "west": {
+          "uv": [
+            8.275,
+            8.5,
+            10.775,
+            8.0
+          ],
+          "rotation": 180,
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "down": {
+          "uv": [
+            10.775,
+            14.775,
+            11.0,
+            12.275
+          ],
+          "rotation": 180,
+          "texture": "#t0",
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "elbow/brass/026/coupling_up",
+      "from": [
+        6.25,
+        15.5,
+        9.75
+      ],
+      "to": [
+        9.75,
+        16.0,
+        10.5
+      ],
+      "faces": {
+        "up": {
+          "uv": [
+            8.639344,
+            0.270492,
+            10.360656,
+            0.639344
+          ],
+          "rotation": 180,
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "north": {
+          "uv": [
+            12.625,
+            0.0,
+            14.375,
+            1.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "elbow/brass/027/coupling_up",
+      "from": [
+        6.25,
+        15.5,
+        5.5
+      ],
+      "to": [
+        9.75,
+        16.0,
+        6.25
+      ],
+      "faces": {
+        "up": {
+          "uv": [
+            8.639344,
+            2.360656,
+            10.360656,
+            2.729508
+          ],
+          "rotation": 180,
+          "texture": "#t0",
+          "tintindex": 65538
+        },
+        "south": {
+          "uv": [
+            12.625,
+            1.0,
+            14.375,
+            0.0
+          ],
+          "rotation": 180,
+          "texture": "#t0",
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "elbow/copper/049/cap_up",
+      "from": [
+        6.25,
+        13.9,
+        6.25
+      ],
+      "to": [
+        9.75,
+        15.5,
+        9.75
+      ],
+      "faces": {
+        "up": {
+          "uv": [
+            12.0,
+            5.75,
+            13.75,
+            4.0
+          ],
+          "rotation": 180,
+          "texture": "#t0",
+          "tintindex": 65538
+        }
+      }
+    },
+    {
+      "name": "elbow/charcoal/029/coupling_east",
+      "from": [
+        1.5,
+        5.05,
+        10.5
+      ],
+      "to": [
+        2.0999999999999996,
+        10.95,
+        10.95
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            8.05,
+            12.05,
+            8.275,
+            15.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65552
+        },
+        "down": {
+          "uv": [
+            8.05,
+            8.5,
+            8.275,
+            8.0
+          ],
+          "rotation": 90,
+          "texture": "#t0",
+          "tintindex": 65552
+        },
+        "up": {
+          "uv": [
+            8.05,
+            8.0,
+            8.275,
+            8.5
+          ],
+          "rotation": 270,
+          "texture": "#t0",
+          "tintindex": 65552
+        },
+        "south": {
+          "uv": [
+            8.05,
+            8.0,
+            11.0,
+            8.5
+          ],
+          "rotation": 270,
+          "texture": "#t0",
+          "tintindex": 65552
+        }
+      }
+    },
+    {
+      "name": "elbow/charcoal/030/coupling_east",
+      "from": [
+        1.5,
+        5.05,
+        5.050000000000001
+      ],
+      "to": [
+        2.0999999999999996,
+        10.95,
+        5.5
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            10.775,
+            12.05,
+            11.0,
+            15.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65552
+        },
+        "down": {
+          "uv": [
+            10.775,
+            8.5,
+            11.0,
+            8.0
+          ],
+          "rotation": 90,
+          "texture": "#t0",
+          "tintindex": 65552
+        },
+        "up": {
+          "uv": [
+            10.775,
+            8.0,
+            11.0,
+            8.5
+          ],
+          "rotation": 270,
+          "texture": "#t0",
+          "tintindex": 65552
+        },
+        "north": {
+          "uv": [
+            8.05,
+            8.5,
+            11.0,
+            8.0
+          ],
+          "rotation": 270,
+          "texture": "#t0",
+          "tintindex": 65552
+        }
+      }
+    },
+    {
+      "name": "elbow/charcoal/031/coupling_east",
+      "from": [
+        1.5,
+        5.05,
+        5.5
+      ],
+      "to": [
+        2.0999999999999996,
+        5.5,
+        10.5
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            8.275,
+            14.775,
+            10.775,
+            15.0
+          ],
+          "texture": "#t0",
+          "tintindex": 65552
+        },
+        "down": {
+          "uv": [
+            8.275,
+            8.5,
+            10.775,
+            8.0
+          ],
+          "rotation": 90,
+          "texture": "#t0",
+          "tintindex": 65552
+        }
+      }
+    },
+    {
+      "name": "elbow/charcoal/032/coupling_east",
+      "from": [
+        1.5,
+        10.5,
+        5.5
+      ],
+      "to": [
+        2.0999999999999996,
+        10.95,
+        10.5
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            8.275,
+            12.05,
+            10.775,
+            12.275
+          ],
+          "texture": "#t0",
+          "tintindex": 65552
+        },
+        "up": {
+          "uv": [
+            8.275,
+            8.0,
+            10.775,
+            8.5
+          ],
+          "rotation": 270,
+          "texture": "#t0",
+          "tintindex": 65552
+        }
+      }
+    },
+    {
+      "name": "elbow/brass/033/coupling_east",
+      "from": [
+        0,
+        5.0,
+        10.95
+      ],
+      "to": [
+        1.5,
+        11.0,
+        11.0
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            0.025,
+            12.025,
+            0.05,
+            15.025
+          ],
+          "texture": "#t0",
+          "tintindex": 65552
+        },
+        "west": {
+          "uv": [
+            8.02459,
+            2.97541,
+            8.049181,
+            0.02459
+          ],
+          "rotation": 180,
+          "texture": "#t0",
+          "tintindex": 65552
+        },
+        "down": {
+          "uv": [
+            0.025,
+            9.0,
+            0.05,
+            8.0
+          ],
+          "rotation": 90,
+          "texture": "#t0",
+          "tintindex": 65552
+        },
+        "up": {
+          "uv": [
+            0.025,
+            8.0,
+            0.05,
+            9.0
+          ],
+          "rotation": 270,
+          "texture": "#t0",
+          "tintindex": 65552
+        },
+        "south": {
+          "uv": [
+            0.025,
+            8.0,
+            3.025,
+            9.0
+          ],
+          "rotation": 270,
+          "texture": "#t0",
+          "tintindex": 65552
+        }
+      }
+    },
+    {
+      "name": "elbow/brass/034/coupling_east",
+      "from": [
+        0.0,
+        5.0,
+        5.0
+      ],
+      "to": [
+        1.5,
+        11.0,
+        5.050000000000001
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            3.0,
+            12.025,
+            3.025,
+            15.025
+          ],
+          "texture": "#t0",
+          "tintindex": 65552
+        },
+        "west": {
+          "uv": [
+            10.950819,
+            2.97541,
+            10.97541,
+            0.02459
+          ],
+          "rotation": 180,
+          "texture": "#t0",
+          "tintindex": 65552
+        },
+        "down": {
+          "uv": [
+            3.0,
+            9.0,
+            3.025,
+            8.0
+          ],
+          "rotation": 90,
+          "texture": "#t0",
+          "tintindex": 65552
+        },
+        "up": {
+          "uv": [
+            3.0,
+            8.0,
+            3.025,
+            9.0
+          ],
+          "rotation": 270,
+          "texture": "#t0",
+          "tintindex": 65552
+        },
+        "north": {
+          "uv": [
+            0.025,
+            9.0,
+            3.025,
+            8.0
+          ],
+          "rotation": 270,
+          "texture": "#t0",
+          "tintindex": 65552
+        }
+      }
+    },
+    {
+      "name": "elbow/brass/035/coupling_east",
+      "from": [
+        0.0,
+        5.0,
+        5.050000000000001
+      ],
+      "to": [
+        1.5,
+        5.05,
+        10.95
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            0.05,
+            15.0,
+            3.0,
+            15.025
+          ],
+          "texture": "#t0",
+          "tintindex": 65552
+        },
+        "west": {
+          "uv": [
+            8.049181,
+            2.97541,
+            10.950819,
+            2.95082
+          ],
+          "rotation": 180,
+          "texture": "#t0",
+          "tintindex": 65552
+        },
+        "down": {
+          "uv": [
+            0.05,
+            9.0,
+            3.0,
+            8.0
+          ],
+          "rotation": 90,
+          "texture": "#t0",
+          "tintindex": 65552
+        }
+      }
+    },
+    {
+      "name": "elbow/brass/036/coupling_east",
+      "from": [
+        0.0,
+        10.95,
+        5.050000000000001
+      ],
+      "to": [
+        1.5,
+        11.0,
+        10.95
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            0.05,
+            12.025,
+            3.0,
+            12.05
+          ],
+          "texture": "#t0",
+          "tintindex": 65552
+        },
+        "west": {
+          "uv": [
+            8.049181,
+            0.049181,
+            10.950819,
+            0.02459
+          ],
+          "rotation": 180,
+          "texture": "#t0",
+          "tintindex": 65552
+        },
+        "up": {
+          "uv": [
+            0.05,
+            8.0,
+            3.0,
+            9.0
+          ],
+          "rotation": 270,
+          "texture": "#t0",
+          "tintindex": 65552
+        }
+      }
+    },
+    {
+      "name": "elbow/brass/037/coupling_east",
+      "from": [
+        0.0,
+        5.05,
+        10.5
+      ],
+      "to": [
+        1.5,
+        10.95,
+        10.95
+      ],
+      "faces": {
+        "west": {
+          "uv": [
+            8.049181,
+            2.95082,
+            8.270492,
+            0.049181
+          ],
+          "rotation": 180,
+          "texture": "#t0",
+          "tintindex": 65552
+        }
+      }
+    },
+    {
+      "name": "elbow/brass/038/coupling_east",
+      "from": [
+        0.0,
+        5.05,
+        5.050000000000001
+      ],
+      "to": [
+        1.5,
+        10.95,
+        5.5
+      ],
+      "faces": {
+        "west": {
+          "uv": [
+            10.729508,
+            2.95082,
+            10.950819,
+            0.049181
+          ],
+          "rotation": 180,
+          "texture": "#t0",
+          "tintindex": 65552
+        }
+      }
+    },
+    {
+      "name": "elbow/brass/039/coupling_east",
+      "from": [
+        0.0,
+        5.05,
+        9.75
+      ],
+      "to": [
+        1.5,
+        6.25,
+        10.5
+      ],
+      "faces": {
+        "west": {
+          "uv": [
+            8.270492,
+            2.95082,
+            8.639344,
+            2.360656
+          ],
+          "rotation": 180,
+          "texture": "#t0",
+          "tintindex": 65552
+        }
+      }
+    },
+    {
+      "name": "elbow/brass/040/coupling_east",
+      "from": [
+        0.0,
+        5.05,
+        5.5
+      ],
+      "to": [
+        1.5,
+        6.25,
+        6.25
+      ],
+      "faces": {
+        "west": {
+          "uv": [
+            10.360656,
+            2.95082,
+            10.729508,
+            2.360656
+          ],
+          "rotation": 180,
+          "texture": "#t0",
+          "tintindex": 65552
+        }
+      }
+    },
+    {
+      "name": "elbow/brass/041/coupling_east",
+      "from": [
+        0.0,
+        9.75,
+        9.75
+      ],
+      "to": [
+        1.5,
+        10.95,
+        10.5
+      ],
+      "faces": {
+        "west": {
+          "uv": [
+            8.270492,
+            0.639344,
+            8.639344,
+            0.049181
+          ],
+          "rotation": 180,
+          "texture": "#t0",
+          "tintindex": 65552
+        }
+      }
+    },
+    {
+      "name": "elbow/brass/042/coupling_east",
+      "from": [
+        0.0,
+        9.75,
+        5.5
+      ],
+      "to": [
+        1.5,
+        10.95,
+        6.25
+      ],
+      "faces": {
+        "west": {
+          "uv": [
+            10.360656,
+            0.639344,
+            10.729508,
+            0.049181
+          ],
+          "rotation": 180,
+          "texture": "#t0",
+          "tintindex": 65552
+        }
+      }
+    },
+    {
+      "name": "elbow/brass/043/coupling_east",
+      "from": [
+        0.0,
+        5.05,
+        6.25
+      ],
+      "to": [
+        1.5,
+        5.5,
+        9.75
+      ],
+      "faces": {
+        "west": {
+          "uv": [
+            8.639344,
+            2.95082,
+            10.360656,
+            2.729508
+          ],
+          "rotation": 180,
+          "texture": "#t0",
+          "tintindex": 65552
+        }
+      }
+    },
+    {
+      "name": "elbow/brass/044/coupling_east",
+      "from": [
+        0.0,
+        10.5,
+        6.25
+      ],
+      "to": [
+        1.5,
+        10.95,
+        9.75
+      ],
+      "faces": {
+        "west": {
+          "uv": [
+            8.639344,
+            0.270492,
+            10.360656,
+            0.049181
+          ],
+          "rotation": 180,
+          "texture": "#t0",
+          "tintindex": 65552
+        }
+      }
+    },
+    {
+      "name": "elbow/brass/045/coupling_east",
+      "from": [
+        0.0,
+        5.5,
+        6.25
+      ],
+      "to": [
+        0.5,
+        6.25,
+        9.75
+      ],
+      "faces": {
+        "west": {
+          "uv": [
+            8.639344,
+            2.729508,
+            10.360656,
+            2.360656
+          ],
+          "rotation": 180,
+          "texture": "#t0",
+          "tintindex": 65552
+        },
+        "up": {
+          "uv": [
+            12.625,
+            0.0,
+            14.375,
+            1.0
+          ],
+          "rotation": 270,
+          "texture": "#t0",
+          "tintindex": 65552
+        }
+      }
+    },
+    {
+      "name": "elbow/brass/046/coupling_east",
+      "from": [
+        0.0,
+        9.75,
+        6.25
+      ],
+      "to": [
+        0.5,
+        10.5,
+        9.75
+      ],
+      "faces": {
+        "west": {
+          "uv": [
+            8.639344,
+            0.639344,
+            10.360656,
+            0.270492
+          ],
+          "rotation": 180,
+          "texture": "#t0",
+          "tintindex": 65552
+        },
+        "down": {
+          "uv": [
+            12.625,
+            1.0,
+            14.375,
+            0.0
+          ],
+          "rotation": 90,
+          "texture": "#t0",
+          "tintindex": 65552
+        }
+      }
+    },
+    {
+      "name": "elbow/brass/047/coupling_east",
+      "from": [
+        0.0,
+        6.25,
+        9.75
+      ],
+      "to": [
+        0.5,
+        9.75,
+        10.5
+      ],
+      "faces": {
+        "west": {
+          "uv": [
+            8.270492,
+            2.360656,
+            8.639344,
+            0.639344
+          ],
+          "rotation": 180,
+          "texture": "#t0",
+          "tintindex": 65552
+        },
+        "north": {
+          "uv": [
+            12.625,
+            1.0,
+            14.375,
+            0.0
+          ],
+          "rotation": 270,
+          "texture": "#t0",
+          "tintindex": 65552
+        }
+      }
+    },
+    {
+      "name": "elbow/brass/048/coupling_east",
+      "from": [
+        0.0,
+        6.25,
+        5.5
+      ],
+      "to": [
+        0.5,
+        9.75,
+        6.25
+      ],
+      "faces": {
+        "west": {
+          "uv": [
+            10.360656,
+            2.360656,
+            10.729508,
+            0.639344
+          ],
+          "rotation": 180,
+          "texture": "#t0",
+          "tintindex": 65552
+        },
+        "south": {
+          "uv": [
+            12.625,
+            0.0,
+            14.375,
+            1.0
+          ],
+          "rotation": 270,
+          "texture": "#t0",
+          "tintindex": 65552
+        }
+      }
+    },
+    {
+      "name": "elbow/copper/025/cap_east",
+      "from": [
+        0.5,
+        6.25,
+        6.25
+      ],
+      "to": [
+        10.5,
+        9.75,
+        9.75
+      ],
+      "faces": {
+        "west": {
+          "uv": [
+            12.0,
+            5.75,
+            13.75,
+            4.0
+          ],
+          "rotation": 180,
+          "texture": "#t0",
+          "tintindex": 65552
+        }
+      }
+    }
+  ]
+}

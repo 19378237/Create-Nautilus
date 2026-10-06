@@ -1,0 +1,55 @@
+{
+  "replace": false,
+  "values": [
+    "#c:glass_blocks",
+    "#c:glass_panes",
+    {
+      "id": "createprism:andesite_glass_casing",
+      "required": false
+    },
+    {
+      "id": "createprism:andesite_clear_glass_casing",
+      "required": false
+    },
+    {
+      "id": "createprism:andesite_illumination_casing",
+      "required": false
+    },
+    {
+      "id": "createprism:brass_glass_casing",
+      "required": false
+    },
+    {
+      "id": "createprism:brass_clear_glass_casing",
+      "required": false
+    },
+    {
+      "id": "createprism:brass_illumination_casing",
+      "required": false
+    },
+    {
+      "id": "createprism:copper_glass_casing",
+      "required": false
+    },
+    {
+      "id": "createprism:copper_clear_glass_casing",
+      "required": false
+    },
+    {
+      "id": "createprism:copper_illumination_casing",
+      "required": false
+    },
+    {
+      "id": "createprism:train_glass_casing",
+      "required": false
+    },
+    {
+      "id": "createprism:train_clear_glass_casing",
+      "required": false
+    },
+    {
+      "id": "createprism:train_illumination_casing",
+      "required": false
+    }
+  ]
+}

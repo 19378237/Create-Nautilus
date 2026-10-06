@@ -1,0 +1,282 @@
+tasks.register('verifyPhysicsState') {
+    group = 'verification'
+    description = 'Checks compartment initialization, conserved ballast mass and oversized scans.'
+    dependsOn tasks.named('classes')
+
+    doLast {
+        final URL[] runtimeUrls = sourceSets.main.runtimeClasspath.files.collect {
+            it.toURI().toURL()
+        } as URL[]
+        final URLClassLoader loader = new URLClassLoader(runtimeUrls, (ClassLoader) null)
+        try {
+            // Load only default config values in this isolated test loader; no server/world or
+            // user config is loaded or changed. ConfigValue#get otherwise requires FML startup.
+            final Class<?> config = Class.forName('com.create.nautilus.config.NautilusConfig', true, loader)
+            final def valuesField = config.getDeclaredField('VALUES')
+            valuesField.accessible = true
+            final def values = valuesField.get(null)
+            values.class.declaredFields.each { field ->
+                field.accessible = true
+                final def value = field.get(values)
+                Class<?> type = value.class
+                while (type != null && !type.declaredFields.any { it.name == 'cachedValue' }) {
+                    type = type.superclass
+                }
+                if (type != null) {
+                    final def cached = type.getDeclaredField('cachedValue')
+                    cached.accessible = true
+                    cached.set(value, value.getDefault())
+                }
+            }
+            final Set<String> configFields = values.class.declaredFields
+                    .findAll { !it.synthetic }
+                    .collect { it.name } as Set<String>
+            assert configFields == [
+                    'buoyancyCoefficient', 'maximumCompartmentVolume',
+                    'compartmentScanIntervalTicks', 'maxFloodRateMbPerSecond',
+                    'airDensityPerBlock', 'oxygenConsumptionRate',
+                    'ballastTransferRate', 'propellerDeepThrustBonus',
+                    'impactSpeedThreshold', 'hydrogenBoosterThrustBonus',
+                    'emergencyVentRate', 'boilerHydrogenHeatLevels',
+                    'boilerBoosterMaxCount'
+            ] as Set<String> : 'unexpected Nautilus config schema: ' + configFields
+            assert config.getMethod('maxFloodRateMbPerSecond').invoke(null) == 8_000.0D
+            assert config.getMethod('boilerHydrogenHeatLevels').invoke(null) == 2
+            assert config.getMethod('boilerBoosterMaxCount').invoke(null) == 1
+            final String floodingSource = file(
+                    'src/main/java/com/create/nautilus/physics/FloodingHandler.java')
+                    .getText('UTF-8')
+            assert floodingSource.contains('NautilusConfig.maxFloodRateMbPerSecond()')
+                    && floodingSource.contains('Math.clamp'):
+                    'per-breach flooding cap is not applied at the raw flow boundary'
+            final String boilerSource = file(
+                    'src/main/java/com/create/nautilus/mixin/hydrogen/BoilerDataMixin.java')
+                    .getText('UTF-8')
+            assert boilerSource.contains('activeAdjacentBoosterCount')
+                    && boilerSource.contains('boilerBoosterMaxCount()'):
+                    'boiler booster stacking limit is not wired into the heat hook'
+            final Class<?> carrierType = Class.forName('com.create.nautilus.data.CarrierState', true, loader)
+            final Class<?> boundsType = Class.forName('net.minecraft.world.phys.AABB', true, loader)
+            final Class<?> cellType = Class.forName('net.minecraft.core.BlockPos', true, loader)
+            final Class<?> detectedType = Class.forName(
+                    'com.create.nautilus.physics.CompartmentSealer$DetectedCompartment', true, loader)
+            final def cell = { int x -> cellType.getConstructor(Integer.TYPE, Integer.TYPE, Integer.TYPE)
+                    .newInstance(x, 0, 0).asLong() }
+            final def detected = { int low, int high ->
+                final def bounds = boundsType.getConstructor(Double.TYPE, Double.TYPE, Double.TYPE,
+                        Double.TYPE, Double.TYPE, Double.TYPE)
+                        .newInstance((double) low, 0D, 0D, (double) high, 1D, 1D)
+                final Set<Long> cells = (low..<high).collect { cell(it) } as Set<Long>
+                detectedType.getConstructor(boundsType, Integer.TYPE, Set, Set)
+                        .newInstance(bounds, high - low, cells, Set.of())
+            }
+            final def freshCarrier = { carrierType.getConstructor(UUID).newInstance(UUID.randomUUID()) }
+            final def state = freshCarrier()
+            state.reconcileCompartments([detected(0, 5)])
+            final def room = state.compartments().iterator().next()
+            assert room.oxygenMb() == room.capacityMb(): 'new dry room lost its ambient oxygen'
+            assert room.standardGasMb() == room.waterCapacityMb(): 'new dry room became a vacuum'
+            assert room.waterMb() == 0D: 'new room manufactured virtual water'
+            final def roomId = room.id()
+            state.reconcileCompartments([detected(0, 5)])
+            assert state.compartments().iterator().next().id() == roomId
+
+            // An empty parent still counts as a source for both split children. The new UUID
+            // branch must not mistake zero inventory for a brand-new room and replenish it.
+            room.restoreContents(0D, 0D, 0D)
+            state.reconcileCompartments([detected(0, 2), detected(3, 5)])
+            assert state.compartments().size() == 2
+            state.compartments().each {
+                assert it.oxygenMb() == 0D && it.standardGasMb() == 0D && it.waterMb() == 0D:
+                        'splitting an exhausted room manufactured inventory'
+            }
+
+            final def wetState = freshCarrier()
+            wetState.reconcileCompartments([detected(0, 5)])
+            wetState.compartments().iterator().next().restoreContents(100D, 3000D, 1000D)
+            wetState.reconcileCompartments([detected(0, 2), detected(3, 5)])
+            assert Math.abs(wetState.compartments().sum { it.oxygenMb() } - 100D) < 1E-9D
+            assert Math.abs(wetState.compartments().sum { it.standardGasMb() } - 3000D) < 1E-9D
+            assert Math.abs(wetState.compartments().sum { it.waterMb() } - 1000D) < 1E-9D
+        } finally {
+            loader.close()
+        }
+
+        // Execute the actual production method bodies with tiny boundary doubles. This keeps
+        // Sable's native Rapier world and Minecraft Level construction out of a unit regression;
+        // compileJava separately checks the complete classes against the real dependencies.
+        final String physicsPath = 'src/main/java/com/create/nautilus/physics/'
+        final String ballast = file(physicsPath + 'BallastMassSynchronizer.java')
+                .getText('UTF-8').replace('\r\n', '\n')
+        final String sealer = file(physicsPath + 'CompartmentSealer.java')
+                .getText('UTF-8').replace('\r\n', '\n')
+        final def method = { String source, String signature ->
+            final int start = source.indexOf(signature)
+            assert start >= 0: "Production method not found: ${signature}"
+            final int opening = source.indexOf('{', start)
+            int depth = 1
+            int end = opening + 1
+            while (depth > 0 && end < source.length()) {
+                final char c = source.charAt(end++)
+                if (c == '{' as char) depth++
+                if (c == '}' as char) depth--
+            }
+            assert depth == 0
+            source.substring(start, end).replaceFirst('private static', 'public static')
+        }
+        assert !sealer.contains('initialWaterMb') && !sealer.contains('getFluidState('):
+                'topology discovery must not import real plot water into virtual inventory'
+        final String massMethod = method(ballast, 'private static boolean syncAttachmentWater(')
+        final String openMethod = method(sealer, 'private static Set<Long> collectNonExteriorComponent(')
+        final String floodMethod = method(sealer,
+                'private static void flood(final Level level, final Queue<BlockPos> queue, final Set<Long> visited,\n'
+                        + '                              final int minX, final int minY, final int minZ,\n'
+                        + '                              final int maxX, final int maxY, final int maxZ, final int limit,\n'
+                        + '                              final Set<Long> component, final Set<Long> virtualMembranes)')
+        final GroovyClassLoader fixtureLoader = new GroovyClassLoader(getClass().classLoader)
+        runtimeUrls.each { fixtureLoader.addURL(it) }
+        try {
+            final Class<?> fixture = fixtureLoader.parseClass('''
+import net.minecraft.core.BlockPos
+import net.minecraft.core.Direction
+
+class PhysicsStateFixture {
+    static double clampedAttachmentWaterMb(CompartmentState room) { room.water }
+    static BlockPos virtualWaterMassCentre(ServerSubLevel carrier, CompartmentState room) { room.center }
+    static boolean isPassable(Level level, BlockPos pos, Set<Long> membranes) {
+        level.cells.contains(pos.asLong()) && !membranes.contains(pos.asLong())
+    }
+    MASS_METHOD
+    OPEN_METHOD
+    FLOOD_METHOD
+
+    static void runChecks() {
+        def carrier = new ServerSubLevel()
+        def state = new CarrierState()
+        def room = new CompartmentState()
+        state.rooms.add(room)
+        assert !syncAttachmentWater(carrier, state)
+        assert carrier.deltas.isEmpty(): 'dry room sent a mass update'
+        for (int cycle = 0; cycle < 4; cycle++) {
+            room.water = 1000D
+            assert syncAttachmentWater(carrier, state)
+            assert carrier.mass == 101D
+            assert !syncAttachmentWater(carrier, state)
+            room.water = 0D
+            int before = carrier.deltas.size()
+            assert syncAttachmentWater(carrier, state)
+            assert carrier.deltas.size() == before + 1: 'empty room subtracted its old mass twice'
+            assert carrier.mass == 100D: 'fill/drain cycle changed dry hull mass'
+            assert state.applied.isEmpty()
+            assert !syncAttachmentWater(carrier, state)
+        }
+        room.water = 1000D
+        assert syncAttachmentWater(carrier, state)
+        room.center = new BlockPos(1, 0, 0)
+        assert syncAttachmentWater(carrier, state)
+        assert carrier.mass == 101D: 'moving the centroid changed total mass'
+        state.rooms.clear()
+        assert syncAttachmentWater(carrier, state)
+        assert carrier.mass == 100D: 'vanished room did not remove exactly its injected mass'
+        assert !syncAttachmentWater(carrier, state)
+
+        state.rooms.add(room)
+        assert syncAttachmentWater(carrier, state)
+        room.water += 0.0005D
+        assert !syncAttachmentWater(carrier, state)
+        room.water += 0.0006D
+        assert syncAttachmentWater(carrier, state): 'small deltas did not accumulate against injected mass'
+        assert Math.abs(carrier.mass - 101.0000011D) < 1E-10D
+
+        def level = new Level()
+        for (int x = 0; x < 11; x++) for (int y = 0; y < 11; y++) for (int z = 0; z < 11; z++) {
+            level.cells.add(new BlockPos(x, y, z).asLong())
+        }
+        final long separateCell = new BlockPos(20, 0, 0).asLong()
+        level.cells.add(separateCell)
+        for (boolean open : [false, true]) {
+            Set<Long> visited = new HashSet<>()
+            List<Set<Long>> accepted = []
+            for (long packed : level.cells) {
+                if (visited.contains(packed)) continue
+                BlockPos seed = BlockPos.of(packed)
+                Set<Long> cells
+                if (open) {
+                    cells = collectNonExteriorComponent(level, seed, new BoundingBox3ic(),
+                            Set.of(), visited, Set.of(), 1024)
+                } else {
+                    Queue<BlockPos> queue = new ArrayDeque<>()
+                    queue.add(seed)
+                    visited.add(packed)
+                    cells = new HashSet<>()
+                    flood(level, queue, visited, 0, 0, 0, 20, 10, 10, 1024, cells, Set.of())
+                }
+                if (!cells.isEmpty()) accepted.add(cells)
+            }
+            assert visited.size() == 1332
+            assert accepted.size() == 1 && accepted[0] == Set.of(separateCell):
+                    'oversized room left a false tail or hid the separate room: ' + accepted*.size()
+        }
+        // Exactly-at-limit rooms remain valid in both scanning paths.
+        for (int count : [1, 8]) {
+            def small = new Level()
+            for (int x = 0; x < count; x++) small.cells.add(new BlockPos(x, 0, 0).asLong())
+            def seen = new HashSet<Long>()
+            def cells = collectNonExteriorComponent(small, new BlockPos(0, 0, 0),
+                    new BoundingBox3ic(), Set.of(), seen, Set.of(), count)
+            assert cells.size() == count
+            def queue = new ArrayDeque<BlockPos>()
+            queue.add(new BlockPos(0, 0, 0))
+            seen = [new BlockPos(0, 0, 0).asLong()] as Set<Long>
+            cells = new HashSet<Long>()
+            flood(small, queue, seen, 0, 0, 0, 10, 10, 10, count, cells, Set.of())
+            assert cells.size() == count
+        }
+    }
+}
+class NautilusConfig { static final double WATER_DENSITY = 1000D }
+class Blocks { static final WATER = new Blocks(); Object defaultBlockState() { this } }
+class CompartmentState {
+    UUID key = UUID.randomUUID()
+    double water
+    BlockPos center = new BlockPos(0, 0, 0)
+    UUID id() { key }
+}
+class CarrierState {
+    List<CompartmentState> rooms = []
+    Map<UUID, AppliedWaterMass> applied = [:]
+    Collection<CompartmentState> compartments() { rooms }
+    Map<UUID, AppliedWaterMass> appliedWaterMasses() { applied }
+    static class AppliedWaterMass {
+        final BlockPos point
+        final double amount
+        AppliedWaterMass(BlockPos point, double amount) { this.point = point; this.amount = amount }
+        BlockPos position() { point }
+        double kilograms() { amount }
+    }
+}
+class ServerSubLevel {
+    double mass = 100D
+    List<Double> deltas = []
+    Object getLevel() { null }
+    ServerSubLevel getSelfMassTracker() { this }
+    void addBlockMass(Object level, Object state, BlockPos pos, double amount, Object inertia) {
+        mass += amount
+        deltas.add(amount)
+    }
+}
+class Level { Set<Long> cells = new LinkedHashSet<>() }
+class BoundingBox3ic {
+    int minX() { 0 }; int minY() { 0 }; int minZ() { 0 }
+    int maxX() { 20 }; int maxY() { 10 }; int maxZ() { 10 }
+}
+'''.replace('MASS_METHOD', massMethod).replace('OPEN_METHOD', openMethod)
+                    .replace('FLOOD_METHOD', floodMethod), 'PhysicsStateFixture.groovy')
+            fixture.getMethod('runChecks').invoke(null)
+        } finally {
+            fixtureLoader.close()
+        }
+        logger.lifecycle('Physics state passed: real room initialization/splits, independent real water, '
+                + 'mass drain/repeat/centroid/removal/no-op, and both oversized BFS paths.')
+    }
+}

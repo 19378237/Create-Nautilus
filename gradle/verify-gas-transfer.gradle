@@ -1,0 +1,182 @@
+tasks.register('verifyGasTransfer') {
+    group = 'verification'
+    description = 'Runs the production gas-transfer and compressor-budget code against in-memory tanks.'
+    final def pumpFile = file('src/main/java/com/create/nautilus/hydrogen/GasPumpBlockEntity.java')
+    final def compressorFile = file('src/main/java/com/create/nautilus/hydrogen/CompressorBlockEntity.java')
+    inputs.files(pumpFile, compressorFile)
+    doLast {
+        // Compile the production methods verbatim with small inventory fixtures.
+        // This tests conservation/rate arithmetic without initializing Minecraft,
+        // Registrate or a running world; discovery itself remains a source check.
+        final String pump = pumpFile.getText('UTF-8')
+        final int transferStart = pump.indexOf('    private static int transferFrom(')
+        final int transferEnd = pump.indexOf('    private List<Endpoint> discoverEndpoints(', transferStart)
+        assert transferStart >= 0 && transferEnd > transferStart
+        final String transferMethod = pump.substring(transferStart, transferEnd)
+        assert pump.contains('tank.getController() : pos')
+        assert pump.contains('endpointPositions.add(endpoint.pos())')
+        assert pump.contains('return List.of(endpoint(first, direct));')
+
+        final String compressor = compressorFile.getText('UTF-8')
+        final int budgetStart = compressor.indexOf('        processRemainder += throughputPerSecond / 20.0D;')
+        final int budgetEnd = compressor.indexOf('        if (lowPressureMb < 4)', budgetStart)
+        assert budgetStart >= 0 && budgetEnd > budgetStart
+        final String budgetCode = compressor.substring(budgetStart, budgetEnd)
+        assert !compressor.contains('processRemainder -= filled')
+
+        final String fixture = '''
+import java.util.List;
+
+public final class GasTransferFixture {
+    interface IFluidHandler {
+        enum FluidAction { SIMULATE, EXECUTE }
+    }
+    interface IGasHandler {
+        int getTanks();
+        FluidStack getFluidInTank(int tank);
+        FluidStack drain(int maximum, IFluidHandler.FluidAction action);
+        FluidStack drain(FluidStack stack, IFluidHandler.FluidAction action);
+        int fill(FluidStack stack, IFluidHandler.FluidAction action);
+    }
+    static final class FluidStack {
+        static final FluidStack EMPTY = new FluidStack(0);
+        private int amount;
+        FluidStack(int amount) { this.amount = amount; }
+        boolean isEmpty() { return amount <= 0; }
+        int getAmount() { return amount; }
+        FluidStack copyWithAmount(int amount) { return new FluidStack(amount); }
+        void shrink(int amount) { this.amount -= amount; }
+    }
+    static final class HydrogenFluids {
+        static boolean isGas(FluidStack stack) { return !stack.isEmpty(); }
+    }
+    record Endpoint(Integer pos, IGasHandler handler) {}
+    static final class Inventory {
+        int amount;
+        final int capacity;
+        Inventory(int amount, int capacity) { this.amount = amount; this.capacity = capacity; }
+    }
+    static final class Handler implements IGasHandler {
+        final Inventory inventory;
+        final boolean insertion;
+        Handler(Inventory inventory, boolean insertion) {
+            this.inventory = inventory;
+            this.insertion = insertion;
+        }
+        public int getTanks() { return 1; }
+        public FluidStack getFluidInTank(int tank) { return new FluidStack(inventory.amount); }
+        public FluidStack drain(int maximum, IFluidHandler.FluidAction action) {
+            int drained = Math.min(maximum, inventory.amount);
+            if (action == IFluidHandler.FluidAction.EXECUTE) inventory.amount -= drained;
+            return new FluidStack(drained);
+        }
+        public FluidStack drain(FluidStack stack, IFluidHandler.FluidAction action) {
+            return drain(stack.getAmount(), action);
+        }
+        public int fill(FluidStack stack, IFluidHandler.FluidAction action) {
+            int accepted = insertion ? Math.min(stack.getAmount(), inventory.capacity - inventory.amount) : 0;
+            if (action == IFluidHandler.FluidAction.EXECUTE) inventory.amount += accepted;
+            return accepted;
+        }
+    }
+    static final class Tank {
+        int amount;
+        int space;
+        Tank getPrimaryHandler() { return this; }
+        int getFluidAmount() { return amount; }
+        int getSpace() { return space; }
+    }
+    static final class CompressorBudget {
+        double processRemainder;
+        Tank input = new Tank();
+        Tank output = new Tank();
+        int tick(double throughputPerSecond, int amount, int space) {
+            input.amount = amount;
+            output.space = space;
+__BUDGET__
+            return lowPressureMb;
+        }
+    }
+__TRANSFER__
+    static void require(boolean condition, String reason) {
+        if (!condition) throw new AssertionError(reason);
+    }
+    public static void run() {
+        // The original reproducer: two positions/wrappers expose only 10 mB
+        // of shared free space. Source forbids insertion, so refund cannot help.
+        Inventory source = new Inventory(100, 100);
+        Inventory shared = new Inventory(90, 100);
+        Handler sourceHandler = new Handler(source, false);
+        int moved = transferFrom(new Endpoint(1, sourceHandler), List.of(
+                new Endpoint(2, new Handler(shared, true)),
+                new Endpoint(3, new Handler(shared, true))), 32);
+        require(moved == 10 && source.amount == 90 && shared.amount == 100,
+                "shared sink capacity was counted twice or gas was lost");
+
+        // Inventory identity blocks both a second segment of the same tank
+        // and the exact same handler reached through a different endpoint.
+        source = new Inventory(50, 100);
+        sourceHandler = new Handler(source, true);
+        moved = transferFrom(new Endpoint(1, sourceHandler), List.of(
+                new Endpoint(1, new Handler(source, true)),
+                new Endpoint(2, sourceHandler)), 32);
+        require(moved == 0 && source.amount == 50, "source loop consumed throughput");
+
+        source = new Inventory(100, 100);
+        Inventory first = new Inventory(0, 10);
+        Inventory second = new Inventory(0, 100);
+        moved = transferFrom(new Endpoint(1, new Handler(source, false)), List.of(
+                new Endpoint(2, new Handler(first, true)),
+                new Endpoint(3, new Handler(second, true))), 32);
+        require(moved == 32 && source.amount == 68 && first.amount == 10 && second.amount == 22,
+                "sequential destinations violated transfer budget");
+        require(source.amount + first.amount + second.amount == 100, "gas conservation failed");
+        moved = transferFrom(new Endpoint(1, new Handler(new Inventory(0, 100), false)),
+                List.of(new Endpoint(3, new Handler(second, true))), 32);
+        require(moved == 0 && second.amount == 22, "empty source created gas");
+
+        CompressorBudget budget = new CompressorBudget();
+        for (int tick = 0; tick < 100; tick++) {
+            require(budget.tick(1000.0, 1, 8000) == 0, "partial input was compressed");
+            require(budget.processRemainder >= 0.0 && budget.processRemainder < 4.0,
+                    "starved compressor accumulated whole batches");
+        }
+        require(budget.tick(1000.0, 8000, 8000) == 48,
+                "replenished compressor spent its old 5000 mB backlog");
+        require(budget.tick(1000.0, 8000, 8000) == 52,
+                "compressor lost its legitimate sub-batch remainder");
+        budget = new CompressorBudget();
+        for (int tick = 0; tick < 100; tick++) {
+            require(budget.tick(1000.0, 8000, 1) == 4, "output capacity was exceeded");
+        }
+        require(budget.tick(1000.0, 8000, 8000) == 48, "restricted output banked throughput");
+        for (double rate : new double[]{500.0, 1000.0, 2000.0, 274.0}) {
+            budget = new CompressorBudget();
+            int consumed = 0;
+            for (int tick = 0; tick < 100; tick++) consumed += budget.tick(rate, 8000, 8000);
+            double expected = rate * 5.0;
+            require(consumed <= expected && expected - consumed < 4.0,
+                    "steady-state compressor rate drifted: " + rate);
+        }
+    }
+}
+'''.replace('__TRANSFER__', transferMethod).replace('__BUDGET__', budgetCode)
+        final File sourceFile = new File(temporaryDir, 'GasTransferFixture.java')
+        sourceFile.parentFile.mkdirs()
+        sourceFile.setText(fixture, 'UTF-8')
+        final def compiler = javax.tools.ToolProvider.systemJavaCompiler
+        if (compiler == null) throw new GradleException('Gas regression checks require a JDK')
+        final int compiled = compiler.run(null, null, null,
+                '--release', '21', '-d', temporaryDir.absolutePath, sourceFile.absolutePath)
+        if (compiled != 0) throw new GradleException('Gas regression fixture failed to compile')
+        final URLClassLoader loader = new URLClassLoader(
+                [temporaryDir.toURI().toURL()] as URL[], (ClassLoader) null)
+        try {
+            loader.loadClass('GasTransferFixture').getMethod('run').invoke(null)
+        } finally {
+            loader.close()
+        }
+        logger.lifecycle('Gas transfer passed: shared inventory conservation, source loops, '
+                + 'transfer budget, compressor starvation/backpressure and fractional rates')
+    }
+}

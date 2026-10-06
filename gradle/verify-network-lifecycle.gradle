@@ -1,0 +1,212 @@
+tasks.register('verifyNetworkLifecycle') {
+    group = 'verification'
+    description = 'Runs production topology synchronization against in-memory tracking lifetimes.'
+    final def syncFile = file('src/main/java/com/create/nautilus/network/CompartmentVisualSync.java')
+    final def dryFile = file('src/main/java/com/create/nautilus/client/render/ClientDryCompartmentCache.java')
+    final def visualFile = file('src/main/java/com/create/nautilus/client/render/ClientCompartmentVisualCache.java')
+    final def clientFile = file('src/main/java/com/create/nautilus/client/NautilusClient.java')
+    final def networkFile = file('src/main/java/com/create/nautilus/network/NautilusNetwork.java')
+    final def drySyncFile = file('src/main/java/com/create/nautilus/network/DryCompartmentSync.java')
+    final def payloadFile = file('src/main/java/com/create/nautilus/network/CompartmentVisualSnapshotPayload.java')
+    final def floodingFile = file('src/main/java/com/create/nautilus/physics/FloodingHandler.java')
+    inputs.files(syncFile, dryFile, visualFile, clientFile, networkFile, drySyncFile, payloadFile, floodingFile)
+    doLast {
+        // Keep every production sync/rejection/recipient method intact; only Minecraft players,
+        // level lookup and packet delivery are fixtures. This needs neither a world nor registries.
+        final String sync = syncFile.getText('UTF-8')
+        final String declaration = 'public final class CompartmentVisualSync'
+        assert sync.contains(declaration)
+        final String production = sync.substring(sync.indexOf(declaration))
+                .replace(declaration, 'static final class CompartmentVisualSync')
+        final String payload = payloadFile.getText('UTF-8')
+        final def constants = (payload =~ /static final int MAX_[A-Z_]+ = [0-9_]+;/)
+                .collect { it.toString() }.join('\n')
+        assert constants.contains('MAX_ROOMS') && constants.contains('MAX_CELLS_PER_ROOM')
+                && constants.contains('MAX_CELLS_TOTAL')
+
+        final String dry = dryFile.getText('UTF-8')
+        final int forgetStart = dry.indexOf('    public static void forget(')
+        final int forgetEnd = dry.indexOf('    public static void onClientLevelUnload(', forgetStart)
+        assert forgetStart >= 0 && forgetEnd > forgetStart
+        final String forget = dry.substring(forgetStart, forgetEnd)
+        ['SNAPSHOTS.remove(carrierId)', 'removeClientOcclusion(carrierId)',
+         'PENDING_RENDER_REBUILDS.remove(carrierId)', 'PACKED_TOPOLOGY_CACHE.remove(carrierId)',
+         'retained.remove(carrierId)', '!snapshot.carrierId().equals(carrierId)',
+         'ClientCompartmentVisualCache.forget(carrierId)',
+         'ApertureMediumMaskRenderer.forgetCarrier(level, carrierId)',
+         'PARENT_DIRTY_STATE.remove(carrierId)', 'markParentSectionsDirty(minecraft, sections)']
+                .each { assert forget.contains(it): "Client removal omitted ${it}" }
+        final String client = clientFile.getText('UTF-8')
+        assert client.contains('onSubLevelContainerReady') && client.contains('onSubLevelRemoved(')
+        assert client.contains('ClientDryCompartmentCache.forget(clientLevel, subLevel.getUniqueId())')
+        assert !client.contains('onSubLevelAdded('): 'Creation must preserve earlier payloads'
+        assert dry.contains('PENDING_RENDER_REBUILDS.add(payload.carrierId())')
+        final String visual = visualFile.getText('UTF-8')
+        assert visual.contains('CARRIERS.remove(carrierId)')
+        assert visual.contains('FloodedChamberRenderer.invalidateSnapshots()')
+        final String network = networkFile.getText('UTF-8')
+        ['PlayerLoggedOutEvent', 'PlayerChangedDimensionEvent', 'PlayerRespawnEvent'].each {
+            assert network.contains(it): "Missing client lifetime event ${it}"
+        }
+        assert network.count('CompartmentVisualSync.forgetPlayer(') == 3
+        assert drySyncFile.getText('UTF-8').replace('\r\n', '\n').contains(
+                'CompartmentVisualSync.isTopologyRejected(carrierId)\n                    ? new long[0] : visualOcclusionCells')
+        final String flooding = floodingFile.getText('UTF-8')
+        final int placementStart = flooding.indexOf('    public static void onBlockPlaced(')
+        final String placement = flooding.substring(placementStart,
+                flooding.indexOf('    public static void tick(', placementStart))
+        final int topologySend = placement.indexOf('CompartmentVisualSync.syncTopology(carrier, state)')
+        final int drySend = placement.indexOf('DryCompartmentSync.syncToTrackingPlayers(')
+        assert topologySend >= 0 && drySend > topologySend:
+                'Repair must validate/withdraw topology before publishing its dry mask'
+
+        final String fixture = '''
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+
+public final class NetworkLifecycleFixture {
+    record BlockPos(long packed) {
+        static BlockPos of(long packed) { return new BlockPos(packed); }
+    }
+    record CompartmentState(UUID id, Object bounds, List<Long> cells,
+                            double waterMb, double waterCapacityMb) {}
+    record CarrierState(UUID carrierId, long topologyRevision, List<CompartmentState> compartments) {}
+    record ServerPlayer(UUID getUUID) {}
+    static final class ServerLevel {
+        final Map<UUID, Object> players = new LinkedHashMap<>();
+        Object getPlayerByUUID(UUID id) { return players.get(id); }
+    }
+    static final class ServerSubLevel {
+        final Set<UUID> tracking = new LinkedHashSet<>();
+        final ServerLevel level = new ServerLevel();
+        Set<UUID> getTrackingPlayers() { return tracking; }
+        ServerLevel getLevel() { return level; }
+        void track(ServerPlayer player) {
+            tracking.add(player.getUUID());
+            level.players.put(player.getUUID(), player);
+        }
+    }
+    record CompartmentVisualSnapshotPayload(UUID carrierId, long topologyRevision, List<Room> rooms) {
+__LIMITS__
+        record Room(UUID id, Object bounds, List<BlockPos> cells) {}
+    }
+    record CompartmentWaterLevelPayload(UUID carrierId, long topologyRevision, List<RoomLevel> rooms) {
+        static final int MAX_ROOMS = CompartmentVisualSnapshotPayload.MAX_ROOMS;
+        record RoomLevel(UUID id, double waterFraction) {}
+    }
+    static final class CreateNautilus {
+        static final Logger LOGGER = new Logger();
+        static final class Logger { void error(String message, Object... values) {} }
+    }
+    record Sent(UUID player, Object payload) {}
+    static final class PacketDistributor {
+        static final List<Sent> sent = new ArrayList<>();
+        static void sendToPlayer(ServerPlayer player, Object payload) {
+            sent.add(new Sent(player.getUUID(), payload));
+        }
+    }
+__PRODUCTION__
+    static void require(boolean condition, String reason) {
+        if (!condition) throw new AssertionError(reason);
+    }
+    static void expectTopologyThenLevels(UUID player, long revision) {
+        List<Sent> sent = PacketDistributor.sent;
+        require(sent.size() == 2, "expected one topology and one level packet: " + sent);
+        require(sent.get(0).player().equals(player)
+                && sent.get(0).payload() instanceof CompartmentVisualSnapshotPayload topology
+                && topology.topologyRevision() == revision, "topology was not sent first");
+        require(sent.get(1).payload() instanceof CompartmentWaterLevelPayload, "levels missing");
+        sent.clear();
+    }
+    public static void run() {
+        UUID carrierId = UUID.randomUUID();
+        UUID roomId = UUID.randomUUID();
+        CompartmentState room = new CompartmentState(roomId, new Object(), List.of(1L), 25, 100);
+        CarrierState state = new CarrierState(carrierId, 1, List.of(room));
+        ServerSubLevel carrier = new ServerSubLevel();
+        ServerPlayer first = new ServerPlayer(UUID.randomUUID());
+        carrier.track(first);
+        CompartmentVisualSync.syncLevels(carrier, state);
+        expectTopologyThenLevels(first.getUUID(), 1);
+        CompartmentVisualSync.syncLevels(carrier, state);
+        require(PacketDistributor.sent.size() == 1
+                && PacketDistributor.sent.get(0).payload() instanceof CompartmentWaterLevelPayload,
+                "unchanged recipients retransmitted voxel topology");
+        PacketDistributor.sent.clear();
+
+        // Dimension travel can reuse even the same ServerPlayer, not merely the same UUID.
+        CompartmentVisualSync.forgetPlayer(first.getUUID());
+        CompartmentVisualSync.syncLevels(carrier, state);
+        expectTopologyThenLevels(first.getUUID(), 1);
+        // Reconnect with a different player object and the same profile UUID.
+        CompartmentVisualSync.forgetPlayer(first.getUUID());
+        carrier.track(new ServerPlayer(first.getUUID()));
+        CompartmentVisualSync.syncLevels(carrier, state);
+        expectTopologyThenLevels(first.getUUID(), 1);
+
+        // All players leaving must update the cached recipient set even without a rescan.
+        carrier.tracking.clear();
+        CompartmentVisualSync.syncLevels(carrier, state);
+        require(PacketDistributor.sent.isEmpty(), "packets sent while untracked");
+        carrier.track(first);
+        CompartmentVisualSync.syncLevels(carrier, state);
+        expectTopologyThenLevels(first.getUUID(), 1);
+
+        ServerPlayer second = new ServerPlayer(UUID.randomUUID());
+        carrier.track(second);
+        CompartmentVisualSync.syncLevels(carrier, state);
+        require(PacketDistributor.sent.size() == 3
+                && PacketDistributor.sent.get(0).player().equals(second.getUUID())
+                && PacketDistributor.sent.get(0).payload() instanceof CompartmentVisualSnapshotPayload
+                && PacketDistributor.sent.subList(1, 3).stream()
+                    .allMatch(sent -> sent.payload() instanceof CompartmentWaterLevelPayload),
+                "new tracking recipient did not receive topology before per-tick levels");
+        PacketDistributor.sent.clear();
+
+        CompartmentState oversized = new CompartmentState(roomId, new Object(),
+                Collections.nCopies(CompartmentVisualSnapshotPayload.MAX_CELLS_PER_ROOM + 1, 1L),
+                25, 100);
+        CarrierState rejected = new CarrierState(carrierId, 2, List.of(oversized));
+        CompartmentVisualSync.syncLevels(carrier, rejected);
+        require(CompartmentVisualSync.isTopologyRejected(carrierId), "oversized room accepted");
+        require(PacketDistributor.sent.size() == 2
+                && PacketDistributor.sent.stream().allMatch(sent ->
+                    sent.payload() instanceof CompartmentVisualSnapshotPayload topology
+                    && topology.topologyRevision() == 2 && topology.rooms().isEmpty()),
+                "rejection did not withdraw old geometry or still sent levels");
+        PacketDistributor.sent.clear();
+        ServerPlayer third = new ServerPlayer(UUID.randomUUID());
+        carrier.track(third);
+        CompartmentVisualSync.syncLevels(carrier, rejected);
+        require(PacketDistributor.sent.size() == 1
+                && PacketDistributor.sent.get(0).player().equals(third.getUUID())
+                && PacketDistributor.sent.get(0).payload() instanceof CompartmentVisualSnapshotPayload empty
+                && empty.rooms().isEmpty(), "new recipient missed cached rejection withdrawal");
+        PacketDistributor.sent.clear();
+
+        CompartmentVisualSync.syncLevels(carrier, new CarrierState(carrierId, 3, List.of(room)));
+        require(!CompartmentVisualSync.isTopologyRejected(carrierId)
+                && PacketDistributor.sent.size() == 6, "valid topology failed to recover");
+        CompartmentVisualSync.clear();
+    }
+}
+'''.replace('__LIMITS__', constants).replace('__PRODUCTION__', production)
+        final File sourceFile = new File(temporaryDir, 'NetworkLifecycleFixture.java')
+        sourceFile.parentFile.mkdirs()
+        sourceFile.setText(fixture, 'UTF-8')
+        final def compiler = javax.tools.ToolProvider.systemJavaCompiler
+        if (compiler == null) throw new GradleException('Network lifecycle fixture requires a JDK')
+        final int compiled = compiler.run(null, null, null,
+                '--release', '21', '-d', temporaryDir.absolutePath, sourceFile.absolutePath)
+        if (compiled != 0) throw new GradleException('Network lifecycle fixture failed to compile')
+        final URLClassLoader loader = new URLClassLoader(
+                [temporaryDir.toURI().toURL()] as URL[], (ClassLoader) null)
+        try {
+            loader.loadClass('NetworkLifecycleFixture').getMethod('run').invoke(null)
+        } finally {
+            loader.close()
+        }
+        logger.lifecycle('Network lifecycle passed: same-UUID reconnect/dimension travel, tracking '
+                + 'restart, topology-before-levels, rejection withdrawal/recovery and client eviction wiring')
+    }
+}

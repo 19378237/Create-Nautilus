@@ -1,0 +1,27 @@
+{
+  "variants": {
+    "facing=north": {
+      "model": "create_nautilus:block/boiler_hydrogen_booster"
+    },
+    "facing=east": {
+      "model": "create_nautilus:block/boiler_hydrogen_booster",
+      "y": 90
+    },
+    "facing=south": {
+      "model": "create_nautilus:block/boiler_hydrogen_booster",
+      "y": 180
+    },
+    "facing=west": {
+      "model": "create_nautilus:block/boiler_hydrogen_booster",
+      "y": 270
+    },
+    "facing=up": {
+      "model": "create_nautilus:block/boiler_hydrogen_booster",
+      "x": 270
+    },
+    "facing=down": {
+      "model": "create_nautilus:block/boiler_hydrogen_booster",
+      "x": 90
+    }
+  }
+}
