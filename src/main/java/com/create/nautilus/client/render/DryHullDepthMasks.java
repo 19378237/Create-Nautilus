@@ -47,67 +47,75 @@ public final class DryHullDepthMasks {
     /** Draws the dry boundary into the private close/far depth textures. */
     public static boolean render(final Matrix4f modelView, final Matrix4f projection,
                                  final Vec3 camera) {
-        renderedThisFrame = false;
-        final List<Float> positions = new ArrayList<>();
-        final Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.level == null || minecraft.getMainRenderTarget() == null) {
-            return false;
-        }
-        if (!ensureFbos(minecraft.getMainRenderTarget().width,
-                minecraft.getMainRenderTarget().height)) {
-            return false;
-        }
-        final SubLevelContainer container = SubLevelContainer.getContainer(minecraft.level);
-        if (container != null) {
-            for (final var carrierEntry : ClientCompartmentVisualCache.snapshots().entrySet()) {
-                if (!(container.getSubLevel(carrierEntry.getKey())
-                        instanceof final ClientSubLevel carrier)) {
-                    continue;
-                }
-                final Set<Long> dryCells = new HashSet<>();
-                for (final ClientCompartmentVisualCache.RoomSnapshot room
-                        : carrierEntry.getValue()) {
-                    if (room.waterFraction() > 1.0E-5D) {
+        final int diagnosticsSource = ClientWaterDiagnostics.enter(ClientWaterDiagnostics.Source.DRY_HULL);
+        try {
+            renderedThisFrame = false;
+            final long diagnosticsMeshStart = ClientWaterDiagnostics.start();
+            final List<Float> positions = new ArrayList<>();
+            final Minecraft minecraft = Minecraft.getInstance();
+            if (minecraft.level == null || minecraft.getMainRenderTarget() == null) {
+                return false;
+            }
+            if (!ensureFbos(minecraft.getMainRenderTarget().width,
+                    minecraft.getMainRenderTarget().height)) {
+                return false;
+            }
+            final SubLevelContainer container = SubLevelContainer.getContainer(minecraft.level);
+            if (container != null) {
+                for (final var carrierEntry : ClientCompartmentVisualCache.snapshots().entrySet()) {
+                    if (!(container.getSubLevel(carrierEntry.getKey())
+                            instanceof final ClientSubLevel carrier)) {
                         continue;
                     }
-                    for (final BlockPos cell : room.cells()) {
-                        dryCells.add(cell.asLong());
+                    final Set<Long> dryCells = new HashSet<>();
+                    for (final ClientCompartmentVisualCache.RoomSnapshot room
+                            : carrierEntry.getValue()) {
+                        if (room.waterFraction() > 1.0E-5D) {
+                            continue;
+                        }
+                        for (final BlockPos cell : room.cells()) {
+                            dryCells.add(cell.asLong());
+                        }
                     }
+                    if (dryCells.isEmpty()) {
+                        continue;
+                    }
+                    addDryBoundary(positions, carrier, dryCells, camera);
                 }
-                if (dryCells.isEmpty()) {
-                    continue;
-                }
-                addDryBoundary(positions, carrier, dryCells, camera);
             }
-        }
-        if (positions.isEmpty()) {
-            return false;
-        }
+            ClientWaterDiagnostics.finish(ClientWaterDiagnostics.Work.DRY_HULL_GEOMETRY,
+                    diagnosticsMeshStart, positions.size() / 3);
+            if (positions.isEmpty()) {
+                return false;
+            }
 
-        final MaskState state = captureState();
-        try {
-            // Close mask: nearest boundary surface (clear 1.0, GL_LESS).
-            GL30C.glBindFramebuffer(GL30C.GL_FRAMEBUFFER, closeFbo);
-            GL11C.glViewport(0, 0, width, height);
-            GL11C.glDepthMask(true);
-            GL11C.glEnable(GL11C.GL_DEPTH_TEST);
-            GL11C.glDepthFunc(GL11C.GL_LESS);
-            GL11C.glDisable(GL11C.GL_BLEND);
-            GL11C.glClearDepth(1.0D);
-            GL11C.glClear(GL11C.GL_DEPTH_BUFFER_BIT);
-            RawDepthRenderer.draw(positions, modelView, projection);
+            final MaskState state = captureState();
+            try {
+                // Close mask: nearest boundary surface (clear 1.0, GL_LESS).
+                GL30C.glBindFramebuffer(GL30C.GL_FRAMEBUFFER, closeFbo);
+                GL11C.glViewport(0, 0, width, height);
+                GL11C.glDepthMask(true);
+                GL11C.glEnable(GL11C.GL_DEPTH_TEST);
+                GL11C.glDepthFunc(GL11C.GL_LESS);
+                GL11C.glDisable(GL11C.GL_BLEND);
+                GL11C.glClearDepth(1.0D);
+                GL11C.glClear(GL11C.GL_DEPTH_BUFFER_BIT);
+                RawDepthRenderer.draw(positions, modelView, projection);
 
-            // Far mask: farthest boundary surface (clear 0.0, GL_GREATER).
-            GL30C.glBindFramebuffer(GL30C.GL_FRAMEBUFFER, farFbo);
-            GL11C.glDepthFunc(GL11C.GL_GREATER);
-            GL11C.glClearDepth(0.0D);
-            GL11C.glClear(GL11C.GL_DEPTH_BUFFER_BIT);
-            RawDepthRenderer.draw(positions, modelView, projection);
+                // Far mask: farthest boundary surface (clear 0.0, GL_GREATER).
+                GL30C.glBindFramebuffer(GL30C.GL_FRAMEBUFFER, farFbo);
+                GL11C.glDepthFunc(GL11C.GL_GREATER);
+                GL11C.glClearDepth(0.0D);
+                GL11C.glClear(GL11C.GL_DEPTH_BUFFER_BIT);
+                RawDepthRenderer.draw(positions, modelView, projection);
+            } finally {
+                restoreState(state);
+            }
+            renderedThisFrame = true;
+            return true;
         } finally {
-            restoreState(state);
+            ClientWaterDiagnostics.leave(diagnosticsSource);
         }
-        renderedThisFrame = true;
-        return true;
     }
 
     public static boolean valid() {

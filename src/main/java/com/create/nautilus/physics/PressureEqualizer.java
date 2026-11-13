@@ -7,7 +7,6 @@ import com.create.nautilus.data.HullBreach;
 import dev.ryanhcode.sable.physics.config.dimension_physics.DimensionPhysicsData;
 import dev.ryanhcode.sable.sublevel.ServerSubLevel;
 import net.minecraft.server.level.ServerLevel;
-import org.joml.Vector3d;
 import org.joml.Vector3dc;
 
 import java.util.OptionalDouble;
@@ -32,12 +31,20 @@ public final class PressureEqualizer {
 
     public static void tick(final ServerSubLevel carrier, final CarrierState state,
                             final double timeStepSeconds) {
+        tick(carrier, state, timeStepSeconds, new WaterEnvironment.QueryContext(carrier.getLevel()));
+    }
+
+    static void tick(final ServerSubLevel carrier, final CarrierState state,
+                      final double timeStepSeconds, final WaterEnvironment.QueryContext water) {
+        tick(carrier, state, timeStepSeconds, new ExternalApertureSamples(carrier, water));
+    }
+
+    static void tick(final ServerSubLevel carrier, final CarrierState state,
+                      final double timeStepSeconds, final ExternalApertureSamples outside) {
         if (!(timeStepSeconds > 0.0D) || !Double.isFinite(timeStepSeconds)) {
             return;
         }
 
-        final WaterEnvironment.QueryContext water =
-                new WaterEnvironment.QueryContext(carrier.getLevel());
         for (final CompartmentState compartment : state.compartments()) {
             updateIdealPressure(compartment);
 
@@ -45,7 +52,7 @@ public final class PressureEqualizer {
                 if (!breach.compartmentId().equals(compartment.id())) {
                     continue;
                 }
-                exchangeThroughBreach(carrier, compartment, breach, water, timeStepSeconds);
+                exchangeThroughBreach(carrier, compartment, breach, outside, timeStepSeconds);
             }
 
             // Flooding reads this final value in the same Sable sub-step.
@@ -83,30 +90,19 @@ public final class PressureEqualizer {
     private static void exchangeThroughBreach(final ServerSubLevel carrier,
                                                final CompartmentState compartment,
                                                final HullBreach breach,
-                                               final WaterEnvironment.QueryContext water,
+                                               final ExternalApertureSamples outside,
                                                final double timeStepSeconds) {
-        final net.minecraft.core.Direction apertureFace = breach.atmosphericOpening()
-                ? net.minecraft.core.Direction.DOWN : breach.interiorDirection();
-        final Vector3d localHole = new Vector3d(
-                breach.position().getX() + 0.5D,
-                breach.position().getY() + 0.5D,
-                breach.position().getZ() + 0.5D);
-        final Vector3d worldHole = WaterEnvironment.toWorld(carrier, localHole);
-        final OptionalDouble surface = breach.atmosphericOpening()
-                ? WaterEnvironment.waterSurfaceIntersectingFace(carrier, breach.position(),
-                apertureFace, water)
-                : WaterEnvironment.waterSurfaceIntersectingCell(carrier, breach.position(), water);
+        final ExternalApertureSamples.Sample sample = outside.sample(breach);
+        final CompartmentWaterGeometry.ProjectedInterval aperture = sample.aperture();
+        final OptionalDouble surface = sample.surface();
         // A tilted open top can be partly wet and still have a dry route to atmosphere. Treat it
         // as fully submerged only after the sea covers the highest point of the actual inlet face.
         // This prevents a false vacuum/air lock while the low edge is admitting water.
-        final double fullySubmergedHeight = breach.atmosphericOpening()
-                ? CompartmentWaterGeometry.highestFaceWorldY(carrier, breach.position(),
-                apertureFace)
-                : CompartmentWaterGeometry.highestWorldY(carrier, breach.position());
+        final double fullySubmergedHeight = aperture.high();
         final boolean underwater = surface.isPresent()
                 && surface.getAsDouble()
                 > fullySubmergedHeight + OPENING_AIR_CLEARANCE_METRES;
-        final double ambientPressure = ambientPressureKpa(carrier.getLevel(), worldHole);
+        final double ambientPressure = sample.ambientPressureKpa();
         final double insidePressure = pressureAt(compartment);
 
         // Liquid cannot supply missing gas. It can, however, receive cabin gas which is squeezed
@@ -128,6 +124,16 @@ public final class PressureEqualizer {
             // compressed for one step, pushed water back the next step, and visibly twitched.
             compartment.exchangeStandardGas(
                     targetStandardGasMb - compartment.standardGasMb());
+            // Zero net pressure flow still exchanges equal volumes of cabin mixture and air.
+            // Only the dry aperture fraction ventilates; fully water-sealed holes never admit air.
+            final double outsideWaterY = surface.orElse(Double.NEGATIVE_INFINITY);
+            final double insideWaterY = compartment.waterMb() < 1.0D ? Double.NEGATIVE_INFINITY
+                    : CompartmentWaterGeometry.surfaceY(carrier, compartment);
+            final double dryFraction = 1.0D - aperture.fractionBelow(
+                    Math.max(outsideWaterY, insideWaterY));
+            final double ventilationRate = Math.max(0.0D, NautilusConfig.PRESSURE_EQUALIZATION_RATE)
+                    * breach.areaSquareMetres() * Math.clamp(dryFraction, 0.0D, 1.0D);
+            compartment.ventilateAmbientAir(1.0D - Math.exp(-ventilationRate * timeStepSeconds));
             return;
         }
         final double rate = Math.max(0.0D, NautilusConfig.PRESSURE_EQUALIZATION_RATE)

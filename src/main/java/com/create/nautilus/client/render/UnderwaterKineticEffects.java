@@ -1,8 +1,10 @@
 package com.create.nautilus.client.render;
 
 import com.create.nautilus.kinetics.PropellerEfficiency;
+import com.create.nautilus.registry.NautilusParticleTypes;
 import com.simibubi.create.content.kinetics.base.KineticBlockEntity;
 import dev.ryanhcode.sable.Sable;
+import dev.ryanhcode.sable.companion.math.BoundingBox3d;
 import dev.ryanhcode.sable.sublevel.ClientSubLevel;
 import dev.ryanhcode.sable.sublevel.SubLevel;
 import dev.ryanhcode.sable.sublevel.water_occlusion.WaterOcclusionContainer;
@@ -13,6 +15,7 @@ import net.minecraft.tags.FluidTags;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.phys.AABB;
 import org.joml.Vector3d;
 
 /**
@@ -69,7 +72,7 @@ public final class UnderwaterKineticEffects {
             final double z = center.z - direction.z * 0.55D
                     + (carrier.getLevel().random.nextDouble() - 0.5D) * spread;
             carrier.getLevel().addParticle(index % 3 == 0
-                            ? ParticleTypes.BUBBLE_POP : ParticleTypes.BUBBLE,
+                            ? ParticleTypes.BUBBLE_POP : NautilusParticleTypes.PROPELLER_BUBBLE.get(),
                     x, y, z,
                     -direction.x * 0.08D,
                     0.015D - direction.y * 0.08D,
@@ -91,9 +94,56 @@ public final class UnderwaterKineticEffects {
                 new Vector3d(local.getX() + 0.5D,
                         local.getY() + 0.5D,
                         local.getZ() + 0.5D));
-        return !isOccluded(carrier.getLevel(), world)
-                && carrier.getLevel().getFluidState(BlockPos.containing(world.x, world.y, world.z))
-                .is(FluidTags.WATER);
+        return containsWater(carrier, new Vec3(world.x, world.y, world.z));
+    }
+
+    /** Shared by the seven near-field samples and this wake's own bubble lifetime. */
+    private static boolean containsWater(final ClientSubLevel carrier, final Vec3 world) {
+        final ClientCompartmentVisualCache.CameraWaterState local = localWaterState(carrier, world);
+        return local == ClientCompartmentVisualCache.CameraWaterState.WET
+                || local == ClientCompartmentVisualCache.CameraWaterState.OUTSIDE
+                && parentWaterAt(carrier.getLevel(), world);
+    }
+
+    private static ClientCompartmentVisualCache.CameraWaterState localWaterState(
+            final ClientSubLevel carrier, final Vec3 world) {
+        final Vec3 local = carrier.renderPose().transformPositionInverse(world);
+        final BlockPos cell = BlockPos.containing(local);
+        if (carrier.getLevel().hasChunkAt(cell)) {
+            if (nativeWaterAt(carrier.getLevel(), local)) return ClientCompartmentVisualCache.CameraWaterState.WET;
+            if (ClientCompartmentVisualCache.waterDepthAt(carrier,
+                    new Vector3d(local.x, local.y, local.z), world.y) > 0.0D) return ClientCompartmentVisualCache.CameraWaterState.WET;
+            final var knownRoom = ClientCompartmentVisualCache.entityOcclusionCells(carrier);
+            if (knownRoom != null && knownRoom.test(cell)) return ClientCompartmentVisualCache.CameraWaterState.DRY;
+        }
+        return ClientCompartmentVisualCache.CameraWaterState.OUTSIDE;
+    }
+
+    /** Bounded spatial lookup, with no retained carrier/room reference or whole-world scan. */
+    static boolean containsWater(final Level level, final Vec3 world) {
+        final BoundingBox3d bounds = new BoundingBox3d(new AABB(
+                world.x, world.y, world.z, world.x, world.y, world.z).inflate(1.0E-6D));
+        boolean knownDry = false;
+        for (final SubLevel candidate : Sable.HELPER.getAllIntersecting(level, bounds)) {
+            if (!(candidate instanceof ClientSubLevel carrier) || carrier.isRemoved()) continue;
+            final ClientCompartmentVisualCache.CameraWaterState local = localWaterState(carrier, world);
+            if (local == ClientCompartmentVisualCache.CameraWaterState.WET) return true;
+            knownDry |= local == ClientCompartmentVisualCache.CameraWaterState.DRY;
+        }
+        return !knownDry && parentWaterAt(level, world);
+    }
+
+    private static boolean parentWaterAt(final Level level, final Vec3 world) {
+        return !isOccluded(level, new Vector3d(world.x, world.y, world.z))
+                && nativeWaterAt(level, world);
+    }
+
+    private static boolean nativeWaterAt(final Level level, final Vec3 point) {
+        final BlockPos cell = BlockPos.containing(point);
+        if (!level.hasChunkAt(cell)) return false;
+        final var fluid = level.getFluidState(cell);
+        return fluid.is(FluidTags.WATER)
+                && point.y < cell.getY() + fluid.getHeight(level, cell);
     }
 
     private static boolean isOccluded(final Level level, final Vector3d point) {

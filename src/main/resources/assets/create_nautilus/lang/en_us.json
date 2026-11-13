@@ -1,4 +1,6 @@
 {
+  "create_nautilus.gui.ballast.fore": "Fore: %s%%",
+  "create_nautilus.gui.ballast.aft": "Aft: %s%%",
   "block.create_nautilus.electrolytic_generator": "Electrolytic Generator",
   "block.create_nautilus.snorkel": "Mechanical Snorkel",
   "block.create_nautilus.oxygen_interface": "Oxygen Interface",
@@ -30,6 +32,8 @@
   "create_nautilus.tooltip.capacity.gas_tank_per_block": "Capacity per block: %s mB",
   "create_nautilus.simulated_section.submarine": "Submarine",
   "create_nautilus.config.buoyancyCoefficient": "Buoyancy coefficient",
+  "create_nautilus.config.preventNaturalSnowOnCarriers": "Prevent natural snow on physics carriers",
+  "create_nautilus.config.shaderUnderwaterFogEnabled": "Enable shader underwater fog",
   "create_nautilus.config.maximumCompartmentVolume": "Maximum compartment volume",
   "create_nautilus.config.compartmentScanIntervalTicks": "Compartment scan interval",
   "create_nautilus.config.maxFloodRateMbPerSecond": "Maximum flow per hull breach",

@@ -21,7 +21,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Queue;
 import java.util.Set;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
@@ -33,10 +32,10 @@ public final class CompartmentSealer {
     }
 
     public static List<DetectedCompartment> scan(final ServerSubLevel carrier) {
-        return scan(carrier, Set.of());
+        return scan(carrier, Set.of()).compartments();
     }
 
-    private static List<DetectedCompartment> scan(final ServerSubLevel carrier,
+    private static ScanResult scan(final ServerSubLevel carrier,
                                                    final Set<Long> virtualMembranes) {
         // Assembly and plot block publication are separate Sable operations. Recompute the plot
         // bounds before every authoritative scan so the first physics callback cannot observe a
@@ -44,7 +43,7 @@ public final class CompartmentSealer {
         carrier.getPlot().updateBoundingBox();
         final BoundingBox3ic plotBounds = carrier.getPlot().getBoundingBox();
         if (plotBounds == null || plotBounds.volume() <= 0) {
-            return List.of();
+            return new ScanResult(List.of(), ScanStatus.NOT_READY);
         }
 
         final int minX = plotBounds.minX() - 1;
@@ -56,38 +55,17 @@ public final class CompartmentSealer {
 
         final long scanVolume = (long) (maxX - minX + 1) * (maxY - minY + 1) * (maxZ - minZ + 1);
         if (scanVolume > (long) NautilusConfig.maximumCompartmentVolume() * 16L) {
-            return List.of();
+            return new ScanResult(List.of(), ScanStatus.TOO_LARGE);
         }
 
         final Level level = carrier.getLevel();
-        final Set<Long> exterior = new HashSet<>();
+        final Set<Long> exterior = collectExterior(level, plotBounds, virtualMembranes, true);
         final Queue<BlockPos> queue = new ArrayDeque<>();
-
-        // 从扩展边界所有可穿透体素向内灌水，得到与外部相连的空间。
-        for (int x = minX; x <= maxX; x++) {
-            for (int y = minY; y <= maxY; y++) {
-                enqueueExterior(level, new BlockPos(x, y, minZ), queue, exterior, virtualMembranes);
-                enqueueExterior(level, new BlockPos(x, y, maxZ), queue, exterior, virtualMembranes);
-            }
-        }
-        for (int x = minX; x <= maxX; x++) {
-            for (int z = minZ; z <= maxZ; z++) {
-                enqueueExterior(level, new BlockPos(x, minY, z), queue, exterior, virtualMembranes);
-                enqueueExterior(level, new BlockPos(x, maxY, z), queue, exterior, virtualMembranes);
-            }
-        }
-        for (int y = minY; y <= maxY; y++) {
-            for (int z = minZ; z <= maxZ; z++) {
-                enqueueExterior(level, new BlockPos(minX, y, z), queue, exterior, virtualMembranes);
-                enqueueExterior(level, new BlockPos(maxX, y, z), queue, exterior, virtualMembranes);
-            }
-        }
-        flood(level, queue, exterior, minX, minY, minZ, maxX, maxY, maxZ,
-                Integer.MAX_VALUE, virtualMembranes);
 
         final Set<Long> visitedInterior = new HashSet<>();
         final List<DetectedCompartment> result = new ArrayList<>();
         final int limit = NautilusConfig.maximumCompartmentVolume();
+        boolean oversized = false;
 
         for (int x = plotBounds.minX(); x <= plotBounds.maxX(); x++) {
             for (int y = plotBounds.minY(); y <= plotBounds.maxY(); y++) {
@@ -107,29 +85,39 @@ public final class CompartmentSealer {
                             limit, cells, virtualMembranes);
                     if (!cells.isEmpty() && cells.size() <= limit) {
                         result.add(toDetected(cells));
+                    } else if (cells.isEmpty()) {
+                        oversized = true;
                     }
                 }
             }
         }
-        return result;
+        return new ScanResult(result, oversized ? ScanStatus.TOO_LARGE
+                : result.isEmpty() ? ScanStatus.EMPTY : ScanStatus.VALID);
     }
 
     public static void rescanInto(final ServerSubLevel carrier, final CarrierState state) {
-        // Repair paths other than normal placement events (pistons, structure restoration, other
-        // mods) must not leave a permanent virtual hole through a now-solid block.
-        state.breaches().removeIf(breach ->
-                !isPassable(carrier.getLevel(), breach.position(), Set.of())
-                        || !isExteriorConnected(carrier, breach.position()));
+        rescanInto(carrier, state, FloodingHandler.resolvePendingBreaks(carrier, state));
+    }
 
+    public static void rescanInto(final ServerSubLevel carrier, final CarrierState state,
+                                  final ScanResult preparedScan) {
         // If an opened hull cell were allowed to participate in the exterior flood fill, the
         // entire wet compartment would disappear on the next scan and its accumulated water would
         // be lost. Registered breaches therefore act as zero-thickness virtual membranes only for
         // topology discovery; CarrierState.refreshSealFlags still marks the room as unsealed.
-        final List<DetectedCompartment> detected = detectCurrentCompartments(carrier, state);
-        // A single empty result must not erase a known sealed room: chunk/render-data publication
+        final ScanResult scan = preparedScan != null ? preparedScan : detectCurrentScan(carrier, state);
+        if (!scan.complete()) {
+            state.setLastCompartmentScanTick(carrier.getLevel().getGameTime());
+            state.reportTopologyScanFailure(scan.status().name(), carrier.getLevel().getGameTime());
+            return;
+        }
+        final List<DetectedCompartment> detected = scan.compartments();
+        state.discardUnmatchedLegacyCompartments(detected);
+        // A single empty result must not erase a known exact room: chunk/render-data publication
         // can briefly race the first physics callback. Require three consecutive empty scans for
         // a genuine topology removal. Normal hull breaks retain the room through virtual breach
-        // membranes and therefore do not use this fallback.
+        // membranes and therefore do not use this fallback. Unmatchable legacy rooms were already
+        // discarded above, so they never wait for this exact-room publication guard.
         if (detected.isEmpty() && !state.compartments().isEmpty()
                 && state.deferUnexpectedEmptyTopology()) {
             state.recordTopologyScan(false);
@@ -139,15 +127,13 @@ public final class CompartmentSealer {
         if (detected.isEmpty()) {
             state.acceptEmptyTopology();
         }
-        state.reconcileCompartments(detected);
-        // Re-prove every ordinary breach against the topology produced by this scan. Merely asking
-        // whether the breach can eventually reach the plot boundary is insufficient: every voxel
-        // inside an open-top vessel can do that by walking through the cabin and over its rim.
-        // A real aperture must locally separate exactly one room from an immediately adjacent
-        // passable non-room voxel. This removes records accidentally produced by placing/removing
-        // an interior block before they can contribute even one flooding tick.
+        final CompartmentFluidInventory.Snapshot realWater = CompartmentFluidInventory.measure(carrier, state);
+        state.reconcileCompartments(detected, carrier.logicalPose(), realWater.sources().keySet());
+        // Discovery already proved the surviving boundary and rescanned any retired membranes.
+        // Commit both together: deleting a breach only after installing its old geometry would
+        // leave a one-scan hole in the cabin mask/capacity behind newly placed exterior armor.
         state.breaches().removeIf(breach -> !breach.atmosphericOpening()
-                && !isConfirmedBoundaryBreach(carrier, state, breach));
+                && !scan.ordinaryBreaches().contains(breach.position().asLong()));
         synchronizeAtmosphericOpenings(state, detected);
         final int repairedLegacyRooms = state.repairLegacyContaminatedWaterAfterScan();
         if (repairedLegacyRooms > 0) {
@@ -166,37 +152,143 @@ public final class CompartmentSealer {
      */
     static List<DetectedCompartment> detectCurrentCompartments(final ServerSubLevel carrier,
                                                                final CarrierState state) {
-        final Set<Long> membranes = state.breaches().stream()
+        return detectCurrentScan(carrier, state).compartments();
+    }
+
+    static ScanResult detectCurrentScan(final ServerSubLevel carrier, final CarrierState state) {
+        Set<Long> membranes = state.breaches().stream()
                 // Open-top vents are rediscovered from geometry on every scan. Treating them as
                 // membranes here would make the normal airtight scan alternate between sealed
                 // and open on successive passes.
                 // Direction.DOWN points from a top aperture to its interior cell. Let open-top
                 // geometry own these apertures so stale ordinary records cannot form a false roof.
                 .filter(breach -> !breach.atmosphericOpening()
-                        && breach.interiorDirection() != Direction.DOWN)
+                        && breach.interiorDirection() != Direction.DOWN
+                        && isPassable(carrier.getLevel(), breach.position(), Set.of()))
                 .map(breach -> breach.position().asLong())
                 .collect(Collectors.toUnmodifiableSet());
-        final List<DetectedCompartment> airtight = scan(carrier, membranes);
-        final List<DetectedCompartment> detected = new ArrayList<>(airtight);
-        detected.addAll(scanOpenTop(carrier, membranes, airtight));
-        return detected;
+        while (true) {
+            final ScanResult airtight = scan(carrier, membranes);
+            if (!airtight.complete()) return airtight;
+            final ScanResult openTop = scanOpenTop(carrier, membranes, airtight.compartments());
+            if (!openTop.complete()) return openTop;
+            final List<DetectedCompartment> detected = new ArrayList<>(airtight.compartments());
+            detected.addAll(openTop.compartments());
+            final List<Set<Long>> passages = membraneComponents(membranes);
+            final Set<Long> boundary = exteriorBoundaryMembranes(carrier, detected, membranes, passages);
+            if (!boundary.equals(membranes)) {
+                // Only remove membranes, so this loop terminates. Interior cells of a thick
+                // opening join the cabin; its actual exterior-facing mouth remains a membrane.
+                // Complete the new scan before mutating stock or publishing the new topology.
+                membranes = boundary;
+                continue;
+            }
+            final List<DetectedCompartment> connected = mergeRoomsThroughBreaches(detected, passages);
+            return new ScanResult(connected, connected.isEmpty() ? ScanStatus.EMPTY : ScanStatus.VALID,
+                    membranes);
+        }
     }
 
-    private static boolean isConfirmedBoundaryBreach(final ServerSubLevel carrier,
-                                                      final CarrierState state,
-                                                      final HullBreach breach) {
-        final Set<UUID> adjacentRooms = new HashSet<>();
-        boolean hasImmediateExteriorNeighbour = false;
-        for (final Direction direction : Direction.values()) {
-            final BlockPos adjacent = breach.position().relative(direction);
-            final Optional<CompartmentState> room = state.compartmentAt(adjacent);
-            if (room.isPresent()) {
-                adjacentRooms.add(room.get().id());
-            } else if (isPassable(carrier.getLevel(), adjacent, Set.of())) {
-                hasImmediateExteriorNeighbour = true;
+    /** Consecutive damaged voxels are one passage, including paths longer than a single voxel. */
+    private static List<Set<Long>> membraneComponents(final Set<Long> membranes) {
+        final Set<Long> remaining = new HashSet<>(membranes);
+        final List<Set<Long>> result = new ArrayList<>();
+        final Queue<BlockPos> queue = new ArrayDeque<>();
+        while (!remaining.isEmpty()) {
+            final long seed = remaining.iterator().next();
+            remaining.remove(seed);
+            final Set<Long> component = new HashSet<>();
+            component.add(seed);
+            queue.add(BlockPos.of(seed));
+            while (!queue.isEmpty()) {
+                final BlockPos current = queue.remove();
+                for (final Direction direction : Direction.values()) {
+                    final BlockPos adjacent = current.relative(direction);
+                    if (remaining.remove(adjacent.asLong())) {
+                        component.add(adjacent.asLong());
+                        queue.add(adjacent);
+                    }
+                }
+            }
+            result.add(component);
+        }
+        return result;
+    }
+
+    /**
+     * Exterior proof cannot walk through a cabin or bootstrap from another unproven membrane.
+     * Keep only the actual outside-facing cells of a passage touching a detected room. The next
+     * scan absorbs its covered/interior cells, while preserving the mouth of a multi-voxel hole.
+     */
+    private static Set<Long> exteriorBoundaryMembranes(
+            final ServerSubLevel carrier, final List<DetectedCompartment> rooms,
+            final Set<Long> membranes, final List<Set<Long>> passages) {
+        if (membranes.isEmpty()) return Set.of();
+        final Set<Long> roomCells = rooms.stream().flatMap(room -> room.cells().stream())
+                .collect(Collectors.toSet());
+        final Set<Long> blocked = new HashSet<>(membranes);
+        blocked.addAll(roomCells);
+        final Set<Long> exterior = collectExterior(carrier.getLevel(),
+                carrier.getPlot().getBoundingBox(), blocked, true);
+        final Set<Long> boundary = new HashSet<>();
+        for (final Set<Long> passage : passages) {
+            boolean touchesRoom = false;
+            final Set<Long> mouths = new HashSet<>();
+            for (final long cell : passage) {
+                for (final Direction direction : Direction.values()) {
+                    final long adjacent = BlockPos.of(cell).relative(direction).asLong();
+                    touchesRoom |= roomCells.contains(adjacent);
+                    if (exterior.contains(adjacent)) mouths.add(cell);
+                }
+            }
+            if (touchesRoom) boundary.addAll(mouths);
+        }
+        return Set.copyOf(boundary);
+    }
+
+    /** The zero-thickness membranes block exterior flood fill, but never separate their rooms. */
+    private static List<DetectedCompartment> mergeRoomsThroughBreaches(
+            final List<DetectedCompartment> rooms, final List<Set<Long>> passages) {
+        if (rooms.size() < 2 || passages.isEmpty()) return rooms;
+        final Map<Long, Integer> roomAt = new java.util.HashMap<>();
+        final int[] parent = new int[rooms.size()];
+        for (int i = 0; i < rooms.size(); i++) {
+            parent[i] = i;
+            for (final long cell : rooms.get(i).cells()) roomAt.put(cell, i);
+        }
+        boolean merged = false;
+        for (final Set<Long> passage : passages) {
+            int first = -1;
+            for (final long cell : passage) {
+                for (final Direction direction : Direction.values()) {
+                    final Integer room = roomAt.get(BlockPos.of(cell).relative(direction).asLong());
+                    if (room == null) continue;
+                    final int root = root(parent, room);
+                    if (first < 0) first = root;
+                    else if (root(parent, first) != root) {
+                        parent[root] = root(parent, first);
+                        merged = true;
+                    }
+                }
             }
         }
-        return adjacentRooms.size() == 1 && hasImmediateExteriorNeighbour;
+        if (!merged) return rooms;
+        final Map<Integer, Set<Long>> cells = new LinkedHashMap<>();
+        final Map<Integer, Set<Long>> openings = new LinkedHashMap<>();
+        for (int i = 0; i < rooms.size(); i++) {
+            final int root = root(parent, i);
+            cells.computeIfAbsent(root, ignored -> new HashSet<>()).addAll(rooms.get(i).cells());
+            openings.computeIfAbsent(root, ignored -> new HashSet<>()).addAll(rooms.get(i).atmosphericOpenings());
+        }
+        return cells.entrySet().stream().map(entry -> toDetected(entry.getValue(), openings.get(entry.getKey()))).toList();
+    }
+
+    private static int root(final int[] parent, int index) {
+        while (parent[index] != index) {
+            parent[index] = parent[parent[index]];
+            index = parent[index];
+        }
+        return index;
     }
 
     /**
@@ -209,12 +301,12 @@ public final class CompartmentSealer {
      * remaining passable components are therefore open-top water-displacement envelopes. Fully
      * airtight rooms are removed from this result to avoid duplicates.</p>
      */
-    private static List<DetectedCompartment> scanOpenTop(
+    private static ScanResult scanOpenTop(
             final ServerSubLevel carrier, final Set<Long> virtualMembranes,
             final List<DetectedCompartment> airtight) {
         final BoundingBox3ic plotBounds = carrier.getPlot().getBoundingBox();
         if (plotBounds == null || plotBounds.volume() <= 0) {
-            return List.of();
+            return new ScanResult(List.of(), ScanStatus.NOT_READY);
         }
         final int minX = plotBounds.minX() - 1;
         final int minY = plotBounds.minY() - 1;
@@ -225,38 +317,11 @@ public final class CompartmentSealer {
         final long scanVolume = (long) (maxX - minX + 1)
                 * (maxY - minY + 1) * (maxZ - minZ + 1);
         if (scanVolume > (long) NautilusConfig.maximumCompartmentVolume() * 16L) {
-            return List.of();
+            return new ScanResult(List.of(), ScanStatus.TOO_LARGE);
         }
 
         final Level level = carrier.getLevel();
-        final Set<Long> exterior = new HashSet<>();
-        final Queue<BlockPos> queue = new ArrayDeque<>();
-        for (int x = minX; x <= maxX; x++) {
-            for (int y = minY; y <= maxY; y++) {
-                enqueueExterior(level, new BlockPos(x, y, minZ), queue, exterior,
-                        virtualMembranes);
-                enqueueExterior(level, new BlockPos(x, y, maxZ), queue, exterior,
-                        virtualMembranes);
-            }
-        }
-        for (int x = minX; x <= maxX; x++) {
-            for (int z = minZ; z <= maxZ; z++) {
-                enqueueExterior(level, new BlockPos(x, minY, z), queue, exterior,
-                        virtualMembranes);
-                enqueueExterior(level, new BlockPos(x, maxY, z), queue, exterior,
-                        virtualMembranes);
-            }
-        }
-        for (int y = minY; y <= maxY; y++) {
-            for (int z = minZ; z <= maxZ; z++) {
-                enqueueExterior(level, new BlockPos(minX, y, z), queue, exterior,
-                        virtualMembranes);
-                enqueueExterior(level, new BlockPos(maxX, y, z), queue, exterior,
-                        virtualMembranes);
-            }
-        }
-        floodExteriorWithoutDescending(level, queue, exterior,
-                minX, minY, minZ, maxX, maxY, maxZ, virtualMembranes);
+        final Set<Long> exterior = collectExterior(level, plotBounds, virtualMembranes, false);
 
         final Set<Long> airtightCells = airtight.stream()
                 .flatMap(room -> room.cells().stream())
@@ -264,6 +329,7 @@ public final class CompartmentSealer {
         final Set<Long> visited = new HashSet<>();
         final List<DetectedCompartment> result = new ArrayList<>();
         final int limit = NautilusConfig.maximumCompartmentVolume();
+        boolean oversized = false;
         for (int x = plotBounds.minX(); x <= plotBounds.maxX(); x++) {
             for (int y = plotBounds.minY(); y <= plotBounds.maxY(); y++) {
                 for (int z = plotBounds.minZ(); z <= plotBounds.maxZ(); z++) {
@@ -274,7 +340,11 @@ public final class CompartmentSealer {
                     }
                     final Set<Long> cells = collectNonExteriorComponent(level, seed,
                             plotBounds, exterior, visited, virtualMembranes, limit);
-                    if (cells.isEmpty() || cells.stream().anyMatch(airtightCells::contains)) {
+                    if (cells.isEmpty()) {
+                        oversized = true;
+                        continue;
+                    }
+                    if (cells.stream().anyMatch(airtightCells::contains)) {
                         continue;
                     }
                     final Set<Long> openings = cells.stream()
@@ -290,7 +360,40 @@ public final class CompartmentSealer {
                 }
             }
         }
-        return result;
+        return new ScanResult(result, oversized ? ScanStatus.TOO_LARGE
+                : result.isEmpty() ? ScanStatus.EMPTY : ScanStatus.VALID);
+    }
+
+    /** Padded-boundary flood, shared by airtight, open-top and ordinary-aperture discovery. */
+    private static Set<Long> collectExterior(final Level level, final BoundingBox3ic bounds,
+                                              final Set<Long> blocked, final boolean descend) {
+        final int minX = bounds.minX() - 1, minY = bounds.minY() - 1, minZ = bounds.minZ() - 1;
+        final int maxX = bounds.maxX() + 1, maxY = bounds.maxY() + 1, maxZ = bounds.maxZ() + 1;
+        final Set<Long> exterior = new HashSet<>();
+        final Queue<BlockPos> queue = new ArrayDeque<>();
+        for (int x = minX; x <= maxX; x++) {
+            for (int y = minY; y <= maxY; y++) {
+                enqueueExterior(level, new BlockPos(x, y, minZ), queue, exterior, blocked);
+                enqueueExterior(level, new BlockPos(x, y, maxZ), queue, exterior, blocked);
+            }
+        }
+        for (int x = minX; x <= maxX; x++) {
+            for (int z = minZ; z <= maxZ; z++) {
+                enqueueExterior(level, new BlockPos(x, minY, z), queue, exterior, blocked);
+                enqueueExterior(level, new BlockPos(x, maxY, z), queue, exterior, blocked);
+            }
+        }
+        for (int y = minY; y <= maxY; y++) {
+            for (int z = minZ; z <= maxZ; z++) {
+                enqueueExterior(level, new BlockPos(minX, y, z), queue, exterior, blocked);
+                enqueueExterior(level, new BlockPos(maxX, y, z), queue, exterior, blocked);
+            }
+        }
+        if (descend) flood(level, queue, exterior, minX, minY, minZ, maxX, maxY, maxZ,
+                Integer.MAX_VALUE, blocked);
+        else floodExteriorWithoutDescending(level, queue, exterior,
+                minX, minY, minZ, maxX, maxY, maxZ, blocked);
+        return exterior;
     }
 
     private static void floodExteriorWithoutDescending(
@@ -465,52 +568,6 @@ public final class CompartmentSealer {
         return isPassable(level, pos, Set.of());
     }
 
-    /**
-     * Checks the committed post-change plot, rather than guessing from neighbours during the
-     * pre-break event. The search starts at the removed hull voxel and succeeds only if passable
-     * cells reach the padded plot boundary.
-     */
-    static boolean isExteriorConnected(final ServerSubLevel carrier, final BlockPos seed) {
-        if (!isPassable(carrier.getLevel(), seed)) {
-            return false;
-        }
-        final BoundingBox3ic plot = carrier.getPlot().getBoundingBox();
-        if (plot == null || plot.volume() <= 0) {
-            return true;
-        }
-        final int minX = Math.min(plot.minX(), seed.getX()) - 1;
-        final int minY = Math.min(plot.minY(), seed.getY()) - 1;
-        final int minZ = Math.min(plot.minZ(), seed.getZ()) - 1;
-        final int maxX = Math.max(plot.maxX(), seed.getX()) + 1;
-        final int maxY = Math.max(plot.maxY(), seed.getY()) + 1;
-        final int maxZ = Math.max(plot.maxZ(), seed.getZ()) + 1;
-        final int safetyLimit = Math.max(1024, NautilusConfig.maximumCompartmentVolume() * 2);
-        final Queue<BlockPos> queue = new ArrayDeque<>();
-        final Set<Long> visited = new HashSet<>();
-        queue.add(seed.immutable());
-        visited.add(seed.asLong());
-        while (!queue.isEmpty() && visited.size() <= safetyLimit) {
-            final BlockPos current = queue.remove();
-            if (current.getX() == minX || current.getX() == maxX
-                    || current.getY() == minY || current.getY() == maxY
-                    || current.getZ() == minZ || current.getZ() == maxZ) {
-                return true;
-            }
-            for (final Direction direction : Direction.values()) {
-                final BlockPos next = current.relative(direction);
-                if (next.getX() < minX || next.getX() > maxX
-                        || next.getY() < minY || next.getY() > maxY
-                        || next.getZ() < minZ || next.getZ() > maxZ
-                        || !isPassable(carrier.getLevel(), next)
-                        || !visited.add(next.asLong())) {
-                    continue;
-                }
-                queue.add(next);
-            }
-        }
-        return false;
-    }
-
     private static DetectedCompartment toDetected(final Set<Long> cells) {
         return toDetected(cells, Set.of());
     }
@@ -541,5 +598,20 @@ public final class CompartmentSealer {
 
     public record DetectedCompartment(AABB bounds, int volumeBlocks, Set<Long> cells,
                                       Set<Long> atmosphericOpenings) {
+    }
+
+    public enum ScanStatus { VALID, EMPTY, TOO_LARGE, NOT_READY }
+
+    /** Completed geometry and the ordinary membranes proven against that same geometry. */
+    public record ScanResult(List<DetectedCompartment> compartments, ScanStatus status,
+                             Set<Long> ordinaryBreaches) {
+        public ScanResult(final List<DetectedCompartment> compartments, final ScanStatus status) {
+            this(compartments, status, Set.of());
+        }
+        public ScanResult {
+            compartments = List.copyOf(compartments);
+            ordinaryBreaches = Set.copyOf(ordinaryBreaches);
+        }
+        public boolean complete() { return status == ScanStatus.VALID || status == ScanStatus.EMPTY; }
     }
 }

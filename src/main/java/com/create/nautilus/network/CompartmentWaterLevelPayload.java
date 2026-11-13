@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
-/** Lightweight, once-per-game-tick continuous water-level update. */
+/** Lightweight continuous water-level update, published when its wire values change. */
 public record CompartmentWaterLevelPayload(UUID carrierId, long topologyRevision,
                                           List<RoomLevel> rooms)
         implements CustomPacketPayload {
@@ -69,6 +69,9 @@ public record CompartmentWaterLevelPayload(UUID carrierId, long topologyRevision
     public record RoomLevel(UUID id, double waterFraction) {
         public RoomLevel {
             id = Objects.requireNonNull(id, "id");
+            if (!Double.isFinite(waterFraction)) {
+                throw new IllegalArgumentException("Water fraction must be finite");
+            }
             waterFraction = Math.clamp(waterFraction, 0.0D, 1.0D);
         }
     }

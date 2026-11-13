@@ -23,23 +23,23 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
- * Computes the submerged part of the carrier's closed displacement envelope.
+ * Supplements Sable's hull buoyancy with the submerged dry air in tracked compartments.
  *
  * <p>Sable's Rapier backend is authoritative for physical hull-voxel displacement, total mass,
- * gravity and centre of mass. Nautilus adds the displacement of air retained inside a tracked
- * compartment and, only while a useful dry cavity exists, the small difference between the target
- * envelope displacement and Sable's native solid-voxel lift. Exterior flood-fill space is absent
- * from that envelope, and a breached room loses the supplement continuously as its stored water
- * rises.</p>
+ * gravity and centre of mass. As in release 0.1, flooding removes dry-air displacement while
+ * BallastMassSynchronizer carries the water's mass. The small correction from native hull lift
+ * to the configured envelope is gated by both cavity size and remaining dry air. A completely
+ * flooded compartment therefore supplies no Nautilus lift or hull correction.</p>
  */
 public final class BuoyancyPhysics {
     /**
      * Sable 2.0.3's Rapier backend applies this world-up force for every cubic metre of a
-     * physical carrier block overlapping parent-level water. Nautilus subtracts this known native
-     * contribution from its target envelope before applying a supplement, so the solid geometry is
-     * never counted twice.
+     * physical carrier block overlapping parent-level water. Subtract this native contribution
+     * before adding the dry-cavity-gated hull correction, so hull lift is never applied twice.
      */
     private static final double SABLE_NATIVE_SOLID_BUOYANCY_PER_CUBIC_METRE = 10.5D;
+    private static final double MINIMUM_USEFUL_AIR_FRACTION = 0.05D;
+    private static final double FULL_AIR_EFFICIENCY_FRACTION = 0.25D;
 
     private BuoyancyPhysics() {
     }
@@ -48,17 +48,27 @@ public final class BuoyancyPhysics {
                               final CarrierState state,
                               final CompartmentFluidInventory.Snapshot internalWater,
                               final double timeStep) {
+        return tick(carrier, body, state, internalWater, timeStep,
+                new WaterEnvironment.QueryContext(carrier.getLevel()));
+    }
+
+    static Result tick(final ServerSubLevel carrier, final RigidBodyHandle body,
+                        final CarrierState state,
+                        final CompartmentFluidInventory.Snapshot internalWater,
+                        final double timeStep, final WaterEnvironment.QueryContext water) {
         final BoundingBox3ic bounds = carrier.getPlot().getBoundingBox();
         if (bounds == null || !(timeStep > 0.0D)) {
             return Result.EMPTY;
         }
+        final WaterQueryDiagnostics diagnostics = water.diagnostics();
 
-        final WaterEnvironment.QueryContext water =
-                new WaterEnvironment.QueryContext(carrier.getLevel());
+        final long gameTime = carrier.getLevel().getGameTime();
+        final boolean diagnosticDue = CreateNautilus.LOGGER.isDebugEnabled()
+                && (state.lastHydrostaticDiagnosticTick() == Long.MIN_VALUE
+                || gameTime - state.lastHydrostaticDiagnosticTick() >= 100L);
         final Vector3d solidWeightedCentre = new Vector3d();
         final Vector3d openTopWeightedCentre = new Vector3d();
         final Vector3d airtightWeightedCentre = new Vector3d();
-        final BlockPos.MutableBlockPos cursor = new BlockPos.MutableBlockPos();
         final double openTopAirEfficiency = Math.clamp(
                 NautilusConfig.OPEN_TOP_AIR_DISPLACEMENT_EFFICIENCY, 0.0D, 1.0D);
         final double sealedAirEfficiency = Math.clamp(
@@ -68,8 +78,7 @@ public final class BuoyancyPhysics {
                 .map(breach -> breach.compartmentId())
                 .collect(Collectors.toUnmodifiableSet());
         // Sable 2.0.3 already integrates physical-block buoyancy in Rapier's native
-        // compute_buoyancy pass. Keep both total and wet geometry so the envelope correction below
-        // can subtract that native contribution instead of blindly applying the hull a second time.
+        // compute_buoyancy pass. Keep total and wet geometry for the gated native-lift correction.
         double totalSolidGeometry = 0.0D;
         double submergedSolidGeometry = 0.0D;
         double submergedOpenTopAirVolume = 0.0D;
@@ -80,80 +89,118 @@ public final class BuoyancyPhysics {
         double submergedDragVolume = 0.0D;
 
         // Hull voxels are sampled directly for Sable-native lift diagnostics and continuous drag.
-        for (int x = bounds.minX(); x <= bounds.maxX(); x++) {
-            for (int y = bounds.minY(); y <= bounds.maxY(); y++) {
-                for (int z = bounds.minZ(); z <= bounds.maxZ(); z++) {
-                    final BlockPos pos = cursor.set(x, y, z);
-                    final BlockState block = carrier.getLevel().getBlockState(pos);
-                    if (block.isAir()) {
-                        continue;
-                    }
-                    // Captured/source fluid cells and non-colliding decorations are not physical
-                    // hull voxels. Nautilus never creates internal water blocks, but excluding
-                    // both categories keeps imported plots and torches/particles from creating
-                    // displacement or drag volume.
-                    if (block.getCollisionShape(carrier.getLevel(), pos).isEmpty()) {
-                        continue;
-                    }
-                    final double solidVolume = Math.max(0.0D,
-                            PhysicsBlockPropertyHelper.getVolume(block));
-                    if (solidVolume <= 0.0D) {
-                        continue;
-                    }
-                    totalSolidGeometry += solidVolume;
-                    maximumDragVolume += solidVolume;
-                    final OptionalDouble outsideSurface =
-                            WaterEnvironment.waterSurfaceIntersectingCell(carrier, pos, water);
-                    if (outsideSurface.isEmpty()) {
-                        continue;
-                    }
-                    final double wetFraction = CompartmentWaterGeometry.fractionBelowSurface(
-                            carrier, pos, outsideSurface.getAsDouble());
-                    final double wetSolidGeometry = solidVolume * wetFraction;
-                    submergedSolidGeometry += wetSolidGeometry;
-                    solidWeightedCentre.fma(wetSolidGeometry, new Vector3d(
-                            pos.getX() + 0.5D, pos.getY() + 0.5D, pos.getZ() + 0.5D));
-                    submergedDragVolume += wetSolidGeometry;
-                }
+        final long hullPrepareStart = diagnostics == null ? 0L : System.nanoTime();
+        final PlotBlockCursor hull = PlotBlockCursor.create(carrier, bounds, diagnostics != null);
+        final long hullPrepareNanos = diagnostics == null ? 0L : System.nanoTime() - hullPrepareStart;
+        long effectiveHullCells = 0L;
+        while (hull.advance()) {
+            final BlockPos pos = hull.position();
+            final BlockState block = hull.blockState();
+            // Captured/source fluid cells and non-colliding decorations are not physical
+            // hull voxels. Nautilus never creates internal water blocks, but excluding
+            // both categories keeps imported plots and torches/particles from creating
+            // displacement or drag volume.
+            if (block.getCollisionShape(carrier.getLevel(), pos).isEmpty()) {
+                continue;
             }
+            final double solidVolume = Math.max(0.0D,
+                    PhysicsBlockPropertyHelper.getVolume(block));
+            if (solidVolume <= 0.0D) {
+                continue;
+            }
+            if (diagnostics != null) effectiveHullCells++;
+            totalSolidGeometry += solidVolume;
+            maximumDragVolume += solidVolume;
+            final CompartmentWaterGeometry.ProjectedInterval interval =
+                    CompartmentWaterGeometry.projectedCell(carrier, pos);
+            if (diagnostics != null) diagnostics.recordProjection(false);
+            final OptionalDouble outsideSurface =
+                    WaterEnvironment.waterSurfaceIntersectingCell(carrier, pos, water, interval);
+            if (outsideSurface.isEmpty()) {
+                continue;
+            }
+            final double wetFraction = interval.fractionBelow(outsideSurface.getAsDouble());
+            final double wetSolidGeometry = solidVolume * wetFraction;
+            submergedSolidGeometry += wetSolidGeometry;
+            solidWeightedCentre.fma(wetSolidGeometry, new Vector3d(
+                    pos.getX() + 0.5D, pos.getY() + 0.5D, pos.getZ() + 0.5D));
+            submergedDragVolume += wetSolidGeometry;
+        }
+        if (diagnostics != null) {
+            final long boundsCells = Math.max(0L, (long) bounds.maxX() - bounds.minX() + 1L)
+                    * Math.max(0L, (long) bounds.maxY() - bounds.minY() + 1L)
+                    * Math.max(0L, (long) bounds.maxZ() - bounds.minZ() + 1L);
+            diagnostics.recordHullScan(boundsCells, hull.inspectedCells(), effectiveHullCells,
+                    hull.skippedEmptySectionCells(), hull.skippedEmptySections(),
+                    hull.nativeSectionReads(), hull.fallbackReads(), hullPrepareNanos);
         }
 
-        // Only tracked dry compartment air supplements Sable's native solid displacement. Whether
-        // that air is sealed or retained by an upward opening selects its configured efficiency.
+        // Only the dry part below the exterior surface provides compartment displacement.
+        final CompartmentDisplacement displacement = CompartmentDisplacement.create(carrier);
         for (final CompartmentState room : state.compartments()) {
             final boolean openTop = openTopRooms.contains(room.id());
+            final CompartmentDisplacement.Domain owned = displacement.domain(room);
+            if (owned != null) {
+                // Foreign hulls and smaller nested cavities occupy real space even though their
+                // blocks are stored in another plot. Keep the saved room/stock intact, but spend
+                // this room's water only in its exclusive physical displacement domain.
+                totalCompartmentCapacityVolume += owned.capacity;
+                totalDryAirVolume += owned.dryVolume;
+                maximumDragVolume += owned.dryVolume;
+                if (owned.dryVolume <= 1.0E-9D) continue;
+                for (final long packed : room.waterCells()) {
+                    final BlockPos pos = BlockPos.of(packed);
+                    final CompartmentWaterGeometry.ProjectedInterval interval =
+                            CompartmentWaterGeometry.projectedCell(carrier, pos);
+                    if (diagnostics != null) diagnostics.recordProjection(false);
+                    final OptionalDouble outsideSurface =
+                            WaterEnvironment.waterSurfaceIntersectingCell(carrier, pos, water, interval);
+                    if (outsideSurface.isEmpty()) continue;
+                    final CompartmentDisplacement.Contribution contribution =
+                            owned.submergedDry(pos, outsideSurface.getAsDouble());
+                    if (openTop) {
+                        submergedOpenTopAirVolume += contribution.volume();
+                        openTopWeightedCentre.add(contribution.weightedCentre());
+                    } else {
+                        submergedAirtightAirVolume += contribution.volume();
+                        airtightWeightedCentre.add(contribution.weightedCentre());
+                    }
+                    submergedDragVolume += contribution.volume();
+                }
+                continue;
+            }
             totalCompartmentCapacityVolume += room.volumeBlocks();
             // Only Attachment water defines the gradual room-wide free surface. A real source
             // remains a local one-block mass and must never be spread over the entire compartment.
-            final double insideSurface = CompartmentWaterGeometry.surfaceY(carrier, room);
+            // The dispatcher has already synchronized mass/rotationPoint. Resolve the current
+            // liquid plane and intervals together, and finish before the next mass update.
+            final CompartmentWaterGeometry.PreparedSurface prepared =
+                    CompartmentWaterGeometry.preparedSurface(carrier, room);
+            final double insideSurface = prepared.surface();
             for (final long packed : room.cells()) {
                 final BlockPos pos = BlockPos.of(packed);
+                // Prepared water cells exclude real sources. Keep room.cells() so those source
+                // cells explicitly contribute zero dry air, and retain the original FMA order.
+                final CompartmentWaterGeometry.ProjectedInterval shared =
+                        prepared.interval(packed, diagnostics);
+                final CompartmentWaterGeometry.ProjectedInterval interval =
+                        shared == null ? CompartmentWaterGeometry.projectedCell(carrier, pos) : shared;
+                if (diagnostics != null) diagnostics.recordProjection(shared != null);
                 final boolean realSourceWater = internalWater.containsSource(pos);
-                final double attachmentFloodedFraction =
-                        CompartmentWaterGeometry.fractionBelowSurface(
-                                carrier, pos, insideSurface);
-                // Use the union of both representations, not their sum. A real source occupies
-                // this complete cell; Attachment water continues to occupy only its continuous
-                // fraction in all other cells.
+                final double attachmentFloodedFraction = interval.fractionBelow(insideSurface);
                 final double dryEnvelopeFraction = realSourceWater ? 0.0D
                         : Math.clamp(1.0D - attachmentFloodedFraction, 0.0D, 1.0D);
                 totalDryAirVolume += dryEnvelopeFraction;
                 maximumDragVolume += dryEnvelopeFraction;
-                if (dryEnvelopeFraction <= 1.0E-9D) {
-                    continue;
-                }
+                if (dryEnvelopeFraction <= 1.0E-9D) continue;
 
                 final OptionalDouble outsideSurface =
-                        WaterEnvironment.waterSurfaceIntersectingCell(carrier, pos, water);
+                        WaterEnvironment.waterSurfaceIntersectingCell(carrier, pos, water, interval);
                 if (outsideSurface.isEmpty()) {
                     continue;
                 }
-                final double belowOutside = CompartmentWaterGeometry.fractionBelowSurface(
-                        carrier, pos, outsideSurface.getAsDouble());
-                // Effective air displacement is precisely the part below the outside sea plane
-                // and above the inside flood plane: envelope - exterior-open - internal water.
-                final double displacedAir = Math.clamp(
-                        belowOutside - attachmentFloodedFraction,
+                final double belowOutside = interval.fractionBelow(outsideSurface.getAsDouble());
+                final double displacedAir = Math.clamp(belowOutside - attachmentFloodedFraction,
                         0.0D, dryEnvelopeFraction);
                 if (openTop) {
                     submergedOpenTopAirVolume += displacedAir;
@@ -170,14 +217,10 @@ public final class BuoyancyPhysics {
 
         final double dragSubmersion = Math.clamp(submergedDragVolume
                 / Math.max(1.0D, maximumDragVolume), 0.0D, 1.0D);
-        // `displacedAir` has already removed every flooded fraction. Multiplying open vessels by a
-        // second dry-fraction retention curve made flooding reduce lift twice and was the reason a
-        // large, mostly dry basin could barely rise. Free-surface instability belongs in the
-        // righting moment/flood-flow model; vertical Archimedean displacement remains linear here.
+        // The exact flooded fraction has already been removed; do not gate air lift a second time.
         final double effectiveOpenTopSubmersion = submergedOpenTopAirVolume
                 * openTopAirEfficiency;
-        // A sealed or side-breached compartment's remaining trapped air contributes only its own
-        // exact dry volume. No geometry/mass gate can promote that local air into whole-hull lift.
+        // Sealed and side-breached compartments contribute only their remaining dry air.
         final double effectiveAirtightSubmersion = submergedAirtightAirVolume
                 * sealedAirEfficiency;
         final Vector3d gravity = DimensionPhysicsData.getGravity(
@@ -192,31 +235,21 @@ public final class BuoyancyPhysics {
                 * configuredDisplacedMassPerCubicMetre;
         final double additionalAirDisplacedMass = openTopAirDisplacedMass
                 + airtightAirDisplacedMass;
-
-        /*
-         * Target-envelope minus native-solid correction.
-         *
-         * At default Overworld gravity Sable's 10.5 N/m^3 is equivalent to roughly 0.955 native
-         * mass units per submerged cubic metre, while the configured water target is 1.0. The
-         * difference is small but matters for a large hull. It is enabled gradually only when the
-         * carrier actually contains a useful dry cavity. Consequently a pure solid structure and
-         * a completely flooded compartment keep Sable's original solid physics, while a real dry
-         * envelope reaches its configured total displacement without duplicating the native lift.
-         */
+        // Restore release 0.1's correction: useful dry cavities approach the configured envelope;
+        // pure solid structures and fully flooded rooms retain Sable's native hull lift alone.
         final double cavityFraction = totalCompartmentCapacityVolume > 1.0E-9D
                 ? Math.clamp(totalCompartmentCapacityVolume
                 / Math.max(1.0E-9D, totalSolidGeometry + totalCompartmentCapacityVolume),
                 0.0D, 1.0D) : 0.0D;
         final double cavitySizeGate = smoothStep(cavityFraction,
-                NautilusConfig.MINIMUM_USEFUL_AIR_FRACTION,
-                NautilusConfig.FULL_AIR_EFFICIENCY_FRACTION);
+                MINIMUM_USEFUL_AIR_FRACTION, FULL_AIR_EFFICIENCY_FRACTION);
         final double dryFraction = totalCompartmentCapacityVolume > 1.0E-9D
                 ? Math.clamp(totalDryAirVolume / totalCompartmentCapacityVolume, 0.0D, 1.0D)
                 : 0.0D;
         final double dryCavityGate = smoothStep01(dryFraction);
         final double estimatedNativeSolidEquivalentMass = gravityMagnitude > 1.0E-9D
-                ? submergedSolidGeometry
-                * SABLE_NATIVE_SOLID_BUOYANCY_PER_CUBIC_METRE / gravityMagnitude : 0.0D;
+                ? submergedSolidGeometry * SABLE_NATIVE_SOLID_BUOYANCY_PER_CUBIC_METRE
+                / gravityMagnitude : 0.0D;
         final double targetSolidEquivalentMass = submergedSolidGeometry
                 * configuredDisplacedMassPerCubicMetre;
         final double solidEnvelopeCorrectionMass = Math.max(0.0D,
@@ -234,13 +267,11 @@ public final class BuoyancyPhysics {
                 .mapToDouble(room -> Math.clamp(room.waterMb(), 0.0D,
                         Math.max(0.0D, room.waterCapacityMb())))
                 .sum();
-        final double fillFraction = totalRoomCapacity > 1.0E-9D
-                ? totalRoomWaterMb / (totalRoomCapacity * 1000.0D) : 0.0D;
 
         /*
          * Wake a sleeping full compartment once when hydrostatic inputs start changing. A
-         * non-zero air velocity increment below already wakes the body, so the explicit zero
-         * increment is needed only when no retained-air force remains. CarrierState coalesces a
+         * non-zero buoyancy velocity increment below already wakes the body, so the explicit zero
+         * increment is needed only when no compartment force remains. CarrierState coalesces a
          * continuous flood into one wake episode instead of keeping the body awake forever.
          */
         final boolean hasTrackedHydrostaticState = !state.compartments().isEmpty()
@@ -252,25 +283,24 @@ public final class BuoyancyPhysics {
             body.addLinearAndAngularVelocity(new Vector3d(), new Vector3d());
         }
 
-        final double estimatedNativeSolidForceY = submergedSolidGeometry
-                * SABLE_NATIVE_SOLID_BUOYANCY_PER_CUBIC_METRE;
-        final double predictedNetVerticalAcceleration = rigidMass > 1.0E-9D
-                ? gravity.y() + (estimatedNativeSolidForceY + supplementalForce.y()) / rigidMass
-                : 0.0D;
-
-        final long gameTime = carrier.getLevel().getGameTime();
-        if (hasTrackedHydrostaticState
-                && (state.lastHydrostaticDiagnosticTick() == Long.MIN_VALUE
-                || gameTime - state.lastHydrostaticDiagnosticTick() >= 100L)) {
-            CreateNautilus.LOGGER.info(
-                    "Hydrostatic balance carrier {}: attachmentFill={}%, realWaterSources={}, realWaterMass={}, rigidMass={}, nativeWetSolidVolume={}, nativeSolidForceY={}, nativeSolidEquivalentMass={}, cavityFraction={}, cavitySizeGate={}, dryFraction={}, dryCavityGate={}, openAirMass={}, airtightAirMass={}, solidCorrectionMass={}, supplementalMass={}, predictedNetAccelerationY={}",
+        if (hasTrackedHydrostaticState && diagnosticDue) {
+            final double fillFraction = totalRoomCapacity > 1.0E-9D
+                    ? totalRoomWaterMb / (totalRoomCapacity * 1000.0D) : 0.0D;
+            final double estimatedNativeSolidForceY = submergedSolidGeometry
+                    * SABLE_NATIVE_SOLID_BUOYANCY_PER_CUBIC_METRE;
+            final double predictedNetVerticalAcceleration = rigidMass > 1.0E-9D
+                    ? gravity.y() + (estimatedNativeSolidForceY + supplementalForce.y()) / rigidMass
+                    : 0.0D;
+            CreateNautilus.LOGGER.debug(
+                    "Hydrostatic balance carrier {}: attachmentFill={}%, realWaterSources={}, realWaterMass={}, rigidMass={}, nativeWetSolidVolume={}, nativeSolidForceY={}, nativeSolidEquivalentMass={}, cavityFraction={}, cavitySizeGate={}, dryFraction={}, dryCavityGate={}, openAirMass={}, airtightAirMass={}, solidCorrectionMass={}, supplementalMass={}, predictedNetAccelerationY={}, predictionScope=gravityNativeHullAndNautilusOnly",
                     state.carrierId(), fillFraction * 100.0D,
                     internalWater.sourceCount(), internalWater.totalNativeMass(), rigidMass,
                     submergedSolidGeometry, estimatedNativeSolidForceY,
                     estimatedNativeSolidEquivalentMass, cavityFraction, cavitySizeGate,
                     dryFraction, dryCavityGate, openTopAirDisplacedMass,
-                    airtightAirDisplacedMass, solidEnvelopeCorrectionMass,
-                    supplementalDisplacedMass, predictedNetVerticalAcceleration);
+                    airtightAirDisplacedMass,
+                    solidEnvelopeCorrectionMass, supplementalDisplacedMass,
+                    predictedNetVerticalAcceleration);
             state.setLastHydrostaticDiagnosticTick(gameTime);
         }
 
@@ -284,8 +314,7 @@ public final class BuoyancyPhysics {
 
         final Vector3d supplementalWeightedCentre = new Vector3d();
         if (submergedSolidGeometry > 1.0E-9D && solidEnvelopeCorrectionMass > 1.0E-9D) {
-            supplementalWeightedCentre.fma(
-                    solidEnvelopeCorrectionMass / submergedSolidGeometry,
+            supplementalWeightedCentre.fma(solidEnvelopeCorrectionMass / submergedSolidGeometry,
                     solidWeightedCentre);
         }
         supplementalWeightedCentre.fma(
@@ -343,11 +372,8 @@ public final class BuoyancyPhysics {
                         supplementalForce.z()));
     }
 
-    private static double smoothStep(final double value, final double lower,
-                                     final double upper) {
-        if (upper <= lower + 1.0E-9D) {
-            return value >= upper ? 1.0D : 0.0D;
-        }
+    private static double smoothStep(final double value, final double lower, final double upper) {
+        if (upper <= lower + 1.0E-9D) return value >= upper ? 1.0D : 0.0D;
         return smoothStep01((value - lower) / (upper - lower));
     }
 
@@ -356,7 +382,7 @@ public final class BuoyancyPhysics {
         return clamped * clamped * (3.0D - 2.0D * clamped);
     }
 
-    /** Nautilus's extra hydrostatic contribution; Sable's native solid lift is not included. */
+    /** Nautilus's extra dry-air lift and gated correction; excludes the native hull lift. */
     public record Result(double submersion, Vec3 supplementalForce) {
         static final Result EMPTY = new Result(0.0D, Vec3.ZERO);
 

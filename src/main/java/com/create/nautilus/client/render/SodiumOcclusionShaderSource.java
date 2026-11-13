@@ -11,10 +11,11 @@ import java.util.regex.Pattern;
  *
  * <p>With Iris, each supported water program exports a stable pre-wave camera-relative lookup
  * position together with its final wave-displaced world height. The former owns voxel selection;
- * the latter owns the continuous water-level comparison. This prevents TAA and waves from moving
- * a whole surface across a half-open voxel boundary. The atlas is an ordinary two-dimensional
- * float texture and never exercises the unstable three-dimensional texture path. Without Iris,
- * the existing Sable close/far depth-mask path remains unchanged.</p>
+ * tracked room ownership excludes parent water throughout the room, including its flooded part.
+ * This prevents TAA and waves from moving a whole surface across a half-open voxel boundary.
+ * The atlas is an ordinary two-dimensional float texture and never exercises the unstable
+ * three-dimensional texture path. Native Sodium exports its undisplaced camera-relative vertex
+ * position to the same lookup. Its separate close/far path preserves external Sable regions.</p>
  */
 public final class SodiumOcclusionShaderSource {
     public static final String ENABLE_UNIFORM = "NautilusWaterOcclusionEnabled";
@@ -35,7 +36,7 @@ public final class SodiumOcclusionShaderSource {
     public static final String VOXEL_POSITION_READY_UNIFORM =
             "NautilusVoxelPositionReady";
 
-    /** Exact shader-pack water-mask interface, uploaded by {@link ShaderVoxelMaskAtlas}. */
+    /** Exact water-mask interface, uploaded by {@link ShaderVoxelMaskAtlas}. */
     public static final String VOXEL_ATLAS_UNIFORM = "NautilusVoxelAtlas";
     public static final String VOXEL_ATLAS_SIZE_UNIFORM = "NautilusVoxelAtlasSize";
     public static final String VOXEL_CARRIER_COUNT_UNIFORM = "NautilusCarrierCount";
@@ -87,6 +88,19 @@ public final class SodiumOcclusionShaderSource {
                     + "vec[234]\\s+mc_Entity\\b");
     private static final Pattern SODIUM_LIGHT_AND_DATA = Pattern.compile(
             "\\b(?:in|attribute)\\s+uvec4\\s+a_LightAndData\\b");
+    private static final Pattern SODIUM_CAMERA_TRANSLATION = Pattern.compile(
+            "\\bvec3\\s+translation\\s*=\\s*" + optionalExpressionParentheses(
+                    "u_RegionOffset\\s*\\+\\s*_get_draw_translation\\s*\\(\\s*_draw_id\\s*\\)")
+                    + "\\s*;");
+    private static final Pattern SODIUM_CAMERA_POSITION = Pattern.compile(
+            "\\bvec3\\s+position\\s*=\\s*" + optionalExpressionParentheses(
+                    "_vert_position\\s*\\+\\s*translation") + "\\s*;");
+    private static final Pattern SODIUM_CLIP_POSITION = Pattern.compile(
+            "\\bgl_Position\\s*=\\s*" + optionalExpressionParentheses(
+                    optionalExpressionParentheses(
+                            "u_ProjectionMatrix\\s*\\*\\s*u_ModelViewMatrix")
+                            + "\\s*\\*\\s*vec4\\s*\\(\\s*position\\s*,\\s*1\\.0\\s*\\)")
+                    + "\\s*;");
     private static final Pattern MAIN = Pattern.compile(
             "\\bvoid\\s+main\\s*\\(\\s*\\)\\s*\\{");
     private static final Pattern VERSION = Pattern.compile(
@@ -111,10 +125,10 @@ public final class SodiumOcclusionShaderSource {
     private static boolean positionStrategyFallbackLogged;
     private static boolean vertexInjectPathLogged;
     private static boolean fragmentInjectPathLogged;
+    private static boolean nativePositionFallbackLogged;
 
     private static final String DEPTH_DISCARD_TEMPLATE = "\n"
-            + "    if (" + ENABLE_UNIFORM + " > 0.5"
-            + " && " + DEPTH_ACTIVE_UNIFORM + " > 0.5"
+            + "    if (" + DEPTH_ACTIVE_UNIFORM + " > 0.5"
             + " && " + VIRTUAL_WATER_UNIFORM + " < 0.5"
             + " && " + FLUID_VARYING + " > 0.5) {\n"
             + "        vec2 nautilusScreenUv = (gl_FragCoord.xy - "
@@ -187,7 +201,7 @@ public final class SodiumOcclusionShaderSource {
                 || ("iris".equals(namespace) && "sodium-shader-translucent".equals(path));
     }
 
-    /** Adds the water discriminator and, for Iris, the final physical camera-relative position. */
+    /** Adds the water discriminator and each terrain program's camera-relative position. */
     private static CharSequence injectVertex(final CharSequence original,
                                              final ResourceLocation shaderName) {
         if (original == null) {
@@ -197,12 +211,14 @@ public final class SodiumOcclusionShaderSource {
         if (source.contains(VERTEX_MARKER)) {
             return original;
         }
+        final String executable = codeOnly(source, 0, source.length());
         final boolean irisWaterProgram = isIrisWaterProgram(shaderName);
         VoxelPositionStrategy positionStrategy = irisWaterProgram
-                ? voxelPositionStrategy(source) : VoxelPositionStrategy.UNSUPPORTED;
+                ? voxelPositionStrategy(executable) : VoxelPositionStrategy.UNSUPPORTED;
         MainSpan main;
         if (irisWaterProgram && positionStrategy.supported()) {
-            main = mainContaining(source, positionStrategy.anchor(source));
+            final int anchor = positionStrategy.anchor(executable);
+            main = anchor < 0 ? null : mainContaining(source, anchor);
             if (main == null) {
                 positionStrategy = VoxelPositionStrategy.UNSUPPORTED;
                 logPositionStrategyFallback(
@@ -215,35 +231,49 @@ public final class SodiumOcclusionShaderSource {
         if (main == null) {
             return original;
         }
-        final String expression = fluidMarkerExpression(source);
+        final String expression = fluidMarkerExpression(executable);
         if (!vertexInjectPathLogged && irisWaterProgram) {
             vertexInjectPathLogged = true;
-            final boolean stableMaterialBit = SODIUM_LIGHT_AND_DATA.matcher(source).find();
+            final boolean stableMaterialBit = SODIUM_LIGHT_AND_DATA.matcher(executable).find();
             final String marker = stableMaterialBit
-                    ? IRIS_ENTITY_UINT.matcher(source).find()
+                    ? IRIS_ENTITY_UINT.matcher(executable).find()
                             ? "stable-material-water-bit+uint-id-fallback"
-                            : LEGACY_ENTITY_VECTOR.matcher(source).find()
+                            : LEGACY_ENTITY_VECTOR.matcher(executable).find()
                                     ? "stable-material-water-bit+vec-id-fallback"
                                     : "stable-material-water-bit"
-                    : IRIS_ENTITY_UINT.matcher(source).find() ? "uint-water-id-fallback"
-                    : LEGACY_ENTITY_VECTOR.matcher(source).find() ? "vec-blockId-fallback"
+                    : IRIS_ENTITY_UINT.matcher(executable).find() ? "uint-water-id-fallback"
+                    : LEGACY_ENTITY_VECTOR.matcher(executable).find() ? "vec-blockId-fallback"
                     : "none";
             CreateNautilus.LOGGER.info(
                     "[occlusion] exact voxel water vertex marker={} position={} (GLSL {})",
                     marker, positionStrategy.label(), shaderVersion(source));
         }
         if (!irisWaterProgram) {
+            final String endCapture = nativePositionCapture(executable, main);
+            final String readyUniform = endCapture.isEmpty() ? ""
+                    : "uniform float " + VOXEL_POSITION_READY_UNIFORM + ";\n";
+            if (endCapture.isEmpty() && !nativePositionFallbackLogged) {
+                nativePositionFallbackLogged = true;
+                CreateNautilus.LOGGER.warn(
+                        "[occlusion] unsupported native Sodium camera-relative position layout; "
+                                + "exact voxel clipping will fail open");
+            }
             return source.substring(0, main.start())
                     + "\n" + VERTEX_MARKER + "\n"
                     + varyingDeclaration(source, true) + "\n"
-                    + "uniform float " + WATER_BLOCK_ID_UNIFORM + ";\n\n"
+                    + cameraPositionVaryingDeclaration(source, true) + "\n"
+                    + "uniform float " + WATER_BLOCK_ID_UNIFORM + ";\n"
+                    + readyUniform + "\n"
                     + source.substring(main.start(), main.bodyStart())
                     + "\n    " + FLUID_VARYING + " = " + expression + ";\n"
-                    + source.substring(main.bodyStart());
+                    + "    " + VOXEL_BASE_AND_HEIGHT_VARYING + " = vec4(1.0E20);\n"
+                    + source.substring(main.bodyStart(), main.close())
+                    + endCapture
+                    + source.substring(main.close());
         }
         final String readyUniform = positionStrategy.supported()
                 ? "uniform float " + VOXEL_POSITION_READY_UNIFORM + ";\n" : "";
-        final String endCapture = positionStrategy.capture(source, expression);
+        final String endCapture = positionStrategy.capture(executable, expression);
         return source.substring(0, main.start())
                 + "\n" + VERTEX_MARKER + "\n"
                 + varyingDeclaration(source, true) + "\n"
@@ -259,7 +289,7 @@ public final class SodiumOcclusionShaderSource {
                 + source.substring(main.close());
     }
 
-    /** Adds the exact atlas path to Iris water, preserving close/far masks for plain Sodium. */
+    /** Exact Nautilus ownership plus native Sodium's independent external-region depth mask. */
     private static CharSequence injectFragment(final CharSequence original,
                                                final ResourceLocation shaderName) {
         if (original == null) {
@@ -275,18 +305,17 @@ public final class SodiumOcclusionShaderSource {
         if (main == null) {
             return original;
         }
-        final String declarations = irisWaterProgram
-                ? voxelAtlasDeclarations(source)
-                : depthMaskDeclarations(source);
-        final String discard = irisWaterProgram
-                ? VOXEL_DISCARD
-                : DEPTH_DISCARD_TEMPLATE.formatted(
-                        textureFunction(source), textureFunction(source));
+        final String declarations = voxelAtlasDeclarations(source)
+                + (irisWaterProgram ? "" : depthMaskDeclarations());
+        final String discard = VOXEL_DISCARD
+                + (irisWaterProgram ? "" : DEPTH_DISCARD_TEMPLATE.formatted(
+                        textureFunction(source), textureFunction(source)));
         if (!fragmentInjectPathLogged) {
             fragmentInjectPathLogged = true;
             CreateNautilus.LOGGER.info(
                     "[occlusion] water fragment path: {} (GLSL {})",
-                    irisWaterProgram ? "exact-voxel-atlas" : "depth-textures",
+                    irisWaterProgram ? "exact-voxel-atlas"
+                            : "exact-voxel-atlas+external-depth-textures",
                     shaderVersion(source));
         }
         final String refractionSuppression = photonMain != null
@@ -433,9 +462,10 @@ public final class SodiumOcclusionShaderSource {
                 + "        if (roomPlusOne < 1.0) continue;\n"
                 + "        float roomIndex = floor(d5.w + 0.5) + roomPlusOne - 1.0;\n"
                 + "        if (!nautilusValidAtlasIndex(roomIndex)) return false;\n"
-                + "        vec4 room = nautilusAtlasTexel(roomIndex);\n"
-                + "        if (room.g > 0.5 && renderedWorldY > room.r + 0.0001)"
-                + " return true;\n"
+                // Virtual water owns the whole room. Restoring parent ocean below its surface
+                // would reintroduce the same water geometry as flooding rises or reaches full.
+                // Keep the room-index guard, while optical consumers retain their medium planes.
+                + "        return true;\n"
                 + "                }\n"
                 + "            }\n"
                 + "        }\n"
@@ -444,18 +474,15 @@ public final class SodiumOcclusionShaderSource {
                 + "}\n\n";
     }
 
-    private static String depthMaskDeclarations(final String source) {
-        return "\n" + FRAGMENT_MARKER + "\n"
-                + varyingDeclaration(source, false) + "\n"
-                + "uniform vec2 " + SCREEN_SIZE_UNIFORM + ";\n"
+    private static String depthMaskDeclarations() {
+        // External Sable regions remain usable when the Nautilus atlas is unavailable.
+        return "\nuniform vec2 " + SCREEN_SIZE_UNIFORM + ";\n"
                 + "uniform vec2 " + VIEWPORT_ORIGIN_UNIFORM + ";\n"
                 + "uniform vec2 " + DEPTH_SCALE_UNIFORM + ";\n"
                 + "uniform float " + DEPTH_RANGE_SCALE_UNIFORM + ";\n"
                 + "uniform float " + DEPTH_RANGE_BIAS_UNIFORM + ";\n"
                 + "uniform sampler2D " + CLOSE_SAMPLER_UNIFORM + ";\n"
                 + "uniform sampler2D " + FAR_SAMPLER_UNIFORM + ";\n"
-                + "uniform float " + ENABLE_UNIFORM + ";\n"
-                + "uniform float " + VIRTUAL_WATER_UNIFORM + ";\n"
                 + "uniform float " + DEPTH_ACTIVE_UNIFORM + ";\n\n";
     }
 
@@ -510,6 +537,7 @@ public final class SodiumOcclusionShaderSource {
         positionStrategyFallbackLogged = false;
         vertexInjectPathLogged = false;
         fragmentInjectPathLogged = false;
+        nativePositionFallbackLogged = false;
     }
 
     private static boolean isIrisWaterProgram(final ResourceLocation shaderName) {
@@ -536,6 +564,38 @@ public final class SodiumOcclusionShaderSource {
         }
         return "smooth " + (output ? "out " : "in ") + "vec4 "
                 + VOXEL_BASE_AND_HEIGHT_VARYING + ";";
+    }
+
+    /**
+     * Veil's GLSL printer groups each arithmetic expression without changing its operands.
+     * Accept its balanced parentheses as well as Sodium's original spelling; retain the exact
+     * draw translation and matrix order so an unknown coordinate layout still fails open.
+     */
+    private static String optionalExpressionParentheses(final String expression) {
+        return "(?:" + expression + "|\\(\\s*" + expression + "\\s*\\))";
+    }
+
+    /** Sodium 0.8.13's position already includes its quantized camera-relative draw translation. */
+    private static String nativePositionCapture(final String executable, final MainSpan main) {
+        final String body = executable.substring(main.bodyStart(), main.close());
+        int previous = -1;
+        for (final Pattern pattern : new Pattern[]{SODIUM_CAMERA_TRANSLATION,
+                SODIUM_CAMERA_POSITION, SODIUM_CLIP_POSITION}) {
+            final Matcher anchor = pattern.matcher(body);
+            if (!anchor.find()) return "";
+            final int position = anchor.start();
+            if (position <= previous || anchor.find()) return "";
+            int depth = 0;
+            for (int index = 0; index < position; index++) {
+                if (body.charAt(index) == '{') depth++;
+                else if (body.charAt(index) == '}') depth--;
+            }
+            if (depth != 0) return "";
+            previous = position;
+        }
+        return "\n    if (" + VOXEL_POSITION_READY_UNIFORM + " > 0.5) {\n"
+                + "        " + VOXEL_BASE_AND_HEIGHT_VARYING
+                + " = vec4(position, position.y);\n    }\n";
     }
 
     private static VoxelPositionStrategy voxelPositionStrategy(final String source) {
@@ -565,12 +625,13 @@ public final class SodiumOcclusionShaderSource {
     }
 
     private static MainSpan firstMain(final String source) {
-        final Matcher main = MAIN.matcher(source);
+        final Matcher main = MAIN.matcher(codeOnly(source, 0, source.length()));
         if (!main.find()) {
             return null;
         }
-        final int close = mainClosingBrace(source, main.end() - 1);
-        return close < 0 ? null : new MainSpan(main.start(), main.end(), close);
+        final MainSpan span = new MainSpan(main.start(), main.end(),
+                mainClosingBrace(source, main.end() - 1));
+        return span.close() < 0 || main.find() ? null : span;
     }
 
     /**
@@ -653,22 +714,28 @@ public final class SodiumOcclusionShaderSource {
 
     /** Best-effort active VS main for unknown packs; fragment mains cannot reference gl_Position. */
     private static MainSpan vertexMain(final String source) {
-        final Matcher main = MAIN.matcher(source);
+        final String executable = codeOnly(source, 0, source.length());
+        final Matcher main = MAIN.matcher(executable);
         MainSpan first = null;
+        MainSpan candidateWithPosition = null;
+        int mainCount = 0;
         while (main.find()) {
             final int close = mainClosingBrace(source, main.end() - 1);
             if (close < 0) {
                 return null;
             }
             final MainSpan candidate = new MainSpan(main.start(), main.end(), close);
+            mainCount++;
             if (first == null) {
                 first = candidate;
             }
-            if (source.substring(main.end(), close).contains("gl_Position")) {
-                return candidate;
+            if (executable.substring(main.end(), close).contains("gl_Position")) {
+                if (candidateWithPosition != null) return null;
+                candidateWithPosition = candidate;
             }
         }
-        return first;
+        return candidateWithPosition != null ? candidateWithPosition
+                : mainCount == 1 ? first : null;
     }
 
     /** Selects the active vertex main which structurally contains the pack-specific wave anchor. */
@@ -676,7 +743,7 @@ public final class SodiumOcclusionShaderSource {
         if (anchor < 0) {
             return firstMain(source);
         }
-        final Matcher main = MAIN.matcher(source);
+        final Matcher main = MAIN.matcher(codeOnly(source, 0, source.length()));
         while (main.find()) {
             final int close = mainClosingBrace(source, main.end() - 1);
             if (close < 0) {
@@ -770,7 +837,9 @@ public final class SodiumOcclusionShaderSource {
                 return -1;
             }
             final Matcher anchor = pattern.matcher(source);
-            return anchor.find() ? anchor.start() : -1;
+            if (!anchor.find()) return -1;
+            final int position = anchor.start();
+            return anchor.find() ? -1 : position;
         }
 
         String capture(final String source, final String fluidExpression) {
@@ -858,7 +927,7 @@ public final class SodiumOcclusionShaderSource {
     }
 
     private static int shaderVersion(final String source) {
-        final Matcher version = VERSION.matcher(source);
+        final Matcher version = VERSION.matcher(codeOnly(source, 0, source.length()));
         if (!version.find()) {
             return 0;
         }

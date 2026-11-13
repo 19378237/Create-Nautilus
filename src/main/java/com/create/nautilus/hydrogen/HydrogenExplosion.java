@@ -13,6 +13,7 @@ import dev.ryanhcode.sable.sublevel.SubLevel;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.ArrayDeque;
 
 /**
  * The only code path capable of making stored hydrogen explode.
@@ -29,8 +30,11 @@ public final class HydrogenExplosion {
         DIRECT_DESTRUCTION
     }
 
-    private static final ThreadLocal<Set<String>> ACTIVE =
+    private static final ThreadLocal<Set<TankKey>> ACTIVE =
             ThreadLocal.withInitial(HashSet::new);
+    private static final int MAX_BLASTS_PER_TICK = 32;
+    private static final ArrayDeque<Blast> PENDING = new ArrayDeque<>();
+    private static final Set<TankKey> PENDING_KEYS = new HashSet<>();
 
     private HydrogenExplosion() {
     }
@@ -45,22 +49,29 @@ public final class HydrogenExplosion {
 
     public static void detonateTank(final GasTankBlockEntity tank,
                                     final Trigger trigger) {
+        finishRupture(captureRupture(tank, trigger));
+    }
+
+    /** Claims the vessel's gas without destroying blocks; paired with finishRupture. */
+    static Rupture captureRupture(final GasTankBlockEntity tank,
+                                  final Trigger trigger) {
         if (tank.getLevel() == null || tank.getLevel().isClientSide) {
-            return;
+            return null;
         }
 
+        final Level storageLevel = tank.getLevel();
         final SubLevel containing = Sable.HELPER.getContaining(tank);
-        final Level owningLevel = containing == null ? tank.getLevel() : containing.getLevel();
+        final Level owningLevel = containing == null ? storageLevel : containing.getLevel();
         if (!(owningLevel instanceof ServerLevel level)) {
-            return;
+            return null;
         }
 
         final BlockPos controllerPos = tank.getController();
-        final String key = level.dimension().location() + ":"
-                + System.identityHashCode(containing) + ":" + controllerPos.asLong();
-        if (!ACTIVE.get().add(key)) {
-            return;
+        final TankKey key = new TankKey(level, containing, controllerPos.asLong());
+        if (PENDING_KEYS.contains(key) || !ACTIVE.get().add(key)) {
+            return null;
         }
+        boolean captured = false;
         try {
             // Capture the complete Create structure before draining or
             // breaking anything; either operation can immediately split the
@@ -68,40 +79,6 @@ public final class HydrogenExplosion {
             final List<BlockPos> tankSegments = tank.multiblockPositions();
             final int capacity = Math.max(1, tank.totalCapacity());
             final FluidStack released = tank.drainAllForRupture();
-
-            // Explosion and mining events already remove their target block.
-            // A Sable collision callback does not, so a collision rupture must
-            // explicitly break the impacted tank segment, including an empty
-            // tank (which then produces no blast).
-            if ((trigger == Trigger.CARRIER_IMPACT
-                    || (trigger == Trigger.EXTERNAL_EXPLOSION && containing != null))
-                    && tank.getLevel() != null) {
-                tank.getLevel().destroyBlock(tank.getBlockPos(), false);
-            }
-
-            // Empty tanks and oxygen tanks are mechanically broken by the
-            // original event but never produce a hydrogen blast.
-            if (released.isEmpty() || !HydrogenFluids.isHydrogen(released)) {
-                return;
-            }
-
-            // A hydrogen-filled multiblock is one pressure vessel. Explicitly
-            // rupture every validated segment before creating the blast. This
-            // is required in an ordinary ServerLevel, where a BreakEvent only
-            // removes the selected block and Create otherwise leaves the rest
-            // of the tank standing. Empty and oxygen tanks retain the original
-            // single-block destruction behaviour above.
-            if (tank.getLevel() != null) {
-                for (final BlockPos segment : tankSegments) {
-                    tank.getLevel().destroyBlock(segment, false);
-                }
-            }
-
-            final double fill = Math.clamp(released.getAmount() / (double) capacity,
-                    0.0D, 1.0D);
-            final boolean compressed = released.getFluid().isSame(
-                    HydrogenFluids.COMPRESSED_HYDROGEN_GAS.get());
-            final float radius = (float) ((compressed ? 4.0D : 2.0D) + fill);
             // Use the segment that was actually hit/broken. The controller is
             // Create's lower south-west corner and caused every ordinary-world
             // multiblock explosion to appear there.
@@ -109,25 +86,89 @@ public final class HydrogenExplosion {
             if (containing != null) {
                 center = containing.logicalPose().transformPosition(center);
             }
-            final double x = center.x;
-            final double y = center.y;
-            final double z = center.z;
-
-            // Vanilla handles damage, knockback, block destruction and the
-            // standard flash/sound. fire=true supplies the specified ignition
-            // effect without creating a separate fire-triggered tank path.
-            level.explode(null, x, y, z, radius, true,
-                    Level.ExplosionInteraction.BLOCK);
-            level.sendParticles(ParticleTypes.FLASH, x, y, z,
-                    2, 0.1D, 0.1D, 0.1D, 0.0D);
-            level.sendParticles(ParticleTypes.FLAME, x, y, z,
-                    compressed ? 48 : 24, radius * 0.25D, radius * 0.25D,
-                    radius * 0.25D, 0.08D);
-            level.sendParticles(ParticleTypes.LARGE_SMOKE, x, y, z,
-                    compressed ? 64 : 32, radius * 0.35D, radius * 0.35D,
-                    radius * 0.35D, 0.04D);
+            Blast blast = null;
+            if (!released.isEmpty() && HydrogenFluids.isHydrogen(released)) {
+                final double fill = Math.clamp(released.getAmount() / (double) capacity, 0.0D, 1.0D);
+                final boolean compressed = released.getFluid().isSame(
+                        HydrogenFluids.COMPRESSED_HYDROGEN_GAS.get());
+                final float radius = (float) ((compressed ? 4.0D : 2.0D) + fill);
+                blast = new Blast(key, level, center.x, center.y, center.z, radius, compressed);
+            }
+            final boolean destroyImpacted = trigger == Trigger.CARRIER_IMPACT
+                    || (trigger == Trigger.EXTERNAL_EXPLOSION && containing != null);
+            final Rupture rupture = new Rupture(key, storageLevel,
+                    tank.getBlockPos().immutable(), tankSegments, destroyImpacted, blast);
+            captured = true;
+            return rupture;
         } finally {
-            ACTIVE.get().remove(key);
+            // Successful captures retain ownership across Create's onRemove.
+            if (!captured) ACTIVE.get().remove(key);
         }
     }
+
+    /** Uses only captured state, so the original block entity may already be removed. */
+    static void finishRupture(final Rupture rupture) {
+        if (rupture == null) return;
+        try {
+            final Level storageLevel = rupture.storageLevel();
+            // Mining/explosion events remove their target. Sable callbacks do not.
+            if (rupture.destroyImpacted()
+                    && storageLevel.getBlockState(rupture.impactedPos()).getBlock() instanceof GasTankBlock) {
+                storageLevel.destroyBlock(rupture.impactedPos(), false);
+            }
+            // Empty/oxygen vessels break only their originally impacted segment.
+            if (rupture.blast() == null) return;
+            for (final BlockPos segment : rupture.segments()) {
+                // Preserve the committed replacement at the triggering position.
+                if (storageLevel.getBlockState(segment).getBlock() instanceof GasTankBlock) {
+                    storageLevel.destroyBlock(segment, false);
+                }
+            }
+            PENDING_KEYS.add(rupture.key());
+            PENDING.addLast(rupture.blast());
+        } finally {
+            ACTIVE.get().remove(rupture.key());
+        }
+    }
+
+    record Rupture(TankKey key, Level storageLevel, BlockPos impactedPos,
+                   List<BlockPos> segments, boolean destroyImpacted, Blast blast) {}
+
+    /** Emitting a blast may enqueue neighbours, but never recurses into another explode call. */
+    static void processPending() {
+        for (int processed = 0; processed < MAX_BLASTS_PER_TICK && !PENDING.isEmpty(); processed++) {
+            final Blast blast = PENDING.removeFirst();
+            PENDING_KEYS.remove(blast.key());
+            final ServerLevel level = blast.level();
+            final double x = blast.x(), y = blast.y(), z = blast.z();
+            final float radius = blast.radius();
+            level.explode(null, x, y, z, radius, true, Level.ExplosionInteraction.BLOCK);
+            level.sendParticles(ParticleTypes.FLASH, x, y, z, 2, 0.1D, 0.1D, 0.1D, 0.0D);
+            level.sendParticles(ParticleTypes.FLAME, x, y, z,
+                    blast.compressed() ? 48 : 24, radius * 0.25D, radius * 0.25D,
+                    radius * 0.25D, 0.08D);
+            level.sendParticles(ParticleTypes.LARGE_SMOKE, x, y, z,
+                    blast.compressed() ? 64 : 32, radius * 0.35D, radius * 0.35D,
+                    radius * 0.35D, 0.04D);
+        }
+    }
+
+    static void clearLevel(final Level level) {
+        PENDING.removeIf(blast -> {
+            if (blast.level() != level) return false;
+            PENDING_KEYS.remove(blast.key());
+            return true;
+        });
+    }
+
+    static void clearAll() {
+        PENDING.clear();
+        PENDING_KEYS.clear();
+        ACTIVE.remove();
+    }
+
+    private record TankKey(Level level, SubLevel carrier, long controller) {}
+
+    private record Blast(TankKey key, ServerLevel level, double x, double y, double z,
+                         float radius, boolean compressed) {}
 }

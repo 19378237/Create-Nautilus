@@ -1,6 +1,7 @@
 package com.create.nautilus.client.render;
 
 import com.create.nautilus.CreateNautilus;
+import com.create.nautilus.config.NautilusConfig;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.BufferUploader;
@@ -13,7 +14,7 @@ import com.mojang.blaze3d.vertex.VertexFormat;
 import com.create.nautilus.physics.CompartmentWaterGeometry;
 import dev.ryanhcode.sable.api.sublevel.SubLevelContainer;
 import dev.ryanhcode.sable.sublevel.ClientSubLevel;
-import it.unimi.dsi.fastutil.longs.Long2ObjectLinkedOpenHashMap;
+import com.create.nautilus.client.render.FloodedRoomGeometryCache.CellGeometry;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.BiomeColors;
@@ -26,6 +27,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.world.inventory.InventoryMenu;
+import net.minecraft.world.level.material.FogType;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
@@ -71,7 +73,8 @@ public final class FloodedChamberRenderer {
     private static long lastFilmLogNanos;
     private static java.util.Map<UUID, List<ClientCompartmentVisualCache.RoomSnapshot>>
             cachedFrameSnapshots;
-    private static long cachedSnapshotNanos;
+    private static long frameSerial;
+    private static long cachedSnapshotSerial = -1L;
     private static boolean meshLogged;
     private static long lastMeshLogNanos;
     private static boolean passRoomLogged;
@@ -89,6 +92,13 @@ public final class FloodedChamberRenderer {
     /** A removed/replaced carrier must not survive in the short-lived frame snapshot. */
     static void invalidateSnapshots() {
         cachedFrameSnapshots = null;
+        cachedSnapshotSerial = -1L;
+    }
+
+    /** Resource reload releases prepared CPU data without changing the per-frame water sampling. */
+    public static void clearPreparedGeometry() {
+        FloodedRoomGeometryCache.clear();
+        PlainWaterOcclusion.clear();
     }
 
     /**
@@ -99,11 +109,11 @@ public final class FloodedChamberRenderer {
      */
     private static java.util.Map<UUID, List<ClientCompartmentVisualCache.RoomSnapshot>>
     frameSnapshots() {
-        final long now = System.nanoTime();
-        if (cachedFrameSnapshots != null && now - cachedSnapshotNanos < 33_000_000L) {
+        if (cachedFrameSnapshots != null && cachedSnapshotSerial == frameSerial) {
+            ClientWaterDiagnostics.count(ClientWaterDiagnostics.Work.FLOODED_SNAPSHOT_HIT, 1L);
             return cachedFrameSnapshots;
         }
-        cachedSnapshotNanos = now;
+        cachedSnapshotSerial = frameSerial;
         cachedFrameSnapshots = ClientCompartmentVisualCache.snapshots();
         return cachedFrameSnapshots;
     }
@@ -118,9 +128,14 @@ public final class FloodedChamberRenderer {
      * so dry-only frames skip the whole native-layer submission.</p>
      */
     public static boolean hasVisibleWater() {
-        return frameSnapshots().values().stream()
-                .flatMap(List::stream)
-                .anyMatch(room -> room.waterFraction() > 1.0E-5D);
+        final int diagnosticsSource = ClientWaterDiagnostics.enter(ClientWaterDiagnostics.Source.FLOODED_VISIBILITY);
+        try {
+            return frameSnapshots().values().stream()
+                    .flatMap(List::stream)
+                    .anyMatch(room -> room.waterFraction() > 1.0E-5D);
+        } finally {
+            ClientWaterDiagnostics.leave(diagnosticsSource);
+        }
     }
 
     /**
@@ -131,57 +146,88 @@ public final class FloodedChamberRenderer {
         CAMERA_INSIDE_ROOM
     }
 
+    /** Geometry selection is independent of whether the native draw writes color. */
+    private enum RoomGeometryPart {
+        FREE_SURFACE,
+        BOUNDARY,
+        COMPLETE
+    }
+
     public static void onRenderLevel(final RenderLevelStageEvent event) {
-        // Sodium has a materially different lifetime: Sable renders carrier section buffers from
-        // SodiumWorldRenderer.drawChunkLayer(TAIL). Drawing here would be too late for Iris'
-        // terrain-water gbuffer and external water would depth-occlude the virtual surface.
-        if (SODIUM_PRESENT) {
-            return;
-        }
-        if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS) {
-            return;
-        }
-        final Minecraft minecraft = Minecraft.getInstance();
-        final ClientLevel level = minecraft.level;
-        final var snapshots = frameSnapshots();
-        if (level == null || snapshots.isEmpty()) {
-            return;
-        }
-        final SubLevelContainer container = SubLevelContainer.getContainer(level);
-        if (container == null) {
-            return;
-        }
-
-        final TextureAtlasSprite sprite = minecraft
-                .getTextureAtlas(InventoryMenu.BLOCK_ATLAS).apply(WATER_STILL);
-        final PoseStack poseStack = event.getPoseStack();
-        final Vec3 camera = minecraft.gameRenderer.getMainCamera().getPosition();
-        final BufferBuilder vertices = Tesselator.getInstance().begin(
-                VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.BLOCK);
-        poseStack.pushPose();
+        final int diagnosticsSource = ClientWaterDiagnostics.enter(ClientWaterDiagnostics.Source.FLOODED_VANILLA);
         try {
-            poseStack.translate(-camera.x, -camera.y, -camera.z);
-            final Matrix4f matrix = poseStack.last().pose();
+            if (event.getStage() == RenderLevelStageEvent.Stage.AFTER_SKY) {
+                // One level-render invocation is the common frame boundary for Sodium HEAD/TAIL
+                // and the vanilla fallback. Its duration and display refresh rate are irrelevant.
+                frameSerial++;
+                invalidateSnapshots();
+            }
+            // Sodium has a materially different lifetime: Sable renders carrier section buffers from
+            // SodiumWorldRenderer.drawChunkLayer(TAIL). Drawing here would be too late for Iris'
+            // terrain-water gbuffer and external water would depth-occlude the virtual surface.
+            if (SODIUM_PRESENT) {
+                return;
+            }
+            if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS) {
+                return;
+            }
+            final Minecraft minecraft = Minecraft.getInstance();
+            final ClientLevel level = minecraft.level;
+            final var snapshots = frameSnapshots();
+            if (level == null || snapshots.isEmpty()) {
+                return;
+            }
+            final SubLevelContainer container = SubLevelContainer.getContainer(level);
+            if (container == null) {
+                return;
+            }
 
-            snapshots.forEach((carrierId, rooms) -> {
-                if (!(container.getSubLevel(carrierId)
-                        instanceof final ClientSubLevel carrier)) {
-                    return;
-                }
-                rooms.forEach(room -> renderRoom(
-                        vertices, matrix, sprite, carrier, room, false));
-            });
+            final TextureAtlasSprite sprite = minecraft
+                    .getTextureAtlas(InventoryMenu.BLOCK_ATLAS).apply(WATER_STILL);
+            final PoseStack poseStack = event.getPoseStack();
+            final Vec3 camera = minecraft.gameRenderer.getMainCamera().getPosition();
+            final BufferBuilder vertices = Tesselator.getInstance().begin(
+                    VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.BLOCK);
+            ClientWaterDiagnostics.count(ClientWaterDiagnostics.Work.MESH_PASSES, 1L);
+            poseStack.pushPose();
+            try {
+                final VertexTransform matrix = new VertexTransform(
+                        poseStack.last().pose(), camera.x, camera.y, camera.z);
+
+                snapshots.forEach((carrierId, rooms) -> {
+                    if (!(container.getSubLevel(carrierId)
+                            instanceof final ClientSubLevel carrier)) {
+                        return;
+                    }
+                    rooms.forEach(room -> renderRoom(
+                            vertices, matrix, sprite, carrier, room, false));
+                });
+            } finally {
+                poseStack.popPose();
+            }
+
+            final long diagnosticsBufferStart = ClientWaterDiagnostics.start();
+            final MeshData mesh = vertices.build();
+            ClientWaterDiagnostics.finish(ClientWaterDiagnostics.Work.FLOODED_BUFFER,
+                    diagnosticsBufferStart, mesh == null ? 0L : mesh.drawState().vertexCount());
+            if (mesh == null) {
+                return;
+            }
+
+            WaterTriangleSorting.sort(mesh, new Matrix4f());
+
+            // Vanilla fallback: no Iris/Sodium material bridge is involved.
+            final long drawWall = ClientFrameDiagnostics.startWall();
+            final long drawGpu = ClientFrameDiagnostics.beginGpu(ClientFrameDiagnostics.Stage.FLOODED_WATER);
+            try {
+                RenderType.translucent().draw(mesh);
+            } finally {
+                ClientFrameDiagnostics.endGpu(drawGpu);
+                ClientFrameDiagnostics.recordWall(ClientFrameDiagnostics.Stage.FLOODED_WATER, drawWall);
+            }
         } finally {
-            poseStack.popPose();
+            ClientWaterDiagnostics.leave(diagnosticsSource);
         }
-
-        final MeshData mesh = vertices.build();
-        if (mesh == null) {
-            return;
-        }
-
-        // Vanilla fallback: no Iris/Sodium material bridge is involved.
-        RenderType.translucent().draw(mesh);
     }
 
     /**
@@ -196,124 +242,197 @@ public final class FloodedChamberRenderer {
                                               final double cameraY,
                                               final double cameraZ,
                                               final NativeSurfacePass pass) {
+        final int diagnosticsSource = ClientWaterDiagnostics.enter(pass == NativeSurfacePass.CAMERA_OUTSIDE_ROOM
+                ? ClientWaterDiagnostics.Source.FLOODED_OUTSIDE : ClientWaterDiagnostics.Source.FLOODED_INSIDE);
+        try {
+            if (Minecraft.getInstance().level == null || !hasVisibleWater()) {
+                return;
+            }
+
+            final boolean shaderPackActive = WaterOcclusionPassBridge.isShaderPackActive();
+            final boolean cameraInVirtualWater = shaderPackActive
+                    && ClientCompartmentVisualCache.isCameraInVirtualWater(new Vec3(cameraX, cameraY, cameraZ));
+            // The room-bounds classification below only owns translucent draw order. An eye above
+            // the liquid in that same room must still see its water boundaries. Parent-world water
+            // likewise cannot substitute for exact attachment-water membership. Fog's expanded
+            // room boundary and real bucket water inside a room do not own this material gate.
+            final RoomGeometryPart visiblePart = shaderPackActive && !cameraInVirtualWater
+                    ? RoomGeometryPart.COMPLETE : RoomGeometryPart.FREE_SURFACE;
+            final boolean nativeWetSceneDepth = cameraInVirtualWater
+                    && (!NautilusConfig.shaderUnderwaterFogEnabled()
+                    || IrisCompositeShaderSource.nativeWetViewReady(
+                            ApertureMediumMaskRenderer.selectedAdapterGeneration())
+                    && Minecraft.getInstance().gameRenderer.getMainCamera().getFluidInCamera()
+                            == FogType.WATER);
+            drawNativeFluidGeometry(subLevels, shader, modelView, projection,
+                    cameraX, cameraY, cameraZ, pass, visiblePart, false);
+            if (cameraInVirtualWater && !nativeWetSceneDepth
+                    && !SodiumWaterOcclusionShaderBridge.isIrisShadowPass()) {
+                // Finish each shared Tesselator batch before starting the next. Submerged shell
+                // faces keep legacy medium depth. Photon renders a wet eye with its own native
+                // water fog, which must see actual scene/glass depth instead of this near shell.
+                // Disabling fog also preserves that real depth for every pack; the shell exists
+                // only to supply a virtual medium depth, not to draw the water's material.
+                drawNativeFluidGeometry(subLevels, shader, modelView, projection,
+                        cameraX, cameraY, cameraZ, pass, RoomGeometryPart.BOUNDARY, true);
+            }
+        } finally {
+            ClientWaterDiagnostics.leave(diagnosticsSource);
+        }
+    }
+
+    private static void drawNativeFluidGeometry(final Iterable<ClientSubLevel> subLevels,
+                                                final ShaderInstance shader,
+                                                final Matrix4f modelView,
+                                                final Matrix4f projection,
+                                                final double cameraX,
+                                                final double cameraY,
+                                                final double cameraZ,
+                                                final NativeSurfacePass pass,
+                                                final RoomGeometryPart geometryPart,
+                                                final boolean depthOnly) {
         final Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.level == null || !hasVisibleWater()) {
-            return;
-        }
-        final long now = System.nanoTime();
-
-        // Only the patched Photon immediate material declares this draw-local switch. Keep
-        // other shader packs and vanilla on their existing lighting path.
-        final int materialProgram = GL11C.glGetInteger(GL20C.GL_CURRENT_PROGRAM);
-        final boolean roomLighting = materialProgram > 0
-                && GL20C.glGetUniformLocation(materialProgram,
-                        SodiumOcclusionShaderSource.VIRTUAL_WATER_UNIFORM) >= 0;
-        final TextureAtlasSprite sprite = minecraft
-                .getTextureAtlas(InventoryMenu.BLOCK_ATLAS).apply(WATER_STILL);
-        final BufferBuilder vertices = Tesselator.getInstance().begin(
-                VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.BLOCK);
-        /*
-         * Sodium chunk vertices are camera-relative and the terrain shader owns view rotation.
-         * Supplying absolute world vertices here would lose precision; multiplying them by the
-         * complete model-view twice would instead make the surface drift with the camera.
-         */
-        final Matrix4f cameraTranslation = new Matrix4f().translation(
-                (float) -cameraX, (float) -cameraY, (float) -cameraZ);
-        final var snapshots = frameSnapshots();
-        /*
-         * The exterior water proxy stays disabled: its flat water-material quads are rendered as
-         * visible triangles by the pack. The porthole fog is now driven by the composite patch
-         * (raymarch to the back surface through glass) gated by NautilusDryCameraActive.
-         */
-        for (final ClientSubLevel carrier : subLevels) {
-            final List<ClientCompartmentVisualCache.RoomSnapshot> rooms =
-                    snapshots.get(carrier.getUniqueId());
-            if (rooms == null) {
-                continue;
-            }
-            int renderedRooms = 0;
-            for (final ClientCompartmentVisualCache.RoomSnapshot room : rooms) {
-                final boolean cameraInside = cameraInsideRoom(
-                        carrier, room, cameraX, cameraY, cameraZ);
-                if ((pass == NativeSurfacePass.CAMERA_INSIDE_ROOM) != cameraInside) {
-                    continue;
-                }
-                renderedRooms++;
-                renderRoom(vertices, cameraTranslation, sprite, carrier, room, roomLighting);
-            }
-            if (!passRoomLogged || now - lastPassRoomLogNanos > 5_000_000_000L) {
-                passRoomLogged = true;
-                lastPassRoomLogNanos = now;
-                CreateNautilus.LOGGER.info(
-                        "[virtual-water] pass={} carrier={} rooms={} rendered={} "
-                                + "camera=({}, {}, {})",
-                        pass, carrier.getUniqueId(), rooms.size(), renderedRooms,
-                        cameraX, cameraY, cameraZ);
-            }
-        }
-
-        final MeshData mesh = vertices.build();
-        if (mesh == null) {
-            return;
-        }
-        if (!meshLogged || now - lastMeshLogNanos > 5_000_000_000L) {
-            meshLogged = true;
-            lastMeshLogNanos = now;
-            CreateNautilus.LOGGER.info(
-                    "[virtual-water] mesh vertices={} pass={} rooms={}",
-                    mesh.drawState().vertexCount(), pass, snapshots.size());
-        }
-
         shader.setDefaultUniforms(VertexFormat.Mode.TRIANGLES, modelView, projection,
                 minecraft.getWindow());
+        // Each completed batch clears the shader. Rebind before inspecting its material program
+        // so the boundary batch uses the same room lighting and virtual-water uniforms.
         shader.apply();
-        /*
-         * Re-assert the dry-compartment discard exemption immediately before the draw. The
-         * Sodium hook sets NautilusVirtualWater before entering this method, but renderType
-         * setup/apply can rebind and reset the terrain program's uniform state; without the flag
-         * the OBB water discard culls every virtual-water fragment inside the dry hull and the
-         * whole volume becomes invisible.
-         */
-        SodiumWaterOcclusionShaderBridge.setVirtualWaterPass(true);
-
-        /*
-         * A normal chunk-water top face is visible from both sides.  Some Iris packs enable face
-         * culling inside their terrain-translucent program.  Temporarily disabling culling gives
-         * one physical surface two-sided visibility without double blending.
-         */
-        final boolean cullWasEnabled = GL11C.glIsEnabled(GL11C.GL_CULL_FACE);
-        final int previousCullFace = GL11C.glGetInteger(GL11C.GL_CULL_FACE_MODE);
-        final int previousVao = GL11C.glGetInteger(GL30C.GL_VERTEX_ARRAY_BINDING);
-        final int previousArrayBuffer = GL11C.glGetInteger(GL15C.GL_ARRAY_BUFFER_BINDING);
         try {
-            RenderSystem.disableCull();
-            GL11C.glDisable(GL11C.GL_CULL_FACE);
+            final boolean debugLogging = CreateNautilus.LOGGER.isDebugEnabled();
+            final long now = debugLogging ? System.nanoTime() : 0L;
+
+            // Only the patched Photon immediate material declares this draw-local switch. Keep
+            // other shader packs and vanilla on their existing lighting path.
+            final int materialProgram = GL11C.glGetInteger(GL20C.GL_CURRENT_PROGRAM);
+            final boolean roomLighting = materialProgram > 0
+                    && GL20C.glGetUniformLocation(materialProgram,
+                            SodiumOcclusionShaderSource.VIRTUAL_WATER_UNIFORM) >= 0;
+            final TextureAtlasSprite sprite = minecraft
+                    .getTextureAtlas(InventoryMenu.BLOCK_ATLAS).apply(WATER_STILL);
+            final BufferBuilder vertices = Tesselator.getInstance().begin(
+                    VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.BLOCK);
+            ClientWaterDiagnostics.count(ClientWaterDiagnostics.Work.MESH_PASSES, 1L);
             /*
-             * Sodium binds and unbinds its VAOs through a private state tracker, while
-             * BufferUploader separately caches the last immediate VertexBuffer.  The TAIL
-             * virtual-water draw therefore used to see the same cached BLOCK buffer, skip its
-             * bind, and upload/draw with Sodium's VAO already unbound.  NVIDIA reports every one
-             * of those draws as GL_INVALID_OPERATION: "Array object is not active".
-             *
-             * Invalidate the Java-side immediate-buffer cache before drawing, then invalidate it
-             * again and restore the raw bindings on exit.  The second invalidation is essential:
-             * restoring a caller-owned VAO behind BufferUploader's back must not leave it
-             * believing that its own immediate VAO is still active on the next frame.
+             * Sodium chunk vertices are camera-relative and the terrain shader owns view rotation.
+             * Supplying absolute world vertices here would lose precision; multiplying them by the
+             * complete model-view twice would instead make the surface drift with the camera.
              */
-            BufferUploader.invalidate();
-            BufferUploader.drawWithShader(mesh);
-        } finally {
-            BufferUploader.invalidate();
-            GL30C.glBindVertexArray(previousVao);
-            GL15C.glBindBuffer(GL15C.GL_ARRAY_BUFFER, previousArrayBuffer);
-            GL11C.glCullFace(previousCullFace);
-            if (cullWasEnabled) {
-                RenderSystem.enableCull();
-                GL11C.glEnable(GL11C.GL_CULL_FACE);
-            } else {
+            final VertexTransform cameraTranslation = new VertexTransform(
+                    new Matrix4f(), cameraX, cameraY, cameraZ);
+            final var snapshots = frameSnapshots();
+            /*
+             * The exterior water proxy stays disabled: its flat water-material quads are rendered as
+             * visible triangles by the pack. The porthole fog is now driven by the composite patch
+             * (raymarch to the back surface through glass) gated by NautilusDryCameraActive.
+             */
+            for (final ClientSubLevel carrier : subLevels) {
+                final List<ClientCompartmentVisualCache.RoomSnapshot> rooms =
+                        snapshots.get(carrier.getUniqueId());
+                if (rooms == null) {
+                    continue;
+                }
+                int renderedRooms = 0;
+                for (final ClientCompartmentVisualCache.RoomSnapshot room : rooms) {
+                    final boolean cameraInside = cameraInsideRoom(
+                            carrier, room, cameraX, cameraY, cameraZ);
+                    if ((pass == NativeSurfacePass.CAMERA_INSIDE_ROOM) != cameraInside) {
+                        continue;
+                    }
+                    if (debugLogging) renderedRooms++;
+                    renderRoomGeometry(vertices, cameraTranslation, sprite, carrier, room,
+                            roomLighting, geometryPart);
+                }
+                if (debugLogging && (!passRoomLogged || now - lastPassRoomLogNanos > 5_000_000_000L)) {
+                    passRoomLogged = true;
+                    lastPassRoomLogNanos = now;
+                    CreateNautilus.LOGGER.debug(
+                            "[virtual-water] pass={} carrier={} rooms={} rendered={} "
+                                    + "camera=({}, {}, {})",
+                            pass, carrier.getUniqueId(), rooms.size(), renderedRooms,
+                            cameraX, cameraY, cameraZ);
+                }
+            }
+
+            final long diagnosticsBufferStart = ClientWaterDiagnostics.start();
+            final MeshData mesh = vertices.build();
+            ClientWaterDiagnostics.finish(ClientWaterDiagnostics.Work.FLOODED_BUFFER,
+                    diagnosticsBufferStart, mesh == null ? 0L : mesh.drawState().vertexCount());
+            if (mesh == null) {
+                return;
+            }
+            if (!depthOnly) WaterTriangleSorting.sort(mesh, modelView);
+            if (debugLogging && (!meshLogged || now - lastMeshLogNanos > 5_000_000_000L)) {
+                meshLogged = true;
+                lastMeshLogNanos = now;
+                CreateNautilus.LOGGER.debug(
+                        "[virtual-water] mesh vertices={} pass={} geometry={} depthOnly={} rooms={}",
+                        mesh.drawState().vertexCount(), pass, geometryPart, depthOnly, snapshots.size());
+            }
+
+            /*
+             * Re-assert the dry-compartment discard exemption immediately before the draw. The
+             * Sodium hook sets NautilusVirtualWater before entering this method, but renderType
+             * setup/apply can rebind and reset the terrain program's uniform state; without the flag
+             * the OBB water discard culls every virtual-water fragment inside the dry hull and the
+             * whole volume becomes invisible.
+             */
+            SodiumWaterOcclusionShaderBridge.setVirtualWaterPass(true);
+
+            /*
+             * A normal chunk-water top face is visible from both sides.  Some Iris packs enable face
+             * culling inside their terrain-translucent program.  Temporarily disabling culling gives
+             * one physical surface two-sided visibility without double blending.
+             */
+            final boolean cullWasEnabled = GL11C.glIsEnabled(GL11C.GL_CULL_FACE);
+            final int previousCullFace = GL11C.glGetInteger(GL11C.GL_CULL_FACE_MODE);
+            final int previousVao = GL11C.glGetInteger(GL30C.GL_VERTEX_ARRAY_BINDING);
+            final int previousArrayBuffer = GL11C.glGetInteger(GL15C.GL_ARRAY_BUFFER_BINDING);
+            try {
                 RenderSystem.disableCull();
                 GL11C.glDisable(GL11C.GL_CULL_FACE);
+                /*
+                 * Sodium binds and unbinds its VAOs through a private state tracker, while
+                 * BufferUploader separately caches the last immediate VertexBuffer.  The TAIL
+                 * virtual-water draw therefore used to see the same cached BLOCK buffer, skip its
+                 * bind, and upload/draw with Sodium's VAO already unbound.  NVIDIA reports every one
+                 * of those draws as GL_INVALID_OPERATION: "Array object is not active".
+                 *
+                 * Invalidate the Java-side immediate-buffer cache before drawing, then invalidate it
+                 * again and restore the raw bindings on exit.  The second invalidation is essential:
+                 * restoring a caller-owned VAO behind BufferUploader's back must not leave it
+                 * believing that its own immediate VAO is still active on the next frame.
+                */
+                BufferUploader.invalidate();
+                // drawWithShader replaces the explicit pass matrices with RenderSystem's globals.
+                // Iris sets a shadow projection there, but not the matching shadow model-view.
+                // The shader is already applied above; draw only, using the uploader's reusable VBO.
+                final long drawWall = ClientFrameDiagnostics.startWall();
+                final long drawGpu = ClientFrameDiagnostics.beginGpu(ClientFrameDiagnostics.Stage.FLOODED_WATER);
+                try {
+                    if (depthOnly) {
+                        DepthOnlyWaterDraw.draw(mesh);
+                    } else {
+                        BufferUploader.draw(mesh);
+                    }
+                } finally {
+                    ClientFrameDiagnostics.endGpu(drawGpu);
+                    ClientFrameDiagnostics.recordWall(ClientFrameDiagnostics.Stage.FLOODED_WATER, drawWall);
+                }
+            } finally {
+                BufferUploader.invalidate();
+                GL30C.glBindVertexArray(previousVao);
+                GL15C.glBindBuffer(GL15C.GL_ARRAY_BUFFER, previousArrayBuffer);
+                GL11C.glCullFace(previousCullFace);
+                if (cullWasEnabled) {
+                    RenderSystem.enableCull();
+                    GL11C.glEnable(GL11C.GL_CULL_FACE);
+                } else {
+                    RenderSystem.disableCull();
+                    GL11C.glDisable(GL11C.GL_CULL_FACE);
+                }
             }
+        } finally {
+            shader.clear();
         }
     }
 
@@ -326,7 +445,7 @@ public final class FloodedChamberRenderer {
      * and untouched.
      */
     private static void drawExteriorWaterProxy(final VertexConsumer vertices,
-                                               final Matrix4f matrix,
+                                               final VertexTransform matrix,
                                                final TextureAtlasSprite sprite) {
         final Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.level == null) {
@@ -354,9 +473,9 @@ public final class FloodedChamberRenderer {
             }
         }
         final long now = System.nanoTime();
-        if (now - lastFilmLogNanos > 5_000_000_000L) {
+        if (CreateNautilus.LOGGER.isDebugEnabled() && now - lastFilmLogNanos > 5_000_000_000L) {
             lastFilmLogNanos = now;
-            CreateNautilus.LOGGER.info(
+            CreateNautilus.LOGGER.debug(
                     "[film] exterior water proxy faces emitted: {} "
                             + "(carriersSkipped={}, rooms={})",
                     emitted, skippedCarriers, roomCount);
@@ -364,7 +483,7 @@ public final class FloodedChamberRenderer {
     }
 
     private static int emitRoomWaterProxy(final VertexConsumer vertices,
-                                          final Matrix4f matrix,
+                                          final VertexTransform matrix,
                                     final TextureAtlasSprite sprite,
                                     final ClientSubLevel carrier,
                                     final ClientCompartmentVisualCache.RoomSnapshot room) {
@@ -533,53 +652,63 @@ public final class FloodedChamberRenderer {
     }
 
     private static void renderRoom(final VertexConsumer vertices,
-                                   final Matrix4f matrix,
+                                   final VertexTransform matrix,
                                    final TextureAtlasSprite sprite,
                                    final ClientSubLevel carrier,
                                    final ClientCompartmentVisualCache.RoomSnapshot room,
                                    final boolean roomLighting) {
-        final double fraction = room.waterFraction();
-        if (fraction <= 0.0D || room.cells().isEmpty()) return;
-
-        // Keep snapshot order for translucent blending. One set of transformed corners serves
-        // the free surface and every boundary; adjacent cells never need to be transformed again.
-        final Long2ObjectLinkedOpenHashMap<CellGeometry> cells =
-                new Long2ObjectLinkedOpenHashMap<>(room.cells().size());
-        double highestY = Double.NEGATIVE_INFINITY;
-        for (final BlockPos cell : room.cells()) {
-            final AABB bounds = new AABB(cell);
-            final Vector3d[] corners = localBoxCorners(bounds);
-            double minimumY = Double.POSITIVE_INFINITY;
-            double maximumY = Double.NEGATIVE_INFINITY;
-            for (int index = 0; index < corners.length; index++) {
-                corners[index] = carrier.renderPose().transformPosition(corners[index]);
-                minimumY = Math.min(minimumY, corners[index].y);
-                maximumY = Math.max(maximumY, corners[index].y);
-            }
-            cells.put(cell.asLong(), new CellGeometry(bounds, corners, minimumY, maximumY));
-            highestY = Math.max(highestY, maximumY);
-        }
-
-        final boolean fullyFlooded = fraction >= 1.0D - 1.0E-5D;
-        final double worldSurfaceY = fullyFlooded ? highestY
-                : CompartmentWaterGeometry.surfaceY(
-                        carrier.renderPose(), room.cells(), room.bounds(), fraction);
-        if (!fullyFlooded) {
-            for (final CellGeometry cell : cells.values()) {
-                // Half-open ownership avoids duplicate caps on an exactly horizontal cell seam.
-                if (worldSurfaceY <= cell.minimumY() + 1.0E-6D
-                        || worldSurfaceY > cell.maximumY() + 1.0E-6D) continue;
-                final List<Vector3d> polygon = surfacePolygon(cell.corners(), worldSurfaceY);
-                emitWaterPolygon(vertices, matrix, sprite, carrier, cell.bounds(), polygon,
-                        new Vector3d(0.0D, 1.0D, 0.0D), surfaceUvAxis(cell.corners()), roomLighting);
-            }
-        }
-        renderRoomBoundaryFaces(vertices, matrix, sprite, carrier, cells,
-                worldSurfaceY, fullyFlooded, roomLighting);
+        renderRoomGeometry(vertices, matrix, sprite, carrier, room, roomLighting, RoomGeometryPart.FREE_SURFACE);
     }
 
-    private record CellGeometry(AABB bounds, Vector3d[] corners,
-                                double minimumY, double maximumY) {
+    private static void renderRoomGeometry(final VertexConsumer vertices,
+                                           final VertexTransform matrix,
+                                           final TextureAtlasSprite sprite,
+                                           final ClientSubLevel carrier,
+                                           final ClientCompartmentVisualCache.RoomSnapshot room,
+                                           final boolean roomLighting,
+                                           final RoomGeometryPart geometryPart) {
+        final double fraction = room.waterFraction();
+        if (fraction <= 0.0D || room.waterCells().isEmpty()) return;
+        final long diagnosticsStart = ClientWaterDiagnostics.start();
+        final long frameGeometryStart = ClientFrameDiagnostics.startWall();
+        try {
+            ClientWaterDiagnostics.count(ClientWaterDiagnostics.Work.MESH_INPUT_CELLS,
+                    room.waterCells().size());
+            ClientWaterDiagnostics.count(ClientWaterDiagnostics.Work.MESH_EFFECTIVE_CELLS,
+                    room.waterCells().size());
+            final FloodedRoomGeometryCache.Geometry geometry = FloodedRoomGeometryCache.prepare(
+                    carrier, room.id(), room.topologyRevision(), carrier.renderPose(),
+                    room.waterCells(), room.bounds());
+            final List<CellGeometry> cells = geometry.cells();
+
+            final boolean fullyFlooded = fraction >= 1.0D - 1.0E-5D;
+            final boolean shaderPackActive = WaterOcclusionPassBridge.isShaderPackActive();
+            final double worldSurfaceY = fullyFlooded ? geometry.highestY()
+                    : ClientRoomGeometryCache.surfaceY(carrier, room.id(), room.topologyRevision(),
+                            carrier.renderPose(), room.waterCells(), room.bounds(), fraction);
+            if (geometryPart != RoomGeometryPart.BOUNDARY && (!fullyFlooded || !shaderPackActive)) {
+                for (final CellGeometry cell : cells) {
+                    // Half-open ownership avoids duplicate caps on an exactly horizontal cell seam.
+                    if (worldSurfaceY <= cell.minimumY() + 1.0E-6D
+                            || worldSurfaceY > cell.maximumY() + 1.0E-6D) continue;
+                    ClientWaterDiagnostics.count(ClientWaterDiagnostics.Work.MESH_SURFACE_CELLS, 1L);
+                    final List<Vector3d> polygon = cell.surfacePolygon(worldSurfaceY);
+                    emitWaterPolygon(vertices, matrix, sprite, carrier, cell.bounds(), polygon,
+                            new Vector3d(0.0D, 1.0D, 0.0D), cell.surfaceUvAxis(), roomLighting);
+                }
+            }
+            if (geometryPart != RoomGeometryPart.FREE_SURFACE) {
+                // Include every clipped shell origin, including a tilted local UP face. Only the
+                // native draw decides whether this geometry writes visible material or just depth.
+                renderRoomBoundaryFaces(vertices, matrix, sprite, carrier, cells,
+                        worldSurfaceY, fullyFlooded, roomLighting);
+            }
+        } finally {
+            ClientWaterDiagnostics.finish(ClientWaterDiagnostics.Work.FLOODED_GEOMETRY,
+                    diagnosticsStart, room.waterCells().size());
+            ClientFrameDiagnostics.recordWall(ClientFrameDiagnostics.Stage.FLOODED_GEOMETRY,
+                    frameGeometryStart);
+        }
     }
 
     private static Vector3d[] localBoxCorners(final AABB bounds) {
@@ -633,29 +762,30 @@ public final class FloodedChamberRenderer {
 
     /** All six local shell directions matter once a carrier tilts or turns upside down. */
     private static void renderRoomBoundaryFaces(
-            final VertexConsumer vertices, final Matrix4f matrix, final TextureAtlasSprite sprite,
-            final ClientSubLevel carrier, final Long2ObjectLinkedOpenHashMap<CellGeometry> cells,
+            final VertexConsumer vertices, final VertexTransform matrix, final TextureAtlasSprite sprite,
+            final ClientSubLevel carrier, final List<CellGeometry> cells,
             final double worldSurfaceY, final boolean fullyFlooded, final boolean roomLighting) {
         final BlockPos.MutableBlockPos neighbour = new BlockPos.MutableBlockPos();
-        for (final var entry : cells.long2ObjectEntrySet()) {
-            final CellGeometry cell = entry.getValue();
+        for (final CellGeometry cell : cells) {
             if (cell.minimumY() >= worldSurfaceY - 1.0E-6D) continue;
-            final BlockPos position = BlockPos.of(entry.getLongKey());
+            final BlockPos position = BlockPos.of(cell.position());
             for (final Direction direction : WATER_BOUNDARY_DIRECTIONS) {
-                neighbour.set(position).move(direction);
                 // The same world-horizontal half-space applies to both cells. Even when a
                 // neighbour is dry, a shared room face cannot contain positive-area exterior water.
-                if (cells.containsKey(neighbour.asLong())) continue;
+                if (!cell.boundary(direction)) continue;
+                neighbour.set(position).move(direction);
+                ClientWaterDiagnostics.count(ClientWaterDiagnostics.Work.MESH_BOUNDARY_CANDIDATES, 1L);
+                ClientWaterDiagnostics.count(ClientWaterDiagnostics.Work.MESH_DYNAMIC_NEIGHBOUR_CHECKS, 1L);
                 if (carrier.getLevel().getBlockState(neighbour).canOcclude()) continue;
 
-                final List<Vector3d> face = orderedFaceCorners(cell.corners(), direction);
+                final List<Vector3d> face = new ArrayList<>(4);
+                for (final int index : FACE_CORNER_INDICES[direction.get3DDataValue()]) {
+                    face.add(cell.copyCorner(index));
+                }
                 if (!fullyFlooded && isSurfaceCoplanar(face, worldSurfaceY)) continue;
                 if (direction.getAxis() != Direction.Axis.Y) {
                     // Preserve the existing small side inset against translucent glass.
-                    final int axisCorner = direction.getAxis() == Direction.Axis.X ? 1 : 4;
-                    final Vector3d inset = new Vector3d(cell.corners()[axisCorner])
-                            .sub(cell.corners()[0])
-                            .mul(-0.02D * direction.getAxisDirection().getStep());
+                    final Vector3d inset = cell.sideInset(direction);
                     face.forEach(point -> point.add(inset));
                 }
                 final List<Vector3d> polygon = clipBelowPlane(face, worldSurfaceY);
@@ -687,10 +817,13 @@ public final class FloodedChamberRenderer {
      * each unique vertex to local UV space once, not twice for every triangle that shares it.
      */
     private static void emitWaterPolygon(
-            final VertexConsumer vertices, final Matrix4f matrix, final TextureAtlasSprite sprite,
+            final VertexConsumer vertices, final VertexTransform matrix, final TextureAtlasSprite sprite,
             final ClientSubLevel carrier, final AABB cell, final List<Vector3d> polygon,
             final Vector3d normal, final Direction.Axis uvAxis, final boolean roomLighting) {
         if (polygon.size() < 3) return;
+        ClientWaterDiagnostics.count(ClientWaterDiagnostics.Work.MESH_OUTPUT_POLYGONS, 1L);
+        ClientWaterDiagnostics.count(ClientWaterDiagnostics.Work.MESH_OUTPUT_VERTICES,
+                3L * polygon.size());
         final Vector3d center = polygonCenter(polygon);
         final Vector3d localCenter = carrier.renderPose().transformPositionInverse(new Vector3d(center));
         final BlockPos localLightPosition = BlockPos.containing(localCenter.x, localCenter.y, localCenter.z);
@@ -794,7 +927,7 @@ public final class FloodedChamberRenderer {
      * inside solid walls) are skipped or depth-occluded automatically.</p>
      */
     private static void drawExteriorFilm(final VertexConsumer vertices,
-                                         final Matrix4f matrix,
+                                         final VertexTransform matrix,
                                          final TextureAtlasSprite sprite,
                                          final ClientSubLevel carrier,
                                          final ClientCompartmentVisualCache.RoomSnapshot room) {
@@ -899,24 +1032,24 @@ public final class FloodedChamberRenderer {
                     world[3], textureU(sprite, carrier, bounds, world[3]),
                     textureV(sprite, carrier, bounds, world[3]),
                     red, green, blue, packedLight, normalWorld, 140);
-            exteriorFilmFaceCount++;
-            if (!exteriorFilmLogged) {
+            if (CreateNautilus.LOGGER.isDebugEnabled()) exteriorFilmFaceCount++;
+            if (CreateNautilus.LOGGER.isDebugEnabled() && !exteriorFilmLogged) {
                 exteriorFilmLogged = true;
-                CreateNautilus.LOGGER.info(
+                CreateNautilus.LOGGER.debug(
                         "[film] exterior water film active: first face at world=({}, {}, {})",
                         sampleWorld.x, sampleWorld.y, sampleWorld.z);
             }
         }
-        if (exteriorFilmFaceCount > 0
+        if (CreateNautilus.LOGGER.isDebugEnabled() && exteriorFilmFaceCount > 0
                 && (exteriorFilmFaceCount & 0x3F) == 0L) {
-            CreateNautilus.LOGGER.info(
+            CreateNautilus.LOGGER.debug(
                     "[film] exterior water film faces emitted so far: {}",
                     exteriorFilmFaceCount);
         }
     }
 
     private static void triangleWithNormal(final VertexConsumer vertices,
-                                           final Matrix4f matrix,
+                                           final VertexTransform matrix,
                                            final Vector3d first, final float firstU,
                                            final float firstV,
                                            final Vector3d second, final float secondU,
@@ -932,7 +1065,7 @@ public final class FloodedChamberRenderer {
     }
 
     private static void triangleWithNormal(final VertexConsumer vertices,
-                                           final Matrix4f matrix,
+                                           final VertexTransform matrix,
                                            final Vector3d first, final float firstU,
                                            final float firstV,
                                            final Vector3d second, final float secondU,
@@ -952,7 +1085,7 @@ public final class FloodedChamberRenderer {
     }
 
     private static void vertexWithNormal(final VertexConsumer vertices,
-                                         final Matrix4f matrix,
+                                         final VertexTransform matrix,
                                          final Vector3d point,
                                          final float u, final float v,
                                          final int red, final int green, final int blue,
@@ -963,14 +1096,17 @@ public final class FloodedChamberRenderer {
     }
 
     private static void vertexWithNormal(final VertexConsumer vertices,
-                                         final Matrix4f matrix,
+                                         final VertexTransform matrix,
                                          final Vector3d point,
                                          final float u, final float v,
                                          final int red, final int green, final int blue,
                                          final int packedLight,
                                          final Vector3d normal,
                                          final int alpha) {
-        vertices.addVertex(matrix, (float) point.x, (float) point.y, (float) point.z)
+        vertices.addVertex(matrix.matrix(),
+                        (float) (point.x - matrix.cameraX()),
+                        (float) (point.y - matrix.cameraY()),
+                        (float) (point.z - matrix.cameraZ()))
                 .setColor(red, green, blue, alpha)
                 .setUv(u, v)
                 .setLight(packedLight)
@@ -1011,7 +1147,7 @@ public final class FloodedChamberRenderer {
     }
 
     private static void vertex(final VertexConsumer vertices,
-                               final Matrix4f matrix,
+                               final VertexTransform matrix,
                                final Vector3d point,
                                final float u,
                                final float v,
@@ -1020,7 +1156,10 @@ public final class FloodedChamberRenderer {
                                final int blue,
                                final int packedLight,
                                final float normalY) {
-        vertices.addVertex(matrix, (float) point.x, (float) point.y, (float) point.z)
+        vertices.addVertex(matrix.matrix(),
+                        (float) (point.x - matrix.cameraX()),
+                        (float) (point.y - matrix.cameraY()),
+                        (float) (point.z - matrix.cameraZ()))
                 .setColor(red, green, blue, 255)
                 .setUv(u, v)
                 .setLight(packedLight)
@@ -1028,7 +1167,7 @@ public final class FloodedChamberRenderer {
     }
 
     private static void triangle(final VertexConsumer vertices,
-                                 final Matrix4f matrix,
+                                 final VertexTransform matrix,
                                  final Vector3d first,
                                  final float firstU,
                                  final float firstV,
@@ -1049,6 +1188,10 @@ public final class FloodedChamberRenderer {
                 red, green, blue, packedLight, normalY);
         vertex(vertices, matrix, third, thirdU, thirdV,
                 red, green, blue, packedLight, normalY);
+    }
+
+    /** World coordinates stay double until the camera origin has been removed. */
+    private record VertexTransform(Matrix4f matrix, double cameraX, double cameraY, double cameraZ) {
     }
 
     private static boolean classPresent(final String name) {

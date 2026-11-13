@@ -71,7 +71,8 @@ public final class NautilusBlockEntityTypes {
     public static void registerCapabilities(RegisterCapabilitiesEvent event) {
         ElectrolyticGeneratorBlockEntity.registerCapabilities(event);
         event.registerBlockEntity(GasCapabilities.HANDLER, OXYGEN_INTERFACE.get(),
-                (be, side) -> be.gasHandler());
+                (be, side) -> side != be.getBlockState().getValue(OxygenInterfaceBlock.FACING)
+                        ? be.gasHandler() : null);
         event.registerBlockEntity(GasCapabilities.HANDLER, GAS_TANK.get(),
                 (be, side) -> be.gasHandler());
         CompressorBlockEntity.registerCapabilities(event);

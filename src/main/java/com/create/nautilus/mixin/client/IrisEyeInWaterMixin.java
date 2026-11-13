@@ -25,10 +25,11 @@ public abstract class IrisEyeInWaterMixin {
     @Inject(method = "isEyeInWater", at = @At("RETURN"), require = 0)
     private static void createNautilus$logEyeInWater(
             final CallbackInfoReturnable<Integer> callback) {
+        if (!CreateNautilus.LOGGER.isDebugEnabled()) return;
         final int value = callback.getReturnValue();
         if (value != lastLoggedEyeInWater) {
             lastLoggedEyeInWater = value;
-            CreateNautilus.LOGGER.info("[iris-eye] isEyeInWater={}", value);
+            CreateNautilus.LOGGER.debug("[iris-eye] isEyeInWater={}", value);
         }
     }
 }

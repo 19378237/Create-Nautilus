@@ -2,6 +2,7 @@ package com.create.nautilus.mixin.client;
 
 import com.create.nautilus.client.render.ShaderVoxelMaskAtlas;
 import com.create.nautilus.client.render.ApertureMediumMaskRenderer;
+import com.create.nautilus.client.render.ClientCompartmentVisualCache;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.Level;
@@ -22,6 +23,7 @@ public abstract class ClientLevelFluidChangeMixin {
             final int flags, final int recursionLeft,
             final CallbackInfoReturnable<Boolean> callback) {
         if ((Object) this instanceof ClientLevel && callback.getReturnValueZ()) {
+            ClientCompartmentVisualCache.onBlockChanged((ClientLevel) (Object) this, position);
             ShaderVoxelMaskAtlas.notifyBlockChanged((ClientLevel) (Object) this, position);
             ApertureMediumMaskRenderer.notifyBlockChanged(
                     (ClientLevel) (Object) this, position);

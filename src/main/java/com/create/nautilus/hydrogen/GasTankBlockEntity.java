@@ -3,6 +3,7 @@ package com.create.nautilus.hydrogen;
 import com.create.nautilus.config.NautilusConfig;
 import com.simibubi.create.content.fluids.tank.FluidTankBlockEntity;
 import com.simibubi.create.foundation.fluid.SmartFluidTank;
+import net.createmod.catnip.animation.LerpedFloat;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
@@ -28,6 +29,26 @@ public final class GasTankBlockEntity extends FluidTankBlockEntity {
                 capacityPerBlock(), this::onFluidStackChanged);
         inventory.setValidator(HydrogenFluids::isGas);
         return inventory;
+    }
+
+    @Override
+    protected void updateConnectivity() {
+        updateConnectivity = false;
+        if (level != null && !level.isClientSide && isController()) {
+            GasTankConnectivity.formMulti(this);
+        }
+    }
+
+    /** Gas storage never becomes Create's water-consuming boiler inventory. */
+    @Override
+    public void updateBoilerState() {
+        if (boiler.isActive()) {
+            boiler.clear();
+            boiler.attachedWhistles = 0;
+            updateCapability = true;
+            invalidateCapabilities();
+            notifyUpdate();
+        }
     }
 
     /** Create calls this whenever multiblock width/height changes. */
@@ -59,7 +80,10 @@ public final class GasTankBlockEntity extends FluidTankBlockEntity {
     }
 
     public IGasHandler gasHandler() {
-        return GasHandlerView.of(fluidCapability);
+        // Resolve the actual inventory even before the parent's deferred
+        // capability refresh, including controllers restored from old saves.
+        return getControllerBE() instanceof GasTankBlockEntity controller
+                ? GasHandlerView.of(controller.getTankInventory()) : null;
     }
 
     /**
@@ -140,11 +164,28 @@ public final class GasTankBlockEntity extends FluidTankBlockEntity {
     @Override
     protected void read(final CompoundTag tag, final HolderLookup.Provider registries,
                         final boolean clientPacket) {
+        final boolean resetFluidLevel = getFluidLevel() == null || tag.contains("ForceFluidLevel");
         super.read(tag, registries, clientPacket);
-        // FluidTankBlockEntity's deserializer restores Create's native
-        // capacity. Reapply our configurable multiplier after all controller
-        // and width/height data has been read.
+        final int nativeAmount = tankInventory.getFluidAmount();
+        // The parent reads AND clamps to Create's ordinary capacity first.
+        // Restore the original serialized stack after applying the gas capacity
+        // so valid high-capacity saves do not silently lose their excess.
+        tankInventory.setCapacity(saturatedCapacity(Math.max(1, getTotalTankSize())));
+        if (isController()) {
+            tankInventory.readFromNBT(registries, tag.getCompound("TankContent"));
+        }
         applyFluidTankSize(Math.max(1, getTotalTankSize()));
+        boiler.clear();
+        boiler.attachedWhistles = 0;
+        if (tankInventory.getFluidAmount() != nativeAmount) {
+            onFluidStackChanged(tankInventory.getFluid());
+        }
+        if (isController() && clientPacket) {
+            final LerpedFloat fluidLevel = getFluidLevel();
+            if (resetFluidLevel) fluidLevel.startWithValue(getFillState());
+            fluidLevel.chase(getFillState(), tag.contains("LazySync") ? 0.125F : 0.5F,
+                    LerpedFloat.Chaser.EXP);
+        }
     }
 
     public static int capacityPerBlock() {

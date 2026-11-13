@@ -1,6 +1,7 @@
 package com.create.nautilus.client.render;
 
 import com.create.nautilus.CreateNautilus;
+import com.create.nautilus.config.NautilusConfig;
 import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
@@ -49,6 +50,9 @@ import java.util.UUID;
  */
 public final class ApertureMediumMaskRenderer {
     private static final long MAX_FULL_RESOLUTION_BYTES = 16L * 1024L * 1024L;
+    /** Opt in with -Dcreate_nautilus.renderPixelDiagnostics=true for synchronous GPU readback. */
+    private static final boolean PIXEL_DIAGNOSTICS =
+            Boolean.getBoolean("create_nautilus.renderPixelDiagnostics");
     private static final long MAX_VBO_BYTES_PER_CARRIER = 8L * 1024L * 1024L;
     private static final long MAX_TOTAL_VBO_BYTES = 24L * 1024L * 1024L;
     private static final int BYTES_PER_DEPTH_STENCIL_PIXEL = 4;
@@ -127,91 +131,107 @@ public final class ApertureMediumMaskRenderer {
         // frame serial, causing both extra CPU work and a view-dependent mask.
     }
 
-    /** Freezes semantic data and carrier poses; no full-resolution resource is touched here. */
+    /**
+     * Freezes semantic data and carrier poses; no full-resolution resource is touched here.
+     * Keep this shared atlas preparation active when fog is disabled so parent-water clipping
+     * retains the same optical occupancy and event layout.
+     */
     public static void prepareParentTranslucent(final Matrix4f modelView,
                                                 final Matrix4f projection,
                                                 final double cameraX,
                                                 final double cameraY,
                                                 final double cameraZ) {
-        processPendingDestroy();
-        final int adapterGeneration = selectedAdapterGeneration;
-        if (preparedSerial == frameSerial) {
-            final PreparedFrame existing = preparedFrame;
-            if (existing != null && modelView != null && projection != null
-                    && modelView.isFinite() && projection.isFinite()
-                    && sameCamera(existing, cameraX, cameraY, cameraZ)) {
-                if (ready()) {
-                    // deferred1 already consumed this exact raster/semantic pair. Keep it stable
-                    // through composite1; the Sodium upload below needs only the same semantics.
-                    ShaderVoxelMaskAtlas.prepareOpticalEvents(
-                            existing.semantic(), frameSerial);
-                    return;
-                }
-                // Without a published early mask, the actual Sodium translucent hook may replace
-                // only the raster half with Iris' exact water-pass matrices.
-                final RasterContract raster = captureRasterContract();
-                if (raster == null) {
+        final int diagnosticsSource = ClientWaterDiagnostics.enter(ClientWaterDiagnostics.source() == ClientWaterDiagnostics.Source.APERTURE_EARLY_FOG
+                ? ClientWaterDiagnostics.Source.APERTURE_EARLY_FOG : ClientWaterDiagnostics.Source.APERTURE_WATER);
+        try {
+            processPendingDestroy();
+            final int adapterGeneration = selectedAdapterGeneration;
+            if (preparedSerial == frameSerial) {
+                final PreparedFrame existing = preparedFrame;
+                if (existing != null && modelView != null && projection != null
+                        && modelView.isFinite() && projection.isFinite()
+                        && sameCamera(existing, cameraX, cameraY, cameraZ)) {
+                    if (ready()) {
+                        // deferred1 already consumed this exact raster/semantic pair. Keep it stable
+                        // through composite1; the Sodium upload below needs only the same semantics.
+                        ShaderVoxelMaskAtlas.prepareOpticalEvents(
+                                existing.semantic(), frameSerial);
+                        return;
+                    }
+                    // Without a published early mask, the actual Sodium translucent hook may replace
+                    // only the raster half with Iris' exact water-pass matrices.
+                    final RasterContract raster = captureRasterContract();
+                    if (raster == null) {
+                        preparedFrame = null;
+                        return;
+                    }
+                    preparedFrame = new PreparedFrame(
+                            existing.level(), cameraX, cameraY, cameraZ,
+                            new Matrix4f(modelView),
+                            new Matrix4f(projection), raster.viewportX(), raster.viewportY(),
+                            raster.viewportWidth(), raster.viewportHeight(),
+                            raster.depthRangeNear(), raster.depthRangeFar(),
+                            existing.adapterGeneration(),
+                            existing.semantic());
+                    ShaderVoxelMaskAtlas.prepareOpticalEvents(existing.semantic(), frameSerial);
+                } else {
+                    // A different camera or invalid matrix input cannot share the early snapshot.
+                    // Fail open instead of pairing its mask with a later atlas publication.
+                    ready = false;
                     preparedFrame = null;
+                }
+                return;
+            }
+            preparedSerial = frameSerial;
+            ready = false;
+            preparedFrame = null;
+            if (failedUntilInvalidation || !WaterOcclusionPassBridge.isShaderPackActive()
+                    || !IrisCompositeShaderSource.adapterReady(adapterGeneration)
+                    || !IrisCompositeShaderSource.linkedConsumerReady(adapterGeneration)
+                    || modelView == null || projection == null
+                    || !modelView.isFinite() || !projection.isFinite()
+                    || !Double.isFinite(cameraX) || !Double.isFinite(cameraY)
+                    || !Double.isFinite(cameraZ)) {
+                return;
+            }
+            final Minecraft minecraft = Minecraft.getInstance();
+            if (!(minecraft.level instanceof final ClientLevel level)) return;
+            try {
+                final RasterContract raster = captureRasterContract();
+                if (raster == null) return;
+                final ApertureEventCache.Frame semantic;
+                final long semanticStarted = ClientFrameDiagnostics.startWall();
+                try {
+                    semantic = ApertureEventCache.prepare(level, cameraX, cameraY, cameraZ);
+                } finally {
+                    ClientFrameDiagnostics.recordWall(
+                            ClientFrameDiagnostics.Stage.APERTURE_SEMANTICS, semanticStarted);
+                }
+                if (semantic != null && semantic.opticalLayoutChanged()) {
+                    // The cache had to renumber/remove optical slots after the voxel atlas had already
+                    // frozen this water pass.  Publish neither side of that mixed generation: request
+                    // an atomic atlas replacement and let the next coherent frame retry.
+                    ShaderVoxelMaskAtlas.requestOpticalLayoutRebuild();
                     return;
                 }
+                if (semantic == null || semantic.carriers().isEmpty()) {
+                    handleEmptyFrame();
+                    return;
+                }
+                ShaderVoxelMaskAtlas.prepareOpticalEvents(semantic, frameSerial);
                 preparedFrame = new PreparedFrame(
-                        existing.level(), cameraX, cameraY, cameraZ,
+                        level, cameraX, cameraY, cameraZ,
                         new Matrix4f(modelView),
                         new Matrix4f(projection), raster.viewportX(), raster.viewportY(),
                         raster.viewportWidth(), raster.viewportHeight(),
                         raster.depthRangeNear(), raster.depthRangeFar(),
-                        existing.adapterGeneration(),
-                        existing.semantic());
-                ShaderVoxelMaskAtlas.prepareOpticalEvents(existing.semantic(), frameSerial);
-            } else {
-                // A different camera or invalid matrix input cannot share the early snapshot.
-                // Fail open instead of pairing its mask with a later atlas publication.
-                ready = false;
-                preparedFrame = null;
+                        adapterGeneration, semantic);
+                emptyFrames = 0;
+            } catch (final RuntimeException | LinkageError exception) {
+                failCurrentGeneration("semantic aperture cache failed", exception);
             }
-            return;
-        }
-        preparedSerial = frameSerial;
-        ready = false;
-        preparedFrame = null;
-        if (failedUntilInvalidation || !WaterOcclusionPassBridge.isShaderPackActive()
-                || !IrisCompositeShaderSource.adapterReady(adapterGeneration)
-                || !IrisCompositeShaderSource.linkedConsumerReady(adapterGeneration)
-                || modelView == null || projection == null
-                || !modelView.isFinite() || !projection.isFinite()
-                || !Double.isFinite(cameraX) || !Double.isFinite(cameraY)
-                || !Double.isFinite(cameraZ)) {
-            return;
-        }
-        final Minecraft minecraft = Minecraft.getInstance();
-        if (!(minecraft.level instanceof final ClientLevel level)) return;
-        try {
-            final RasterContract raster = captureRasterContract();
-            if (raster == null) return;
-            final ApertureEventCache.Frame semantic = ApertureEventCache.prepare(
-                    level, cameraX, cameraY, cameraZ);
-            if (semantic != null && semantic.opticalLayoutChanged()) {
-                // The cache had to renumber/remove optical slots after the voxel atlas had already
-                // frozen this water pass.  Publish neither side of that mixed generation: request
-                // an atomic atlas replacement and let the next coherent frame retry.
-                ShaderVoxelMaskAtlas.requestOpticalLayoutRebuild();
-                return;
-            }
-            if (semantic == null || semantic.carriers().isEmpty()) {
-                handleEmptyFrame();
-                return;
-            }
-            ShaderVoxelMaskAtlas.prepareOpticalEvents(semantic, frameSerial);
-            preparedFrame = new PreparedFrame(
-                    level, cameraX, cameraY, cameraZ,
-                    new Matrix4f(modelView),
-                    new Matrix4f(projection), raster.viewportX(), raster.viewportY(),
-                    raster.viewportWidth(), raster.viewportHeight(),
-                    raster.depthRangeNear(), raster.depthRangeFar(),
-                    adapterGeneration, semantic);
-            emptyFrames = 0;
-        } catch (final RuntimeException | LinkageError exception) {
-            failCurrentGeneration("semantic aperture cache failed", exception);
+        } finally {
+            ClientWaterDiagnostics.leave(diagnosticsSource);
         }
     }
 
@@ -230,37 +250,43 @@ public final class ApertureMediumMaskRenderer {
                                                   final int targetHeight,
                                                   final int irisFrameCounter,
                                                   final int adapterGeneration) {
-        if (!RenderSystem.isOnRenderThread()
-                || selectedAdapterGeneration != adapterGeneration
-                || !IrisCompositeShaderSource.adapterReady(adapterGeneration)
-                || !IrisCompositeShaderSource.linkedConsumerReady(adapterGeneration)) {
-            return;
-        }
-        final double effectiveCameraX = WaterOcclusionPassBridge.sodiumEffectiveCamera(cameraX);
-        final double effectiveCameraY = WaterOcclusionPassBridge.sodiumEffectiveCamera(cameraY);
-        final double effectiveCameraZ = WaterOcclusionPassBridge.sodiumEffectiveCamera(cameraZ);
+        final int diagnosticsSource = ClientWaterDiagnostics.enter(ClientWaterDiagnostics.Source.APERTURE_EARLY_FOG);
         try {
-            ShaderVoxelMaskAtlas.updateForEarlyFog(
-                    effectiveCameraX, effectiveCameraY, effectiveCameraZ);
-            prepareParentTranslucent(modelView, projection,
-                    effectiveCameraX, effectiveCameraY, effectiveCameraZ);
-            final PreparedFrame frame = preparedFrame;
-            if (frame == null || preparedSerial != frameSerial
-                    || frame.adapterGeneration() != adapterGeneration) {
+            if (!NautilusConfig.shaderUnderwaterFogEnabled()
+                    || !RenderSystem.isOnRenderThread()
+                    || selectedAdapterGeneration != adapterGeneration
+                    || !IrisCompositeShaderSource.adapterReady(adapterGeneration)
+                    || !IrisCompositeShaderSource.linkedConsumerReady(adapterGeneration)) {
                 return;
             }
-            if (!ShaderVoxelMaskAtlas.publishOpticalForEarlyFog(
-                    effectiveCameraX, effectiveCameraY, effectiveCameraZ,
-                    frame.rotationOnlyView(), frame.projection(),
-                    frame.viewportX(), frame.viewportY(),
-                    frame.viewportWidth(), frame.viewportHeight())) {
-                return;
+            final double effectiveCameraX = WaterOcclusionPassBridge.sodiumEffectiveCamera(cameraX);
+            final double effectiveCameraY = WaterOcclusionPassBridge.sodiumEffectiveCamera(cameraY);
+            final double effectiveCameraZ = WaterOcclusionPassBridge.sodiumEffectiveCamera(cameraZ);
+            try {
+                ShaderVoxelMaskAtlas.updateForEarlyFog(
+                        effectiveCameraX, effectiveCameraY, effectiveCameraZ);
+                prepareParentTranslucent(modelView, projection,
+                        effectiveCameraX, effectiveCameraY, effectiveCameraZ);
+                final PreparedFrame frame = preparedFrame;
+                if (frame == null || preparedSerial != frameSerial
+                        || frame.adapterGeneration() != adapterGeneration) {
+                    return;
+                }
+                if (!ShaderVoxelMaskAtlas.publishOpticalForEarlyFog(
+                        effectiveCameraX, effectiveCameraY, effectiveCameraZ,
+                        frame.rotationOnlyView(), frame.projection(),
+                        frame.viewportX(), frame.viewportY(),
+                        frame.viewportWidth(), frame.viewportHeight())) {
+                    return;
+                }
+                finalizeBeforeDeferred(sceneDepthTexture, targetWidth, targetHeight,
+                        irisFrameCounter, adapterGeneration);
+            } catch (final RuntimeException | LinkageError unavailable) {
+                // Early fog is optional and retryable. The later water pass must remain fully native.
+                ready = false;
             }
-            finalizeBeforeDeferred(sceneDepthTexture, targetWidth, targetHeight,
-                    irisFrameCounter, adapterGeneration);
-        } catch (final RuntimeException | LinkageError unavailable) {
-            // Early fog is optional and retryable. The later water pass must remain fully native.
-            ready = false;
+        } finally {
+            ClientWaterDiagnostics.leave(diagnosticsSource);
         }
     }
 
@@ -271,6 +297,10 @@ public final class ApertureMediumMaskRenderer {
                                               final int irisFrameCounter,
                                               final int adapterGeneration) {
         processPendingDestroy();
+        if (!NautilusConfig.shaderUnderwaterFogEnabled()) {
+            ready = false;
+            return;
+        }
         if (!RenderSystem.isOnRenderThread() || finalizedSerial == frameSerial) return;
         ready = false;
         final PreparedFrame frame = preparedFrame;
@@ -312,7 +342,8 @@ public final class ApertureMediumMaskRenderer {
                 > MAX_FULL_RESOLUTION_BYTES
                 || targetWidth > maximumTextureSize()
                 || targetHeight > maximumTextureSize()) {
-            failCurrentGeneration("D24S8 target exceeds the 16 MiB/GL size budget", null);
+            // This is a property of the current render size, not a broken pipeline. A later
+            // frame at a smaller size must be allowed to allocate and publish its mask.
             return;
         }
         // Only consume this frame after the caller supplied a coherent Iris target.  Several
@@ -322,8 +353,15 @@ public final class ApertureMediumMaskRenderer {
         finalizedSerial = frameSerial;
         try {
             syncGpuCarriers(frame.semantic());
-            final ScreenBounds bounds = screenBounds(frame, viewportX, viewportY,
-                    viewportWidth, viewportHeight, targetWidth, targetHeight);
+            final ScreenBounds bounds;
+            final long boundsStarted = ClientFrameDiagnostics.startWall();
+            try {
+                bounds = screenBounds(frame, viewportX, viewportY,
+                        viewportWidth, viewportHeight, targetWidth, targetHeight);
+            } finally {
+                ClientFrameDiagnostics.recordWall(
+                        ClientFrameDiagnostics.Stage.SCREEN_BOUNDS, boundsStarted);
+            }
             if (bounds.empty()) {
                 handleEmptyFrame();
                 return;
@@ -341,6 +379,8 @@ public final class ApertureMediumMaskRenderer {
             }
 
             final ScreenBounds clearBounds = previousBounds.union(bounds);
+            // The texture outlives viewport changes. Keep the old extent in target coordinates,
+            // including after an interrupted draw, until a successful mask replaces it.
             previousBounds = clearBounds;
             final int drawnBatches = renderMask(frame, sceneDepthTexture,
                     viewportX, viewportY, viewportWidth, viewportHeight,
@@ -391,7 +431,9 @@ public final class ApertureMediumMaskRenderer {
                                        final IrisCompositeShaderSource.SceneDepthTransform
                                                sceneDepthTransform,
                                        final ShaderVoxelMaskAtlas.CompositeAtlasView opticalAtlas) {
+        final long started = ClientFrameDiagnostics.startWall();
         final GlState state = GlState.capture();
+        long gpuScope = 0L;
         try {
             final boolean standardRange = Math.abs(frame.depthRangeNear()) <= 1.0E-7D
                     && Math.abs(frame.depthRangeFar() - 1.0D) <= 1.0E-7D;
@@ -402,6 +444,7 @@ public final class ApertureMediumMaskRenderer {
             final boolean reversed = projectionReversed ^ rangeReversed;
             final float clearDepth = reversed ? 0.0F : 1.0F;
 
+            gpuScope = ClientFrameDiagnostics.beginGpu(ClientFrameDiagnostics.Stage.APERTURE_MASK);
             GL30C.glBindFramebuffer(GL30C.GL_FRAMEBUFFER, framebuffer);
             GL11C.glDrawBuffer(GL11C.GL_NONE);
             GL11C.glReadBuffer(GL11C.GL_NONE);
@@ -416,8 +459,12 @@ public final class ApertureMediumMaskRenderer {
             GL11C.glClearDepth(clearDepth);
             GL11C.glClearStencil(0);
             GL30C.glClearBufferfi(GL30C.GL_DEPTH_STENCIL, 0, clearDepth, 0);
+            ClientWaterDiagnostics.count(ClientWaterDiagnostics.Work.MASK_CLEAR_PIXELS,
+                    (long) clearBounds.width() * clearBounds.height());
 
             GL11C.glScissor(bounds.x(), bounds.y(), bounds.width(), bounds.height());
+            ClientWaterDiagnostics.count(ClientWaterDiagnostics.Work.MASK_BOUNDS_PIXELS,
+                    (long) bounds.width() * bounds.height());
             GL11C.glEnable(GL11C.GL_DEPTH_TEST);
             GL11C.glDepthRange(frame.depthRangeNear(), frame.depthRangeFar());
             GL11C.glDepthFunc(reversed ? GL11C.GL_GREATER : GL11C.GL_LESS);
@@ -448,7 +495,12 @@ public final class ApertureMediumMaskRenderer {
             publishedClearDepthReversed = reversed;
             return drawnBatches;
         } finally {
-            state.restore();
+            try {
+                state.restore();
+            } finally {
+                ClientFrameDiagnostics.endGpu(gpuScope);
+                ClientFrameDiagnostics.recordWall(ClientFrameDiagnostics.Stage.APERTURE_MASK, started);
+            }
         }
     }
 
@@ -457,7 +509,7 @@ public final class ApertureMediumMaskRenderer {
             final ScreenBounds bounds,
             final PreparedFrame frame,
             final ShaderVoxelMaskAtlas.CompositeAtlasView opticalAtlas) {
-        if (firstMaskPixelsLogged) return;
+        if (!PIXEL_DIAGNOSTICS || firstMaskPixelsLogged) return;
         firstMaskPixelsLogged = true;
         final long pixelCount = (long) bounds.width() * bounds.height();
         if (pixelCount <= 0L || pixelCount > Integer.MAX_VALUE) return;
@@ -651,24 +703,25 @@ public final class ApertureMediumMaskRenderer {
                 destroyGpuCarrier(previous);
             }
             final List<GpuBatch> batches = new ArrayList<>();
-            boolean complete = true;
-            for (final ApertureEventCache.Batch source : carrier.batches()) {
-                final ApertureMaskMeshRenderer.GpuBatch gpu =
-                        ApertureMaskMeshRenderer.upload(source.vertices());
-                if (gpu == null) {
-                    complete = false;
-                    break;
+            boolean published = false;
+            try {
+                for (final ApertureEventCache.Batch source : carrier.batches()) {
+                    final ApertureMaskMeshRenderer.GpuBatch gpu =
+                            ApertureMaskMeshRenderer.upload(source.vertices());
+                    if (gpu == null) break;
+                    batches.add(new GpuBatch(source.atlas(), source.alphaCutoff(),
+                            source.directionCode(), gpu));
                 }
-                batches.add(new GpuBatch(source.atlas(), source.alphaCutoff(),
-                        source.directionCode(), gpu));
+                if (batches.size() != carrier.batches().size()) continue;
+                GPU_CARRIERS.put(carrier.id(), new CarrierGpu(
+                        carrier.geometryGeneration(), List.copyOf(batches)));
+                published = true;
+                retainedBytes += carrierBytes;
+            } finally {
+                if (!published) {
+                    batches.forEach(batch -> ApertureMaskMeshRenderer.destroy(batch.gpu()));
+                }
             }
-            if (!complete) {
-                batches.forEach(batch -> ApertureMaskMeshRenderer.destroy(batch.gpu()));
-                continue;
-            }
-            GPU_CARRIERS.put(carrier.id(), new CarrierGpu(
-                    carrier.geometryGeneration(), List.copyOf(batches)));
-            retainedBytes += carrierBytes;
         }
         final List<UUID> stale = GPU_CARRIERS.keySet().stream()
                 .filter(id -> !live.contains(id)).toList();
@@ -715,10 +768,14 @@ public final class ApertureMediumMaskRenderer {
             final int targetWidth,
             final int targetHeight) {
         if (local == null) return ScreenBounds.none();
+        ClientWaterDiagnostics.count(ClientWaterDiagnostics.Work.BOUNDS_TESTED, 1L);
         float minimumX = Float.POSITIVE_INFINITY;
         float minimumY = Float.POSITIVE_INFINITY;
         float maximumX = Float.NEGATIVE_INFINITY;
         float maximumY = Float.NEGATIVE_INFINITY;
+        boolean allFinite = true;
+        boolean allBehind = true;
+        boolean allInFront = true;
         for (int corner = 0; corner < 8; corner++) {
             final Vector4f clip = new Vector4f(
                     (float) (((corner & 1) == 0 ? local.minX : local.maxX)
@@ -728,18 +785,32 @@ public final class ApertureMediumMaskRenderer {
                     (float) (((corner & 4) == 0 ? local.minZ : local.maxZ)
                             - carrier.voxelOriginZ()), 1.0F);
             transform.transform(clip);
-            if (!clip.isFinite() || clip.w <= 1.0E-5F) {
-                // Only this one block crossed the near plane. A full viewport is conservative,
-                // but unlike a carrier-wide box this occurs only while the camera touches glass.
-                return new ScreenBounds(viewportX, viewportY,
-                        viewportWidth, viewportHeight, false);
+            final boolean finite = clip.isFinite();
+            allFinite &= finite;
+            allBehind &= clip.w < -1.0E-5F;
+            allInFront &= clip.w > 1.0E-5F;
+            if (finite && clip.w > 1.0E-5F) {
+                final float nx = clip.x / clip.w;
+                final float ny = clip.y / clip.w;
+                minimumX = Math.min(minimumX, nx);
+                minimumY = Math.min(minimumY, ny);
+                maximumX = Math.max(maximumX, nx);
+                maximumY = Math.max(maximumY, ny);
             }
-            final float nx = clip.x / clip.w;
-            final float ny = clip.y / clip.w;
-            minimumX = Math.min(minimumX, nx);
-            minimumY = Math.min(minimumY, ny);
-            maximumX = Math.max(maximumX, nx);
-            maximumY = Math.max(maximumY, ny);
+        }
+        if (!allFinite) {
+            ClientWaterDiagnostics.count(ClientWaterDiagnostics.Work.BOUNDS_FULL_INVALID, 1L);
+            return new ScreenBounds(viewportX, viewportY, viewportWidth, viewportHeight, false);
+        }
+        // Only a finite box strictly behind the eye can be discarded. Mixed signs and values
+        // near w=0 remain conservative without assuming a shader pack's clip-depth convention.
+        if (allBehind) {
+            ClientWaterDiagnostics.count(ClientWaterDiagnostics.Work.BOUNDS_BEHIND, 1L);
+            return ScreenBounds.none();
+        }
+        if (!allInFront) {
+            ClientWaterDiagnostics.count(ClientWaterDiagnostics.Work.BOUNDS_FULL_NEAR, 1L);
+            return new ScreenBounds(viewportX, viewportY, viewportWidth, viewportHeight, false);
         }
         if (maximumX < -1.0F || minimumX > 1.0F
                 || maximumY < -1.0F || minimumY > 1.0F) return ScreenBounds.none();
@@ -937,6 +1008,8 @@ public final class ApertureMediumMaskRenderer {
     private static void handleEmptyFrame() {
         ready = false;
         preparedFrame = null;
+        // No publication consumes this frame. Retain the old dirty extent while storage exists
+        // so the next nonempty mask still clears pixels from the last successful/partial draw.
         if (++emptyFrames >= RELEASE_AFTER_EMPTY_FRAMES) {
             releaseFramebufferOnly();
             releaseCachedMaskResources();
@@ -960,8 +1033,14 @@ public final class ApertureMediumMaskRenderer {
                 ? adapterGeneration : 0;
     }
 
+    /** Current cached pipeline, independent of whether this frame needs an aperture mask. */
+    public static int selectedAdapterGeneration() {
+        return selectedAdapterGeneration;
+    }
+
     public static boolean ready() {
-        return ready && finalizedSerial == frameSerial;
+        return NautilusConfig.shaderUnderwaterFogEnabled()
+                && ready && finalizedSerial == frameSerial;
     }
 
     public static int generation() {
@@ -1020,6 +1099,10 @@ public final class ApertureMediumMaskRenderer {
         applyInvalidation(ApertureEventCache.notifyBlockChanged(level, position));
     }
 
+    public static void notifyModelDataChanged(final ClientLevel level, final BlockPos position) {
+        applyInvalidation(ApertureEventCache.notifyModelDataChanged(level, position));
+    }
+
     static synchronized void forgetCarrier(final ClientLevel level, final UUID carrierId) {
         ApertureEventCache.invalidateCarrier(level, carrierId);
         ShaderVoxelMaskAtlas.requestOpticalLayoutRebuild();
@@ -1028,11 +1111,23 @@ public final class ApertureMediumMaskRenderer {
     }
 
     public static void onClientChunkLoad(final ChunkEvent.Load event) {
+        invalidateRoomWaterChunk(event);
         applyInvalidation(ApertureEventCache.onClientChunkLoad(event));
     }
 
     public static void onClientChunkUnload(final ChunkEvent.Unload event) {
+        invalidateRoomWaterChunk(event);
         applyInvalidation(ApertureEventCache.onClientChunkUnload(event));
+    }
+
+    private static void invalidateRoomWaterChunk(final ChunkEvent event) {
+        if (!(event.getLevel() instanceof ClientLevel level)) return;
+        final var chunk = event.getChunk().getPos();
+        if (ClientCompartmentVisualCache.onChunkChanged(level, chunk.x, chunk.z)) {
+            ShaderVoxelMaskAtlas.requestOpticalLayoutRebuild();
+            ShaderVoxelMaskAtlas.discardPreparedFrame();
+            invalidateFrameOnly();
+        }
     }
 
     public static void onClientLogout(final ClientPlayerNetworkEvent.LoggingOut event) {

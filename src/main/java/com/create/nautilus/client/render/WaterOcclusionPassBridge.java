@@ -12,7 +12,7 @@ import java.util.Map;
  * Version-gated lifecycle for the parent-world water occlusion pass.
  *
  * <p>This class is deliberately the only entry point used by optional Sodium/Colorwheel mixins.
- * Dry-compartment clipping needs matching shader sources, Sable depth buffers and an active
+ * Compartment clipping needs matching shader sources, prepared mask data and an active
  * parent-world terrain draw.  Enabling only one of those parts corrupts ordinary ocean rendering,
  * so a missing class, unexpected version, failed uniform lookup or failed depth pass disables the
  * complete feature until the next shader-pipeline reload.</p>
@@ -50,7 +50,7 @@ public final class WaterOcclusionPassBridge {
     }
 
     /**
-     * Produces Sable's near/far hull textures from the matrices of the current Sodium draw.
+     * Prepares exact ownership and any external Sable depths for the current Sodium draw.
      *
      * <p>The call is made at {@code SodiumWorldRenderer.drawChunkLayer} HEAD, before Sodium binds
      * the relevant terrain program.  A subsequent {@link #beginParentWaterPass()} may therefore
@@ -73,21 +73,13 @@ public final class WaterOcclusionPassBridge {
         if (!isSupportedAndEnabled()) {
             return;
         }
-        /*
-         * Iris builds its exact atlas from the complete visual topology.  The legacy dry-region
-         * cache intentionally omits cells crossed by the water plane, so using it as an Iris
-         * gate would lose one-cell and partially flooded rooms.  Plain Sodium still requires a
-         * Sable close/far region before preparing its depth buffers.
-         */
-        if (!cachedIrisShaderPackActive && !ClientDryCompartmentCache.hasOcclusionRegions()) {
-            return;
-        }
+        // Both paths own the complete room topology, including full rooms with no dry registration.
         final double effectiveCameraX = sodiumEffectiveCamera(cameraX);
         final double effectiveCameraY = sodiumEffectiveCamera(cameraY);
         final double effectiveCameraZ = sodiumEffectiveCamera(cameraZ);
         if (!SodiumWaterOcclusionShaderBridge.prepareDepthBuffers(
                 modelView, projection, effectiveCameraX, effectiveCameraY, effectiveCameraZ)) {
-            disableUntilReload("Sable did not produce valid dry-compartment depth buffers", null);
+            disableUntilReload("Unable to prepare compartment water-clipping resources", null);
             return;
         }
         if (cachedIrisShaderPackActive) {
@@ -273,16 +265,16 @@ public final class WaterOcclusionPassBridge {
 
     private static Map<String, String> requiredVersions() {
         final Map<String, String> versions = new LinkedHashMap<>();
-        versions.put("sable", "2.0.3");
-        versions.put("sodium", "0.8.12-beta.2+mc1.21.1");
+        versions.put("sable", "2.0.6");
+        versions.put("sodium", "0.8.13+mc1.21.1");
         versions.put("iris", "1.8.14-beta.1+mc1.21.1");
-        versions.put("colorwheel", "1.2.9+mc1.21.1");
+        versions.put("colorwheel", "1.3.0+mc1.21.1");
         versions.put("colorwheel_patcher", "1.0.5+mc1.21.1");
         return Map.copyOf(versions);
     }
 
     /**
-     * Mirrors Sodium 0.8.12's {@code CameraTransform} fractional quantization exactly.
+     * Mirrors Sodium 0.8.13's {@code CameraTransform} fractional quantization exactly.
      *
      * <p>{@code getVertexPosition()} subtracts this effective origin, not the original camera
      * double. Using the same value for atlas descriptors and room water levels keeps half-open

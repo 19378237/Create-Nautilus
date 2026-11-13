@@ -3,12 +3,19 @@ package com.create.nautilus.client;
 import com.create.nautilus.CreateNautilus;
 import com.create.nautilus.client.render.ClientDryCompartmentCache;
 import com.create.nautilus.client.render.ClientCompartmentVisualCache;
+import com.create.nautilus.client.render.ClientRoomGeometryCache;
+import com.create.nautilus.client.render.ClientWaterDiagnostics;
+import com.create.nautilus.client.render.ClientFrameDiagnostics;
 import com.create.nautilus.client.render.FloodedChamberRenderer;
 import com.create.nautilus.client.render.NautilusPartialModels;
 import com.create.nautilus.client.render.ApertureMediumMaskRenderer;
 import com.create.nautilus.client.render.RawDepthRenderer;
 import com.create.nautilus.client.render.WetCompartmentFog;
+import com.create.nautilus.client.render.PropellerBubbleParticle;
+import com.create.nautilus.client.render.PrismGlassRenderCompatibility;
+import com.create.nautilus.registry.NautilusParticleTypes;
 import com.create.nautilus.client.render.WaterOcclusionPassBridge;
+import com.create.nautilus.client.render.SodiumWaterOcclusionShaderBridge;
 import dev.ryanhcode.sable.api.sublevel.SubLevelObserver;
 import dev.ryanhcode.sable.platform.SableEventPlatform;
 import dev.ryanhcode.sable.sublevel.SubLevel;
@@ -21,7 +28,9 @@ import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.neoforge.client.event.RegisterClientReloadListenersEvent;
+import net.neoforged.neoforge.client.event.RegisterParticleProvidersEvent;
 import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
+import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.client.gui.ConfigurationScreen;
 import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
 import net.neoforged.neoforge.common.NeoForge;
@@ -51,10 +60,14 @@ public final class NautilusClient {
             }
         });
         modEventBus.addListener(NautilusClient::registerReloadListeners);
+        modEventBus.addListener(NautilusClient::registerParticleProviders);
+        modEventBus.addListener(EventPriority.LOWEST, PrismGlassRenderCompatibility::onModelsBaked);
         NeoForge.EVENT_BUS.addListener(NautilusItemTooltips::onItemTooltip);
         NeoForge.EVENT_BUS.addListener(ClientDryCompartmentCache::onClientLogout);
         NeoForge.EVENT_BUS.addListener(ClientDryCompartmentCache::onClientLevelUnload);
         NeoForge.EVENT_BUS.addListener(ClientDryCompartmentCache::onClientTick);
+        NeoForge.EVENT_BUS.addListener(EventPriority.HIGHEST, NautilusClient::beginWaterDiagnosticsTick);
+        NeoForge.EVENT_BUS.addListener(EventPriority.LOWEST, NautilusClient::endWaterDiagnosticsTick);
         NeoForge.EVENT_BUS.addListener(ApertureMediumMaskRenderer::onClientLogout);
         NeoForge.EVENT_BUS.addListener(ApertureMediumMaskRenderer::onClientLevelUnload);
         NeoForge.EVENT_BUS.addListener(ApertureMediumMaskRenderer::onClientChunkLoad);
@@ -77,15 +90,38 @@ public final class NautilusClient {
 
     private static void releaseRawDepthOnLogout(
             final ClientPlayerNetworkEvent.LoggingOut event) {
+        ClientWaterDiagnostics.clear();
+        ClientFrameDiagnostics.release();
         RawDepthRenderer.destroy();
+        SodiumWaterOcclusionShaderBridge.invalidateWaterMatrices();
     }
 
     private static void releaseRawDepthOnLevelUnload(final LevelEvent.Unload event) {
-        if (event.getLevel().isClientSide()) RawDepthRenderer.destroy();
+        if (event.getLevel().isClientSide()) {
+            ClientWaterDiagnostics.clear();
+            ClientFrameDiagnostics.release();
+            RawDepthRenderer.destroy();
+            SodiumWaterOcclusionShaderBridge.invalidateWaterMatrices();
+        }
+    }
+
+    private static void beginWaterDiagnosticsTick(final ClientTickEvent.Pre event) {
+        ClientWaterDiagnostics.beginClientTick();
+    }
+
+    private static void endWaterDiagnosticsTick(final ClientTickEvent.Post event) {
+        ClientWaterDiagnostics.endClientTick();
+    }
+
+    private static void registerParticleProviders(final RegisterParticleProvidersEvent event) {
+        event.registerSpriteSet(NautilusParticleTypes.PROPELLER_BUBBLE.get(), PropellerBubbleParticle.Provider::new);
     }
 
     private static void registerReloadListeners(final RegisterClientReloadListenersEvent event) {
         event.registerReloadListener((ResourceManagerReloadListener) resourceManager -> {
+            ClientFrameDiagnostics.release();
+            ClientRoomGeometryCache.clear();
+            FloodedChamberRenderer.clearPreparedGeometry();
             ApertureMediumMaskRenderer.invalidateAll();
             WaterOcclusionPassBridge.onResourceReload();
             // RawDepthRenderer is shared by the unchanged no-shader/Sable mask path.  Its

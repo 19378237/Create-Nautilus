@@ -9,6 +9,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.neoforge.network.PacketDistributor;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -19,6 +20,7 @@ import java.util.concurrent.ConcurrentHashMap;
 /** Publishes low-frequency room topology and high-frequency continuous water levels separately. */
 public final class CompartmentVisualSync {
     private static final Map<UUID, TopologyBroadcast> TOPOLOGY = new ConcurrentHashMap<>();
+    private static final Map<UUID, LevelBroadcast> LEVELS = new ConcurrentHashMap<>();
 
     private CompartmentVisualSync() {
     }
@@ -76,6 +78,8 @@ public final class CompartmentVisualSync {
         if (players.isEmpty()) {
             TOPOLOGY.computeIfPresent(carrierId,
                     (ignored, previous) -> previous.withTrackingPlayers(Set.of()));
+            LEVELS.computeIfPresent(carrierId,
+                    (ignored, previous) -> previous.withTrackingPlayers(Set.of()));
             return;
         }
         // Tracking changes independently of compartment rescans. Reuse the cached topology
@@ -86,16 +90,34 @@ public final class CompartmentVisualSync {
                 && topology.rejected()) {
             return;
         }
-        // Include dry rooms as zero-fraction entries. Omitting them would leave the client's last
-        // nonzero surface alive after drainage or a repaired topology transition.
-        final List<CompartmentWaterLevelPayload.RoomLevel> rooms = state.compartments().stream()
-                .map(room -> new CompartmentWaterLevelPayload.RoomLevel(
-                        room.id(), room.waterCapacityMb() <= 0.0D ? 0.0D
-                        : room.waterMb() / room.waterCapacityMb()))
-                .toList();
-        final CompartmentWaterLevelPayload payload = new CompartmentWaterLevelPayload(
-                carrierId, state.topologyRevision(), rooms);
-        players.forEach(player -> PacketDistributor.sendToPlayer(player, payload));
+        final LevelBroadcast previous = LEVELS.get(carrierId);
+        final boolean unchanged = sameLevels(previous, state.topologyRevision(), state.compartments());
+        final CompartmentWaterLevelPayload payload;
+        if (unchanged) {
+            payload = previous.payload();
+        } else {
+            // Keep zero entries: drainage must explicitly replace the last nonzero waterline.
+            try {
+                final List<CompartmentWaterLevelPayload.RoomLevel> rooms = state.compartments().stream()
+                        .map(room -> new CompartmentWaterLevelPayload.RoomLevel(
+                                room.id(), wireFraction(room)))
+                        .toList();
+                payload = new CompartmentWaterLevelPayload(carrierId, state.topologyRevision(), rooms);
+            } catch (final IllegalArgumentException exception) {
+                CreateNautilus.LOGGER.error("Refusing invalid water levels for {}", carrierId, exception);
+                return;
+            }
+        }
+        for (final ServerPlayer player : players) {
+            if (!unchanged || !previous.trackingPlayers().contains(player.getUUID())) {
+                PacketDistributor.sendToPlayer(player, payload);
+            }
+        }
+        final Set<UUID> playerIds = players.stream().map(ServerPlayer::getUUID)
+                .collect(java.util.stream.Collectors.toUnmodifiableSet());
+        if (!unchanged || !playerIds.equals(previous.trackingPlayers())) {
+            LEVELS.put(carrierId, new LevelBroadcast(payload, playerIds));
+        }
     }
 
     /** Immediate full publication used by placement/repair events outside the physics callback. */
@@ -111,6 +133,12 @@ public final class CompartmentVisualSync {
             retained.remove(playerId);
             return previous.withTrackingPlayers(retained);
         });
+        LEVELS.replaceAll((carrierId, previous) -> {
+            if (!previous.trackingPlayers().contains(playerId)) return previous;
+            final Set<UUID> retained = new java.util.HashSet<>(previous.trackingPlayers());
+            retained.remove(playerId);
+            return previous.withTrackingPlayers(retained);
+        });
     }
 
     static boolean isTopologyRejected(final UUID carrierId) {
@@ -120,10 +148,32 @@ public final class CompartmentVisualSync {
 
     public static void forget(final UUID carrierId) {
         TOPOLOGY.remove(Objects.requireNonNull(carrierId, "carrierId"));
+        LEVELS.remove(carrierId);
     }
 
     public static void clear() {
         TOPOLOGY.clear();
+        LEVELS.clear();
+    }
+
+    private static double wireFraction(final CompartmentState room) {
+        final double fraction = room.waterCapacityMb() <= 0.0D ? 0.0D
+                : room.waterMb() / room.waterCapacityMb();
+        // The codec writes a float. Compare that exact precision before allocating a packet.
+        return (double) (float) Math.clamp(fraction, 0.0D, 1.0D);
+    }
+
+    private static boolean sameLevels(final LevelBroadcast previous, final long revision,
+                                      final Collection<CompartmentState> rooms) {
+        if (previous == null || previous.payload().topologyRevision() != revision
+                || previous.payload().rooms().size() != rooms.size()) return false;
+        int index = 0;
+        for (final CompartmentState room : rooms) {
+            final CompartmentWaterLevelPayload.RoomLevel level = previous.payload().rooms().get(index++);
+            if (!level.id().equals(room.id())
+                    || Double.compare(level.waterFraction(), wireFraction(room)) != 0) return false;
+        }
+        return true;
     }
 
     private static List<ServerPlayer> trackingPlayers(final ServerSubLevel carrier) {
@@ -173,6 +223,17 @@ public final class CompartmentVisualSync {
         final Set<UUID> playerIds = players.stream().map(ServerPlayer::getUUID)
                 .collect(java.util.stream.Collectors.toUnmodifiableSet());
         TOPOLOGY.put(carrierId, new TopologyBroadcast(revision, empty, playerIds, true));
+        LEVELS.remove(carrierId);
+    }
+
+    private record LevelBroadcast(CompartmentWaterLevelPayload payload, Set<UUID> trackingPlayers) {
+        private LevelBroadcast {
+            trackingPlayers = Set.copyOf(trackingPlayers);
+        }
+
+        private LevelBroadcast withTrackingPlayers(final Set<UUID> players) {
+            return new LevelBroadcast(payload, players);
+        }
     }
 
     private record TopologyBroadcast(long revision,

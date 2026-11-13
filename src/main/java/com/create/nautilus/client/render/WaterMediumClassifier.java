@@ -1,5 +1,7 @@
 package com.create.nautilus.client.render;
 
+import com.create.nautilus.physics.ProjectedBoxVolume;
+
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.BlockPos;
 import net.minecraft.tags.FluidTags;
@@ -200,42 +202,49 @@ public final class WaterMediumClassifier {
                                            final Collection<BlockPos> cells,
                                            final AABB fallbackBounds,
                                            final double waterFraction) {
-        final double fraction = Math.clamp(waterFraction, 0.0D, 1.0D);
-        if (cells.isEmpty()) {
-            final ProjectedInterval fallback = projectedInterval(pose, fallbackBounds);
-            return fallback.low() + (fallback.high() - fallback.low()) * fraction;
-        }
+        final long diagnosticsStart = ClientWaterDiagnostics.start();
+        try {
+            final double fraction = Math.clamp(waterFraction, 0.0D, 1.0D);
+            if (cells.isEmpty()) {
+                // No synthetic capacity remains when real source cells occupy the entire room.
+                return Double.NaN;
+            }
 
-        final ProjectedInterval[] intervals = cells.stream()
-                .map(position -> projectedInterval(pose, new AABB(position)))
-                .toArray(ProjectedInterval[]::new);
-        double low = Double.POSITIVE_INFINITY;
-        double high = Double.NEGATIVE_INFINITY;
-        for (final ProjectedInterval interval : intervals) {
-            low = Math.min(low, interval.low());
-            high = Math.max(high, interval.high());
-        }
-        if (fraction <= 0.0D) {
-            return low;
-        }
-        if (fraction >= 1.0D) {
-            return high;
-        }
-
-        final double targetVolume = fraction * intervals.length;
-        for (int iteration = 0; iteration < BISECTION_STEPS; iteration++) {
-            final double middle = (low + high) * 0.5D;
-            double submerged = 0.0D;
+            final ProjectedInterval[] intervals = cells.stream()
+                    .map(position -> projectedInterval(pose, new AABB(position)))
+                    .toArray(ProjectedInterval[]::new);
+            double low = Double.POSITIVE_INFINITY;
+            double high = Double.NEGATIVE_INFINITY;
             for (final ProjectedInterval interval : intervals) {
-                submerged += interval.fractionBelow(middle);
+                low = Math.min(low, interval.low());
+                high = Math.max(high, interval.high());
             }
-            if (submerged < targetVolume) {
-                low = middle;
-            } else {
-                high = middle;
+            if (fraction <= 0.0D) {
+                return low;
             }
+            if (fraction >= 1.0D) {
+                return high;
+            }
+
+            final double targetVolume = fraction * intervals.length;
+            for (int iteration = 0; iteration < BISECTION_STEPS; iteration++) {
+                final double middle = (low + high) * 0.5D;
+                double submerged = 0.0D;
+                for (final ProjectedInterval interval : intervals) {
+                    submerged += interval.fractionBelow(middle);
+                }
+                if (submerged < targetVolume) {
+                    low = middle;
+                } else {
+                    high = middle;
+                }
+            }
+            ClientWaterDiagnostics.bisection(intervals.length, BISECTION_STEPS);
+            return (low + high) * 0.5D;
+        } finally {
+            ClientWaterDiagnostics.finish(ClientWaterDiagnostics.Work.SURFACE_MATRIX,
+                    diagnosticsStart, cells.size());
         }
-        return (low + high) * 0.5D;
     }
 
     private static ProjectedInterval projectedInterval(final Matrix4dc pose,
@@ -274,49 +283,8 @@ public final class WaterMediumClassifier {
             if (plane >= high) {
                 return 1.0D;
             }
-            double width0 = 0.0D;
-            double width1 = 0.0D;
-            double width2 = 0.0D;
-            int widthCount = 0;
-            if (xWidth > 1.0E-9D) {
-                width0 = xWidth;
-                widthCount = 1;
-            }
-            if (yWidth > 1.0E-9D) {
-                if (widthCount == 0) width0 = yWidth;
-                else width1 = yWidth;
-                widthCount++;
-            }
-            if (zWidth > 1.0E-9D) {
-                if (widthCount == 0) width0 = zWidth;
-                else if (widthCount == 1) width1 = zWidth;
-                else width2 = zWidth;
-                widthCount++;
-            }
-            if (widthCount == 0) {
-                return plane >= high ? 1.0D : 0.0D;
-            }
-            final double t = plane - low;
-            double alternatingSum = 0.0D;
-            final int subsetCount = 1 << widthCount;
-            for (int subset = 0; subset < subsetCount; subset++) {
-                double offset = 0.0D;
-                int selected = 0;
-                if ((subset & 1) != 0) { offset += width0; selected++; }
-                if ((subset & 2) != 0) { offset += width1; selected++; }
-                if ((subset & 4) != 0) { offset += width2; selected++; }
-                final double positive = Math.max(0.0D, t - offset);
-                final double squared = positive * positive;
-                final double term = widthCount == 1 ? positive
-                        : widthCount == 2 ? squared : squared * positive;
-                alternatingSum += (selected & 1) == 0 ? term : -term;
-            }
-            final double product = width0 * (widthCount > 1 ? width1 : 1.0D)
-                    * (widthCount > 2 ? width2 : 1.0D);
-            final double denominator = (widthCount == 3 ? 6.0D
-                    : widthCount == 2 ? 2.0D : 1.0D) * product;
-            return Math.clamp(alternatingSum / Math.max(1.0E-12D, denominator),
-                    0.0D, 1.0D);
+            return ProjectedBoxVolume.fractionBelow(
+                    plane - low, xWidth, yWidth, zWidth);
         }
     }
 }

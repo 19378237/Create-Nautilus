@@ -52,6 +52,11 @@ public record DryCompartmentSnapshotPayload(UUID carrierId, long revision, long[
         return dryCells.clone();
     }
 
+    /** Compare an already normalized internal snapshot without exposing the packet's array. */
+    boolean matchesNormalizedCells(final long[] cells) {
+        return Arrays.equals(dryCells, cells);
+    }
+
     @Override
     public Type<? extends CustomPacketPayload> type() {
         return TYPE;

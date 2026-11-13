@@ -30,12 +30,7 @@ public final class SnorkelBlockEntity extends KineticBlockEntity
             return;
         }
 
-        final Vector3d top = subLevel.logicalPose().transformPosition(new Vector3d(
-                worldPosition.getX() + 0.5D,
-                worldPosition.getY() + 1.1D,
-                worldPosition.getZ() + 0.5D));
-        if (!subLevel.getLevel().getFluidState(
-                BlockPos.containing(top.x(), top.y(), top.z())).isEmpty()) {
+        if (!IntakeEnvironment.atmosphericAirAt(subLevel, worldPosition.above())) {
             return;
         }
 

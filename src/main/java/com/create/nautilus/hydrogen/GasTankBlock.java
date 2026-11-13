@@ -6,6 +6,9 @@ import com.simibubi.create.content.fluids.tank.FluidTankBlockEntity;
 import dev.ryanhcode.sable.api.block.BlockWithSubLevelCollisionCallback;
 import dev.ryanhcode.sable.api.physics.callback.BlockSubLevelCollisionCallback;
 import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.Level;
 
 /**
  * Gas-only variant of Create's fluid tank.
@@ -23,6 +26,28 @@ public final class GasTankBlock extends FluidTankBlock
     @Override
     public BlockEntityType<? extends FluidTankBlockEntity> getBlockEntityType() {
         return NautilusBlockEntityTypes.GAS_TANK.get();
+    }
+
+    @Override
+    public void onRemove(final BlockState state, final Level level, final BlockPos pos,
+                         final BlockState newState, final boolean moving) {
+        // LevelChunk has committed newState before invoking oldState.onRemove.
+        // Canceled Break/LivingDestroyBlock events never reach this point.
+        // Claim the old inventory before Create removes/splits its block entity.
+        // Do not destroy sibling segments until super has removed this old BE:
+        // Create's split otherwise writes its cached tank state over newState.
+        HydrogenExplosion.Rupture rupture = null;
+        if (!level.isClientSide && !moving && state.getBlock() != newState.getBlock()
+                && level.getBlockState(pos).getBlock() != this
+                && level.getBlockEntity(pos) instanceof GasTankBlockEntity tank) {
+            rupture = HydrogenExplosion.captureRupture(tank,
+                    HydrogenExplosion.Trigger.DIRECT_DESTRUCTION);
+        }
+        try {
+            super.onRemove(state, level, pos, newState, moving);
+        } finally {
+            HydrogenExplosion.finishRupture(rupture);
+        }
     }
 
     /**

@@ -5,6 +5,7 @@ import com.create.nautilus.CreateNautilus;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -123,6 +124,7 @@ public final class IrisCompositeShaderSource {
     private static final Map<Integer, ShaderOptionSnapshot> OPTIONS_BY_GENERATION =
             new LinkedHashMap<>();
     private static final Map<Integer, AdapterPack> PACKS_BY_GENERATION = new LinkedHashMap<>();
+    private static final Map<Integer, Integer> PIPELINE_REFERENCES = new LinkedHashMap<>();
     private static ShaderOptionSnapshot buildOptions = ShaderOptionSnapshot.UNKNOWN;
 
     private IrisCompositeShaderSource() {
@@ -162,6 +164,7 @@ public final class IrisCompositeShaderSource {
                                                        final int complementaryTaaMode,
                                                        final float photonTaauRenderScale,
                                                        final float blissRenderScale) {
+        if (buildingShaderReload) discardGeneration(shaderReloadGeneration);
         shaderReloadGeneration++;
         if (shaderReloadGeneration <= 0) {
             shaderReloadGeneration = 1;
@@ -169,6 +172,7 @@ public final class IrisCompositeShaderSource {
             LINKED_CONSUMER_GENERATIONS.clear();
             OPTIONS_BY_GENERATION.clear();
             PACKS_BY_GENERATION.clear();
+            PIPELINE_REFERENCES.clear();
         }
         activeAdapterGeneration = 0;
         buildingShaderReload = true;
@@ -312,53 +316,82 @@ public final class IrisCompositeShaderSource {
     public static synchronized void finishShaderReload() {
         buildingShaderReload = false;
         activeAdapterGeneration = 0;
-        if (BUILD_PACKS.isEmpty()) return;
+        try {
+            if (BUILD_PACKS.isEmpty()) return;
 
-        if (BUILD_PACKS.size() != 1) {
-            CreateNautilus.LOGGER.warn(
-                    "[water-boundary] conflicting shader-pack fingerprints in Iris reload "
-                            + "generation {}; adapter remains disabled: {}",
-                    shaderReloadGeneration, BUILD_PACKS);
-            return;
-        }
+            if (BUILD_PACKS.size() != 1) {
+                CreateNautilus.LOGGER.warn(
+                        "[water-boundary] conflicting shader-pack fingerprints in Iris reload "
+                                + "generation {}; adapter remains disabled: {}",
+                        shaderReloadGeneration, BUILD_PACKS);
+                return;
+            }
 
-        final AdapterPack pack = BUILD_PACKS.iterator().next();
-        final EnumSet<AdapterStage> required = requiredStages(pack);
-        if (required.isEmpty()) {
-            CreateNautilus.LOGGER.warn(
-                    "[water-boundary] recognized {} in Iris reload generation {} but no "
-                            + "active adapter stage was found; adapter remains disabled "
-                            + "(programs={})",
-                    pack.displayName, shaderReloadGeneration, BUILD_PROGRAMS);
-            return;
-        }
-        final EnumSet<AdapterStage> missing = EnumSet.copyOf(required);
-        missing.removeAll(BUILD_PATCHED);
-        final EnumSet<AdapterStage> consumers = EnumSet.copyOf(BUILD_PATCHED);
-        if (consumers.isEmpty()) {
-            CreateNautilus.LOGGER.warn(
-                    "[water-boundary] recognized {} in Iris reload generation {} but "
-                            + "patched zero boundary-consuming stages; adapter remains disabled "
-                            + "(candidates={}, programs={}, failures={})",
-                    pack.displayName, shaderReloadGeneration, BUILD_CANDIDATES,
-                    BUILD_PROGRAMS, BUILD_FAILURES);
-            return;
-        }
-        if (!missing.isEmpty()) {
-            CreateNautilus.LOGGER.warn(
-                    "[water-boundary] {} adapter generation {} is incomplete: missing {}, "
-                            + "patched {}, failures {}; adapter remains disabled",
-                    pack.displayName, shaderReloadGeneration, missing,
-                    BUILD_PATCHED, BUILD_FAILURES);
-            return;
-        }
+            final AdapterPack pack = BUILD_PACKS.iterator().next();
+            final EnumSet<AdapterStage> required = requiredStages(pack);
+            if (required.isEmpty()) {
+                CreateNautilus.LOGGER.warn(
+                        "[water-boundary] recognized {} in Iris reload generation {} but no "
+                                + "active adapter stage was found; adapter remains disabled "
+                                + "(programs={})",
+                        pack.displayName, shaderReloadGeneration, BUILD_PROGRAMS);
+                return;
+            }
+            final EnumSet<AdapterStage> missing = EnumSet.copyOf(required);
+            missing.removeAll(BUILD_PATCHED);
+            final EnumSet<AdapterStage> consumers = EnumSet.copyOf(BUILD_PATCHED);
+            if (consumers.isEmpty()) {
+                CreateNautilus.LOGGER.warn(
+                        "[water-boundary] recognized {} in Iris reload generation {} but "
+                                + "patched zero boundary-consuming stages; adapter remains disabled "
+                                + "(candidates={}, programs={}, failures={})",
+                        pack.displayName, shaderReloadGeneration, BUILD_CANDIDATES,
+                        BUILD_PROGRAMS, BUILD_FAILURES);
+                return;
+            }
+            if (!missing.isEmpty()) {
+                CreateNautilus.LOGGER.warn(
+                        "[water-boundary] {} adapter generation {} is incomplete: missing {}, "
+                                + "patched {}, failures {}; adapter remains disabled",
+                        pack.displayName, shaderReloadGeneration, missing,
+                        BUILD_PATCHED, BUILD_FAILURES);
+                return;
+            }
 
-        activeAdapterGeneration = shaderReloadGeneration;
-        PACKS_BY_GENERATION.put(activeAdapterGeneration, pack);
-        READY_ADAPTER_GENERATIONS.add(activeAdapterGeneration);
-        CreateNautilus.LOGGER.info(
-                "[water-boundary] {} adapter generation {} published stages: {}",
-                pack.displayName, activeAdapterGeneration, consumers);
+            activeAdapterGeneration = shaderReloadGeneration;
+            PACKS_BY_GENERATION.put(activeAdapterGeneration, pack);
+            READY_ADAPTER_GENERATIONS.add(activeAdapterGeneration);
+            CreateNautilus.LOGGER.info(
+                    "[water-boundary] {} adapter generation {} published stages: {}",
+                    pack.displayName, activeAdapterGeneration, consumers);
+        } finally {
+            if (activeAdapterGeneration != shaderReloadGeneration) {
+                discardGeneration(shaderReloadGeneration);
+            }
+        }
+    }
+
+    /** Each cached dimension pipeline owns its generation until Iris destroys that pipeline. */
+    public static synchronized void retainPipelineGeneration(final int generation) {
+        if (generation > 0 && READY_ADAPTER_GENERATIONS.contains(generation)) {
+            PIPELINE_REFERENCES.merge(generation, 1, Integer::sum);
+        }
+    }
+
+    public static synchronized void releasePipelineGeneration(final int generation) {
+        final Integer references = PIPELINE_REFERENCES.get(generation);
+        if (references == null) return;
+        if (references > 1) PIPELINE_REFERENCES.put(generation, references - 1);
+        else discardGeneration(generation);
+    }
+
+    private static void discardGeneration(final int generation) {
+        PIPELINE_REFERENCES.remove(generation);
+        READY_ADAPTER_GENERATIONS.remove(generation);
+        LINKED_CONSUMER_GENERATIONS.remove(generation);
+        OPTIONS_BY_GENERATION.remove(generation);
+        PACKS_BY_GENERATION.remove(generation);
+        if (activeAdapterGeneration == generation) activeAdapterGeneration = 0;
     }
 
     public static synchronized boolean adapterReady() {
@@ -380,6 +413,12 @@ public final class IrisCompositeShaderSource {
         return generation > 0 && LINKED_CONSUMER_GENERATIONS.contains(generation);
     }
 
+    /** Only a complete, linked Photon pipeline can use its unmodified native wet scene depth. */
+    public static synchronized boolean nativeWetViewReady(final int generation) {
+        return adapterReady(generation) && linkedConsumerReady(generation)
+                && PACKS_BY_GENERATION.get(generation) == AdapterPack.PHOTON;
+    }
+
     public static synchronized int adapterGeneration() {
         return activeAdapterGeneration;
     }
@@ -396,6 +435,9 @@ public final class IrisCompositeShaderSource {
     }
 
     public static String patchFragment(final String source, final String name) {
+        // Install adapters independently of the live fog option. Program.use() gates their Ready
+        // uniform, so toggling the option never requires a shader/resource reload or changes the
+        // source-keyed Iris/driver caches. Real-water native branches remain available throughout.
         if (source == null || source.contains(MARKER) || source.contains(CODE_MARKER)
                 || !isCandidateProgram(name)) {
             return source;
@@ -426,6 +468,8 @@ public final class IrisCompositeShaderSource {
             case COMPLEMENTARY_DEFERRED -> patchComplementaryDeferred(source);
             case COMPLEMENTARY_TONE -> patchComplementaryTone(source);
         };
+        // Wet virtual-room cameras keep the pack's native underwater ray and glass blending.
+        // Only the existing window/exterior optical intervals are adapted here.
         /*
          * The string handed to CompositeRenderer is the source immediately before Iris'
          * TransformPatcher.  Depending on the pack and the active world branch it can still
@@ -506,6 +550,9 @@ public final class IrisCompositeShaderSource {
                 && executable.contains("bool is_translucent")
                 && executable.contains("mat2x3 analytic_fog = air_fog_analytic(")
                 && executable.contains("fragment_color = blend_layers_with_fog(")
+                // LPV can keep this composite alive with VL off; the real water call below
+                // identifies the analytic path, which does not require a c0 water raymarch.
+                && !executable.contains("mat2x3 analytic_fog = water_fog_simple(")
                 && PHOTON_VL_COMPOSITE.matcher(executable).find()) {
             return new PatchMatch(AdapterPack.PHOTON,
                     AdapterStage.PHOTON_VOLUMETRIC_BLEND,
@@ -697,7 +744,7 @@ public final class IrisCompositeShaderSource {
         if (patched == source) return source;
 
         final String outerAnchor = "if(texture2D(colortex2, tc).a > 0.0 || iswater){";
-        final int outer = patched.indexOf(outerAnchor);
+        final int outer = uniqueMainAnchor(patched, outerAnchor, 0);
         if (outer < 0) return source;
         final String outerReplacement = """
                 vec2 nautilusMaskUv = nautilus_bliss_mask_uv(tc);
@@ -797,7 +844,7 @@ public final class IrisCompositeShaderSource {
                 + patched.substring(outer + outerAnchor.length());
 
         final String airAnchor = "if(!iswater){";
-        final int air = patched.indexOf(airAnchor, outer + outerReplacement.length());
+        final int air = uniqueMainAnchor(patched, airAnchor, outer + outerReplacement.length());
         if (air < 0) return source;
         patched = patched.substring(0, air)
                 + "if(!iswater && !nautilusOverride){"
@@ -805,12 +852,12 @@ public final class IrisCompositeShaderSource {
 
         final String callAnchor =
                 "if(iswater) underwaterVlFog = waterVolumetrics_test(";
-        final int call = patched.indexOf(callAnchor, air);
+        final int call = uniqueMainAnchor(patched, callAnchor, air);
         if (call < 0) return source;
-        final int statementEnd = patched.indexOf(';', call);
+        final int statementEnd = executableGlsl(patched).indexOf(';', call);
         if (statementEnd < 0) return source;
         final String nativeStatement = patched.substring(call, statementEnd + 1);
-        final int nativeCallStart = nativeStatement.indexOf("waterVolumetrics_test(");
+        final int nativeCallStart = executableGlsl(nativeStatement).indexOf("waterVolumetrics_test(");
         if (nativeCallStart < 0) return source;
         final String nativeCall = nativeStatement.substring(nativeCallStart);
         final String replacement = """
@@ -922,8 +969,11 @@ public final class IrisCompositeShaderSource {
         final String anchor = "if(translucentMasks > 0.0){";
         final String waterLighting = "if ((isEyeInWater == 0 && isWater) || (isEyeInWater == 1 && !isWater)){";
         final String waterDistance = "float Vdiff = distance(viewPos, viewPos0)*mix(";
-        if (!source.contains(anchor) || !source.contains("BilateralUpscale_VLFOG(colortex13,")
-                || !source.contains(waterLighting) || !source.contains(waterDistance)) return source;
+        final String executable = executableGlsl(source);
+        if (uniqueMainAnchor(source, anchor, 0) < 0
+                || !executable.contains("BilateralUpscale_VLFOG(colortex13,")
+                || uniqueMainAnchor(source, waterLighting, 0) < 0
+                || uniqueMainAnchor(source, waterDistance, 0) < 0) return source;
         final Matcher main = MAIN.matcher(executableGlsl(source));
         if (!main.find()) return source;
         final Matcher scene = Pattern.compile("\\bvec3\\s+viewPos\\s*=[^;]*;")
@@ -954,13 +1004,13 @@ public final class IrisCompositeShaderSource {
         // Bliss splits native underwater rendering between background illumination/absorption
         // here and scattering in colortex13. Enable both for a semantic window before lighting
         // is evaluated, rather than grading the already blended glass in composite4.
-        patched = patched.replace(waterLighting,
+        patched = replaceExecutable(patched, waterLighting,
                 "if ((isEyeInWater == 0 && isWater) || (isEyeInWater == 1 && !isWater)"
                         + " || nautilusBackgroundOverride){");
-        patched = patched.replace(waterDistance,
+        patched = replaceExecutable(patched, waterDistance,
                 "float Vdiff = (nautilusBackgroundOverride ? nautilusBackWaterLength"
                         + " : distance(viewPos, viewPos0))*mix(");
-        patched = patched.replace(anchor,
+        patched = replaceExecutable(patched, anchor,
                 "if(translucentMasks > 0.0 || nautilusBackgroundOverride){");
         return insertBeforeMain(patched, commonHelper() + uvHelper
                 + blissAlignmentHelper(source) + blissEntryFootprintHelper());
@@ -1011,7 +1061,7 @@ public final class IrisCompositeShaderSource {
                         float nautilusFrontDepth = texelFetch(
                                 depthtex0, nautilusDepthTexel, 0).r;
                         vec4 nautilusFrontH = gbufferProjectionInverse * vec4(
-                                nautilusSceneUv * 2.0 - 1.0,
+                                nautilusResolvedMaskUv * 2.0 - 1.0,
                                 nautilusFrontDepth * 2.0 - 1.0, 1.0);
                         if (nautilusFrontH.w == nautilusFrontH.w
                                 && abs(nautilusFrontH.w) > 1.0E-7) {
@@ -1077,40 +1127,45 @@ public final class IrisCompositeShaderSource {
         if (blendEnd < 0) return source;
         final String nativeBlend = source.substring(blendCall, blendEnd + 1);
         final String replacement = """
-                vec2 nautilusMaskUv = nautilus_photon_mask_uv(uv);
-                vec2 nautilusBoundaryUv = nautilus_boundary_uv(nautilusMaskUv);
+                bool nautilusOverride = false;
                 vec4 nautilusSegments = vec4(-2.0);
-                float nautilusGate = -1.0;
-                float nautilusStatus = 1.0;
-                if (nautilus_entry_candidate(nautilusMaskUv)) {
-                    float nautilusRawEntryDepth = texture(
-                            NautilusWaterEntryDepth,
-                            nautilusBoundaryUv).r;
-                    uint nautilusRawEntryDirection = texture(
-                            NautilusWaterEntryDirection,
-                            nautilusBoundaryUv).r;
-                    nautilus_decode_entry(
-                            nautilusRawEntryDepth, nautilusRawEntryDirection,
-                            nautilusMaskUv,
-                            isEyeInWater, nautilusSegments,
-                            nautilusGate, nautilusStatus);
+                vec3 nautilusCameraWorld = vec3(0.0);
+                vec3 nautilusDirectionWorld = vec3(0.0);
+                float nautilusSceneDistance = 0.0;
+                float nautilusFrontDistance = 0.0;
+                if (is_translucent && !back_is_hand && isEyeInWater == 0) {
+                    vec2 nautilusMaskUv = nautilus_photon_mask_uv(uv);
+                    vec2 nautilusBoundaryUv = nautilus_boundary_uv(nautilusMaskUv);
+                    float nautilusGate = -1.0;
+                    float nautilusStatus = 1.0;
+                    if (nautilus_entry_candidate(nautilusMaskUv)) {
+                        float nautilusRawEntryDepth = texture(
+                                NautilusWaterEntryDepth,
+                                nautilusBoundaryUv).r;
+                        uint nautilusRawEntryDirection = texture(
+                                NautilusWaterEntryDirection,
+                                nautilusBoundaryUv).r;
+                        nautilus_decode_entry(
+                                nautilusRawEntryDepth, nautilusRawEntryDirection,
+                                nautilusMaskUv,
+                                isEyeInWater, nautilusSegments,
+                                nautilusGate, nautilusStatus);
+                    }
+                    nautilusCameraWorld =
+                            gbufferModelViewInverse[3].xyz + cameraPosition;
+                    vec3 nautilusBackRay =
+                            back_position_world - nautilusCameraWorld;
+                    nautilusSceneDistance = length(nautilusBackRay);
+                    nautilusDirectionWorld = nautilusBackRay
+                            / max(nautilusSceneDistance, 1.0E-5);
+                    nautilusFrontDistance =
+                            clamp(view_distance, 0.0, nautilusSceneDistance);
+                    nautilusOverride = nautilus_segments_active(
+                                    nautilusSegments, nautilusGate,
+                                    nautilusStatus, nautilusSceneDistance)
+                            && nautilus_open_end_direction_safe(
+                                    nautilusSegments, nautilusDirectionWorld.y);
                 }
-                vec3 nautilusCameraWorld =
-                        gbufferModelViewInverse[3].xyz + cameraPosition;
-                vec3 nautilusBackRay =
-                        back_position_world - nautilusCameraWorld;
-                float nautilusSceneDistance = length(nautilusBackRay);
-                vec3 nautilusDirectionWorld = nautilusBackRay
-                        / max(nautilusSceneDistance, 1.0E-5);
-                float nautilusFrontDistance =
-                        clamp(view_distance, 0.0, nautilusSceneDistance);
-                bool nautilusOverride = is_translucent && !back_is_hand
-                        && isEyeInWater == 0
-                        && nautilus_segments_active(
-                                nautilusSegments, nautilusGate,
-                                nautilusStatus, nautilusSceneDistance)
-                        && nautilus_open_end_direction_safe(
-                                nautilusSegments, nautilusDirectionWorld.y);
                 if (nautilusOverride) {
                     vec3 nautilusBackFogTransmittance;
                     float nautilusWaterBeforeBack = nautilus_water_length(
@@ -1196,8 +1251,8 @@ public final class IrisCompositeShaderSource {
                                 nautilusSegments, nautilusDirectionWorld.y);
                 vec3 nautilusBackFogTransmittance = vec3(1.0);
                 """;
-        final String bloomyUpdate = source.contains("bloomy_fog")
-                && source.contains("luminance_weights_rec2020")
+        final String bloomyUpdate = executable.contains("bloomy_fog")
+                && executable.contains("luminance_weights_rec2020")
                 ? """
                     bloomy_fog = clamp01(dot(nautilusFrontFogTransmittance,
                             vec3(luminance_weights_rec2020)));
@@ -1249,15 +1304,17 @@ public final class IrisCompositeShaderSource {
     private static String patchComplementaryDeferred(final String source) {
         final String uvHelper = complementaryUvHelper(source);
         if (uvHelper == null) return source;
-        final String fogAnchor = "void DoFog(inout vec4 color";
-        final int fog = source.indexOf(fogAnchor);
-        if (fog < 0) return source;
-        final int openBrace = source.indexOf('{', fog);
-        if (openBrace < 0) return source;
+        final Matcher definition = Pattern.compile(
+                "\\bvoid\\s+DoFog\\s*\\([^;{}]*\\)\\s*\\{", Pattern.DOTALL)
+                .matcher(executableGlsl(source));
+        if (!definition.find()) return source;
+        final int fog = definition.start();
+        final int openBrace = definition.end() - 1;
+        if (definition.find()) return source;
         final int blockEnd = findMatchingBrace(source, openBrace);
         if (blockEnd < 0) return source;
         final String nativeBody = source.substring(openBrace + 1, blockEnd);
-        if (!nativeBody.contains(
+        if (!executableGlsl(nativeBody).contains(
                 "if (isEyeInWater == 1) DoWaterFog(color, lViewPos);")) {
             return source;
         }
@@ -1371,20 +1428,21 @@ public final class IrisCompositeShaderSource {
     private static String patchComplementaryTone(final String source) {
         final String uvHelper = complementaryUvHelper(source);
         if (uvHelper == null) return source;
-        if (!source.contains("float lViewPos1")) return source;
+        final String executable = executableGlsl(source);
+        if (!executable.contains("float lViewPos1")) return source;
         final String anchor = "if (isEyeInWater == 1) {";
         final String targetLine = "vec3 underwaterMult = vec3(0.80, 0.87, 0.97);";
-        final int target = source.indexOf(targetLine);
-        final int condition = target < 0 ? -1 : source.lastIndexOf(anchor, target);
+        final int target = uniqueMainAnchor(source, targetLine, 0);
+        final int condition = target < 0 ? -1 : executable.lastIndexOf(anchor, target);
         if (condition < 0) return source;
-        final Matcher main = MAIN.matcher(source);
+        final Matcher main = MAIN.matcher(executable);
         if (!main.find() || condition < main.end()) return source;
         final int openBrace = condition + anchor.lastIndexOf('{');
         final int blockEnd = findMatchingBrace(source, openBrace);
         if (blockEnd < 0 || target > blockEnd) return source;
         String block = source.substring(condition, blockEnd + 1);
-        if (!block.contains(targetLine)
-                || !block.contains("volumetricEffect.rgb *= pow2(underwaterMult * 0.55);")) {
+        if (!executableGlsl(block).contains(targetLine)
+                || !executableGlsl(block).contains("volumetricEffect.rgb *= pow2(underwaterMult * 0.55);")) {
             return source;
         }
         final String local = """
@@ -1437,15 +1495,15 @@ public final class IrisCompositeShaderSource {
                 if (isEyeInWater == 1 || nautilusOverride) {
                 """;
         block = local + block.substring(anchor.length());
-        block = block.replace("if (z0 == 1.0) color.rgb = waterFogColor;",
+        block = replaceExecutable(block, "if (z0 == 1.0) color.rgb = waterFogColor;",
                 "if (z0 == 1.0 && !nautilusOverride) color.rgb = waterFogColor;");
-        block = block.replace("color.rgb *= underwaterMult * 0.85;",
+        block = replaceExecutable(block, "color.rgb *= underwaterMult * 0.85;",
                 "color.rgb *= mix(vec3(1.0), underwaterMult * 0.85,"
                         + " nautilusUnderwaterFactor);");
-        block = block.replace("volumetricEffect.rgb *= pow2(underwaterMult * 0.55);",
+        block = replaceExecutable(block, "volumetricEffect.rgb *= pow2(underwaterMult * 0.55);",
                 "volumetricEffect.rgb *= mix(vec3(1.0),"
                         + " pow2(underwaterMult * 0.55), nautilusUnderwaterFactor);");
-        block = block.replace("lightFog *= underwaterMult;",
+        block = replaceExecutable(block, "lightFog *= underwaterMult;",
                 "lightFog *= mix(vec3(1.0), underwaterMult, nautilusUnderwaterFactor);");
         final String rewritten = source.substring(0, condition) + block
                 + source.substring(blockEnd + 1);
@@ -1710,6 +1768,26 @@ public final class IrisCompositeShaderSource {
                     }
                     return -1;
                 }
+                // Both primary and corner recovery must agree with the actual emitted model
+                // plane. The optical voxel's 0/1 boundary is not a pane's 7/16 or 9/16 face.
+                bool nautilus_optical_face_matches(int slot, float eventTableBase,
+                        float generation, vec3 hit, int expectedAxis,
+                        float expectedOutward, float tolerance) {
+                    float base = eventTableBase + float(slot) * 4.0;
+                    if (!nautilus_atlas_index_valid(base + 3.0)) return false;
+                    vec4 metadata = nautilus_atlas_texel(base + 2.0);
+                    float face = nautilus_atlas_texel(base + 3.0).x;
+                    if (any(notEqual(metadata, metadata)) || face != face
+                            || metadata.y < 0.5 || abs(metadata.z - float(slot)) > 0.25
+                            || abs(metadata.w - generation) > 0.25) return false;
+                    int axis = int(floor(metadata.x + 0.5));
+                    float outwardCode = metadata.y > 2.5 ? metadata.y - 2.0 : metadata.y;
+                    float outward = outwardCode > 1.5 ? 1.0 : -1.0;
+                    float hitAxis = expectedAxis == 0 ? hit.x
+                            : expectedAxis == 1 ? hit.y : hit.z;
+                    return axis == expectedAxis && abs(outward - expectedOutward) <= 0.25
+                            && abs(hitAxis - face) <= tolerance;
+                }
                 bool nautilus_resolve_optical_event(float entryDepth, uint entryDirection,
                         vec2 uv,
                         int cameraWater, float eventDistance, out vec4 segments) {
@@ -1800,31 +1878,14 @@ public final class IrisCompositeShaderSource {
                             int directionSlot = nautilus_direction_slot(
                                     primaryEncoded, directionCode);
                             if (directionSlot >= eventCount) return false;
-                            // A voxel may carry this signed direction while the reconstructed
-                            // point lies on a different side of that voxel (notably at a
-                            // corner, where floor() can select the tangential cell).  Do not
-                            // let such a primary cell steal the event: its expected face must
-                            // coincide with the actual hit coordinate along the normal axis.
-                            float primaryFace = expectedAxis == 0
-                                    ? (expectedOutward > 0.0 ? primary.x + 1.0 : primary.x)
-                                    : expectedAxis == 1
-                                    ? (expectedOutward > 0.0 ? primary.y + 1.0 : primary.y)
-                                    : (expectedOutward > 0.0 ? primary.z + 1.0 : primary.z);
-                            float primaryHitAxis = expectedAxis == 0 ? semanticHit.x
-                                    : expectedAxis == 1 ? semanticHit.y : semanticHit.z;
-                            bool primaryFaceMatches = abs(primaryHitAxis - primaryFace)
-                                    <= cellTolerance;
-                            if (directionSlot >= 0 && primaryFaceMatches) {
+                            if (directionSlot >= 0 && nautilus_optical_face_matches(
+                                    directionSlot, eventTableBase, d7.z, semanticHit,
+                                    expectedAxis, expectedOutward, cellTolerance)) {
                                 selectedSlot = directionSlot;
                                 selectedAxis = expectedAxis;
                             }
                         }
                         if (selectedSlot < 0) {
-                            float expectedFaceFraction = expectedAxis == 0 ? fraction.x
-                                    : expectedAxis == 1 ? fraction.y : fraction.z;
-                            bool expectedFaceNear = expectedFaceFraction < cellTolerance
-                                    || expectedFaceFraction > 1.0 - cellTolerance;
-                            if (!expectedFaceNear) continue;
                             // Prefer the half-open voxel selected by floor() and move only
                             // across the normal boundary first.  Tangential/diagonal recovery
                             // is a second pass for D24 rounding at a corner; otherwise two
@@ -1856,25 +1917,6 @@ public final class IrisCompositeShaderSource {
                                         if (!boundaryCompatible) continue;
                                         vec3 offset = vec3(float(ox), float(oy), float(oz));
                                         vec3 candidateCell = primary + offset;
-                                        float candidateFace = expectedAxis == 0
-                                                ? (expectedOutward > 0.0
-                                                ? candidateCell.x + 1.0 : candidateCell.x)
-                                                : expectedAxis == 1
-                                                ? (expectedOutward > 0.0
-                                                ? candidateCell.y + 1.0 : candidateCell.y)
-                                                : (expectedOutward > 0.0
-                                                ? candidateCell.z + 1.0 : candidateCell.z);
-                                        float candidateHitAxis = expectedAxis == 0
-                                                ? semanticHit.x
-                                                : expectedAxis == 1 ? semanticHit.y
-                                                : semanticHit.z;
-                                        // The 3x3x3 recovery is intentionally limited to cells
-                                        // whose signed face is the one actually intersected.
-                                        // Boundary proximity alone is insufficient at a corner:
-                                        // an adjacent cell can be tangent to the ray yet expose a
-                                        // parallel face one whole block away.
-                                        if (abs(candidateHitAxis - candidateFace)
-                                                > cellTolerance) continue;
                                         float encoded = nautilus_atlas_voxel(
                                                 candidateCell, d4, d5, lookupValid);
                                         if (!lookupValid) return false;
@@ -1882,25 +1924,9 @@ public final class IrisCompositeShaderSource {
                                         int slot = nautilus_direction_slot(encoded, directionCode);
                                         if (slot < 0) continue;
                                         if (slot >= eventCount) return false;
-                                        float candidateEventBase = eventTableBase
-                                                + float(slot) * 3.0;
-                                        if (!nautilus_atlas_index_valid(candidateEventBase + 2.0))
-                                            return false;
-                                        vec4 candidateMetadata = nautilus_atlas_texel(
-                                                candidateEventBase + 2.0);
-                                        if (any(notEqual(candidateMetadata, candidateMetadata))
-                                                || abs(candidateMetadata.z - float(slot)) > 0.25
-                                                || abs(candidateMetadata.w - d7.z) > 0.25)
-                                            return false;
-                                        if (candidateMetadata.y < 0.5) continue;
-                                        int candidateMetadataAxis = int(floor(
-                                                candidateMetadata.x + 0.5));
-                                        if (candidateMetadataAxis != expectedAxis) continue;
-                                        float candidateOutwardCode = candidateMetadata.y > 2.5
-                                                ? candidateMetadata.y - 2.0 : candidateMetadata.y;
-                                        float candidateOutward = candidateOutwardCode > 1.5
-                                                ? 1.0 : -1.0;
-                                        if (abs(candidateOutward - expectedOutward) > 0.25)
+                                        if (!nautilus_optical_face_matches(
+                                                slot, eventTableBase, d7.z, semanticHit,
+                                                expectedAxis, expectedOutward, cellTolerance))
                                             continue;
                                         if (selectedSlot >= 0 && selectedSlot != slot) return false;
                                         selectedSlot = slot;
@@ -1912,7 +1938,7 @@ public final class IrisCompositeShaderSource {
                         }
                         if (selectedSlot < 0 || selectedAxis < 0) continue;
                         if (selectedSlot >= eventCount || found) return false;
-                        float eventBase = eventTableBase + float(selectedSlot) * 3.0;
+                        float eventBase = eventTableBase + float(selectedSlot) * 4.0;
                         if (!nautilus_atlas_index_valid(eventBase + 2.0)) return false;
                         selectedNegative = nautilus_atlas_texel(eventBase);
                         selectedPositive = nautilus_atlas_texel(eventBase + 1.0);
@@ -2121,9 +2147,14 @@ public final class IrisCompositeShaderSource {
 
                     ivec2 entrySize = ivec2(max(
                             NautilusWaterEntrySize, vec2(1.0)));
-                    vec2 coveredTexels = clamp(ceil(
-                            fwidth(maskUv * vec2(entrySize)) - vec2(1.0E-4)),
-                            vec2(1.0), vec2(2.0));
+                    // Subtracting rounded texel coordinates can push an exact 2-pixel
+                    // footprint above 2. Allow float rounding at this texture's scale.
+                    vec2 footprintTolerance = max(vec2(1.0E-4),
+                            vec2(entrySize) * (8.0 * 1.1920929E-7));
+                    vec2 coveredTexels = max(ceil(
+                            fwidth(maskUv * vec2(entrySize)) - footprintTolerance),
+                            vec2(1.0));
+                    if (any(greaterThan(coveredTexels, vec2(2.0)))) return false;
                     ivec2 span = ivec2(coveredTexels);
                     ivec2 base = ivec2(floor(maskUv * vec2(entrySize)
                             - 0.5 * vec2(span - ivec2(1))));
@@ -2404,8 +2435,11 @@ public final class IrisCompositeShaderSource {
 
                     ivec2 entrySize = ivec2(max(
                             NautilusWaterEntrySize, vec2(1.0)));
+                    // Use texture-scaled float tolerance before rounding the footprint up.
+                    vec2 footprintTolerance = max(vec2(1.0E-4),
+                            vec2(entrySize) * (8.0 * 1.1920929E-7));
                     vec2 coveredTexels = max(ceil(
-                            fwidth(maskUv * vec2(entrySize)) - vec2(1.0E-4)),
+                            fwidth(maskUv * vec2(entrySize)) - footprintTolerance),
                             vec2(1.0));
                     if (any(greaterThan(coveredTexels, vec2(4.0)))) return false;
                     ivec2 span = ivec2(coveredTexels);
@@ -2734,10 +2768,40 @@ public final class IrisCompositeShaderSource {
         return new String(code);
     }
 
+    /** Finds one executable anchor inside one unambiguous main definition. */
+    private static int uniqueMainAnchor(final String source, final String anchor, final int from) {
+        final String executable = executableGlsl(source);
+        final Matcher main = MAIN.matcher(executable);
+        if (!main.find()) return -1;
+        final int bodyStart = main.end();
+        final int bodyEnd = findMatchingBrace(executable, bodyStart - 1);
+        if (bodyEnd < 0 || main.find()) return -1;
+        final int match = executable.indexOf(anchor, Math.max(from, bodyStart));
+        if (match < 0 || match + anchor.length() > bodyEnd) return -1;
+        final int next = executable.indexOf(anchor, match + anchor.length());
+        return next >= 0 && next < bodyEnd ? -1 : match;
+    }
+
+    /** Changes executable occurrences without rewriting identical text inside comments. */
+    private static String replaceExecutable(final String source, final String anchor,
+                                             final String replacement) {
+        final String executable = executableGlsl(source);
+        final StringBuilder result = new StringBuilder();
+        int copied = 0;
+        int match;
+        while ((match = executable.indexOf(anchor, copied)) >= 0) {
+            result.append(source, copied, match).append(replacement);
+            copied = match + anchor.length();
+        }
+        return copied == 0 ? source : result.append(source, copied, source.length()).toString();
+    }
+
     private static String insertBeforeMain(final String source, final String declaration) {
         final Matcher main = MAIN.matcher(executableGlsl(source));
         if (!main.find()) return source;
-        return source.substring(0, main.start()) + declaration + source.substring(main.start());
+        final int start = main.start();
+        if (main.find()) return source;
+        return source.substring(0, start) + declaration + source.substring(start);
     }
 
     private static int findMatchingBrace(final String source, final int openBrace) {

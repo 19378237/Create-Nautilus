@@ -50,6 +50,14 @@
     {
       "id": "createprism:train_illumination_casing",
       "required": false
+    },
+    {
+      "id": "createprism:steel_glass_casing",
+      "required": false
+    },
+    {
+      "id": "createprism:steel_clear_glass_casing",
+      "required": false
     }
   ]
 }

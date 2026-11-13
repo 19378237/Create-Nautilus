@@ -8,7 +8,6 @@ import dev.ryanhcode.sable.sublevel.ServerSubLevel;
 import dev.ryanhcode.sable.sublevel.system.SubLevelPhysicsSystem;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.Blocks;
-import org.joml.Vector3d;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -37,26 +36,31 @@ public final class BallastMassSynchronizer {
             // to the old tracker, so clear both ledgers and inject everything into the new owner.
             state.appliedWaterMasses().clear();
             state.appliedRealWaterMasses().clear();
+            // The same per-tick inventory still needs injection into the replacement tracker.
+            state.setAppliedRealWaterSnapshot(null);
             state.setAppliedWaterMassTracker(currentTracker);
         }
 
         boolean changed = syncAttachmentWater(carrier, state);
         changed |= syncRealSourceWater(carrier, state, realWater);
         if (changed) {
-            carrier.updateMergedMassData(1.0F);
+            // Match Sable's update earlier in this sub-step: moving contraptions contribute
+            // their position and inertia at this time, rather than at the end of the game tick.
+            carrier.updateMergedMassData((float) system.getPartialPhysicsTick());
             // Upload mass, COM and inertia to the active Rapier body; updating only the Java-side
             // tracker would change goggles/API readouts without changing actual motion.
             system.getPipeline().onStatsChanged(carrier);
         }
 
+        final long gameTime = carrier.getLevel().getGameTime();
+        if (!CreateNautilus.LOGGER.isDebugEnabled()
+                || (state.lastBallastDiagnosticTick() != Long.MIN_VALUE
+                && gameTime - state.lastBallastDiagnosticTick() < 100L)) return;
         final double attachmentNativeMass = state.compartments().stream()
                 .mapToDouble(room -> clampedAttachmentWaterMb(room) / 1000.0D
                         * (NautilusConfig.WATER_DENSITY / 1000.0D))
                 .sum();
-        final long gameTime = carrier.getLevel().getGameTime();
-        if ((attachmentNativeMass > 1.0E-6D || realWater.totalNativeMass() > 1.0E-6D)
-                && (state.lastBallastDiagnosticTick() == Long.MIN_VALUE
-                || gameTime - state.lastBallastDiagnosticTick() >= 100L)) {
+        if (attachmentNativeMass > 1.0E-6D || realWater.totalNativeMass() > 1.0E-6D) {
             CreateNautilus.LOGGER.debug(
                     "Ballast mass carrier {}: attachmentMass={}, realWaterSources={}, "
                             + "realWaterMass={}, self={}, merged={}, trackerReplaced={}",
@@ -114,6 +118,7 @@ public final class BallastMassSynchronizer {
     private static boolean syncRealSourceWater(final ServerSubLevel carrier,
                                                final CarrierState state,
                                                final CompartmentFluidInventory.Snapshot measured) {
+        if (state.appliedRealWaterSnapshot() == measured) return false;
         final Map<Long, Double> next = new HashMap<>();
         boolean changed = false;
         for (final Map.Entry<Long, CompartmentFluidInventory.SourceWater> entry
@@ -143,6 +148,7 @@ public final class BallastMassSynchronizer {
         }
         state.appliedRealWaterMasses().clear();
         state.appliedRealWaterMasses().putAll(next);
+        state.setAppliedRealWaterSnapshot(measured);
         return changed;
     }
 
@@ -153,27 +159,9 @@ public final class BallastMassSynchronizer {
     /** Centroid of only the continuous Attachment water represented by its horizontal plane. */
     private static BlockPos virtualWaterMassCentre(final ServerSubLevel carrier,
                                                    final CompartmentState room) {
-        if (clampedAttachmentWaterMb(room) <= 0.0D || room.cells().isEmpty()) {
+        if (clampedAttachmentWaterMb(room) <= 0.0D || room.waterCells().isEmpty()) {
             return BlockPos.containing(room.bounds().getCenter());
         }
-        final double surface = CompartmentWaterGeometry.surfaceY(carrier, room);
-        double weight = 0.0D;
-        final Vector3d weighted = new Vector3d();
-        for (final long packed : room.cells()) {
-            final BlockPos cell = BlockPos.of(packed);
-            final double flooded = CompartmentWaterGeometry.fractionBelowSurface(
-                    carrier, cell, surface);
-            if (flooded <= 1.0E-9D) {
-                continue;
-            }
-            weight += flooded;
-            weighted.fma(flooded, new Vector3d(
-                    cell.getX() + 0.5D, cell.getY() + 0.5D, cell.getZ() + 0.5D));
-        }
-        if (weight <= 1.0E-9D) {
-            return BlockPos.containing(room.bounds().getCenter());
-        }
-        weighted.div(weight);
-        return BlockPos.containing(weighted.x, weighted.y, weighted.z);
+        return CompartmentWaterGeometry.waterMassCentre(carrier, room);
     }
 }

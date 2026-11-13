@@ -3,7 +3,6 @@ package com.create.nautilus.hydrogen;
 import com.create.nautilus.config.NautilusConfig;
 import com.create.nautilus.registry.NautilusBlockEntityTypes;
 import com.simibubi.create.content.fluids.tank.FluidTankBlockEntity;
-import com.simibubi.create.api.boiler.BoilerHeater;
 import com.simibubi.create.content.kinetics.base.KineticBlockEntity;
 import com.simibubi.create.foundation.blockEntity.behaviour.BlockEntityBehaviour;
 import com.simibubi.create.foundation.blockEntity.behaviour.fluid.SmartFluidTankBehaviour;
@@ -27,6 +26,11 @@ public final class BoilerHydrogenBoosterBlockEntity extends KineticBlockEntity {
     public static final int MAX_HEAT_LEVEL = 18;
     private static final int CAPACITY = 4_000;
 
+    /** The BoilerData mixin exposes the result of Create/Sable's unboosted heat scan. */
+    public interface NaturalHeat {
+        int nautilus$naturalHeat(FluidTankBlockEntity controller);
+    }
+
     public static int capacity() {
         return CAPACITY;
     }
@@ -45,6 +49,28 @@ public final class BoilerHydrogenBoosterBlockEntity extends KineticBlockEntity {
                 NautilusBlockEntityTypes.BOILER_HYDROGEN_BOOSTER.get(),
                 (be, side) -> side != be.getBlockState().getValue(BoilerHydrogenBoosterBlock.FACING)
                         .getOpposite() ? GasHandlerView.of(be.hydrogen.getCapability()) : null);
+    }
+
+    /** Sided capability results (including null) depend on the current facing. */
+    @Override
+    public void setBlockState(final BlockState state) {
+        final BlockState previous = getBlockState();
+        final boolean facingChanged = previous.getValue(BoilerHydrogenBoosterBlock.FACING)
+                != state.getValue(BoilerHydrogenBoosterBlock.FACING);
+        final boolean updateHeat = facingChanged && level != null && !level.isClientSide;
+        final FluidTankBlockEntity previousBoiler = updateHeat ? adjacentBoiler() : null;
+        super.setBlockState(state);
+        if (facingChanged) {
+            invalidateCapabilities();
+        }
+        if (updateHeat) {
+            // An active flag can remain true when turning from one boiler to
+            // another. Refresh both targets through Create's normal next-tick
+            // heat scan, including the old target when the new face is empty.
+            if (previousBoiler != null) previousBoiler.updateBoilerTemperature();
+            final FluidTankBlockEntity nextBoiler = adjacentBoiler();
+            if (nextBoiler != null && nextBoiler != previousBoiler) nextBoiler.updateBoilerTemperature();
+        }
     }
 
     @Override
@@ -76,16 +102,18 @@ public final class BoilerHydrogenBoosterBlockEntity extends KineticBlockEntity {
             return;
         }
 
-        consumptionRemainder += NautilusConfig.BOILER_HYDROGEN_CONSUMPTION_RATE / 20.0D;
-        final int due = (int) Math.floor(consumptionRemainder);
+        final double accrued = consumptionRemainder
+                + NautilusConfig.BOILER_HYDROGEN_CONSUMPTION_RATE / 20.0D;
+        final int due = (int) Math.floor(accrued);
+        // Failed work incurs no fuel debt and must not consume a partial batch.
+        consumptionRemainder = accrued - due;
         if (due > 0) {
-            final int drained = hydrogen.getPrimaryHandler().drain(due,
-                    IFluidHandler.FluidAction.EXECUTE).getAmount();
-            consumptionRemainder -= drained;
-            if (drained < due) {
+            if (hydrogen.getPrimaryHandler().drain(due,
+                    IFluidHandler.FluidAction.SIMULATE).getAmount() < due) {
                 setActive(false, boilerTank);
                 return;
             }
+            hydrogen.getPrimaryHandler().drain(due, IFluidHandler.FluidAction.EXECUTE);
         }
         setActive(true, boilerTank);
     }
@@ -103,25 +131,9 @@ public final class BoilerHydrogenBoosterBlockEntity extends KineticBlockEntity {
         }
     }
 
-    /**
-     * Repeats Create's public heater lookup without changing its scan layout.
-     * This distinguishes a native level-18 boiler from a level-16 boiler that
-     * currently displays 18 because of our +2 boost.
-     */
+    /** Uses the real temperature scan, including Sable's external-heater lookup. */
     private int nativeHeat(final FluidTankBlockEntity boilerTank) {
-        if (boilerTank.getLevel() == null) {
-            return 0;
-        }
-        int heat = 0;
-        final BlockPos origin = boilerTank.getBlockPos();
-        for (int x = 0; x < boilerTank.getWidth(); x++) {
-            for (int z = 0; z < boilerTank.getWidth(); z++) {
-                final BlockPos heaterPos = origin.offset(x, -1, z);
-                heat += BoilerHeater.findHeat(boilerTank.getLevel(), heaterPos,
-                        boilerTank.getLevel().getBlockState(heaterPos));
-            }
-        }
-        return heat;
+        return ((NaturalHeat) boilerTank.boiler).nautilus$naturalHeat(boilerTank);
     }
 
     private FluidTankBlockEntity adjacentBoiler() {

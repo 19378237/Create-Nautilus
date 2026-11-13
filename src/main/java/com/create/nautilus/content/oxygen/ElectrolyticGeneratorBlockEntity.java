@@ -95,6 +95,16 @@ public final class ElectrolyticGeneratorBlockEntity extends KineticBlockEntity {
                 (be, side) -> be.gasHandlerFor(side));
     }
 
+    /** Sided capability results (including null) depend on the current facing. */
+    @Override
+    public void setBlockState(final BlockState state) {
+        final BlockState previous = getBlockState();
+        super.setBlockState(state);
+        if (previous.getValue(ElectrolyticGeneratorBlock.HORIZONTAL_FACING) != state.getValue(ElectrolyticGeneratorBlock.HORIZONTAL_FACING)) {
+            invalidateCapabilities();
+        }
+    }
+
     @Override
     public void addBehaviours(final List<BlockEntityBehaviour> behaviours) {
         final int oxygenCapacity = gasCapacity();
@@ -327,17 +337,11 @@ public final class ElectrolyticGeneratorBlockEntity extends KineticBlockEntity {
 
     private boolean isTouchingExternalWater() {
         final SubLevel containing = Sable.HELPER.getContaining(this);
-        final Level parent = containing == null ? level : containing.getLevel();
         for (final Direction direction : Direction.values()) {
             if (direction == Direction.DOWN) {
                 continue;
             }
-            Vec3 sample = Vec3.atCenterOf(worldPosition)
-                    .add(Vec3.atLowerCornerOf(direction.getNormal()).scale(0.51D));
-            if (containing != null) {
-                sample = containing.logicalPose().transformPosition(sample);
-            }
-            if (parent.getFluidState(BlockPos.containing(sample)).is(FluidTags.WATER)) {
+            if (IntakeEnvironment.externalWaterAt(level, containing, worldPosition, direction)) {
                 return true;
             }
         }

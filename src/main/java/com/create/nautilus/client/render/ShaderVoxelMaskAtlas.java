@@ -51,7 +51,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Exact compartment occupancy for Iris water programs, flattened into one ordinary 2D texture.
+ * Exact compartment occupancy for parent-water programs, flattened into one ordinary 2D texture.
  *
  * <p>The texture contains a small descriptor/room prefix, sparse 8-cubed brick page tables and
  * one texel per occupied voxel.  It deliberately uses {@code GL_TEXTURE_2D + RGBA32F}; the 3D
@@ -65,8 +65,8 @@ public final class ShaderVoxelMaskAtlas {
             SodiumOcclusionShaderSource.VOXEL_CARRIER_DESCRIPTOR_TEXELS;
     private static final int BRICK = SodiumOcclusionShaderSource.VOXEL_BRICK_SIZE;
     private static final int BRICK_TEXELS = SodiumOcclusionShaderSource.VOXEL_BRICK_TEXELS;
-    /** Negative/positive medium planes plus axis/valid metadata for one optical event. */
-    private static final int OPTICAL_EVENT_TEXELS = 3;
+    /** Negative/positive medium planes, axis/valid metadata and the actual model face plane. */
+    private static final int OPTICAL_EVENT_TEXELS = 4;
     /** Full optical occupancy without a fog event; exact float, outside the <= -1.5 slot range. */
     static final float EVENTLESS_OPTICAL_VOLUME = -1.25F;
     private static final int MAX_EXACT_TEXELS =
@@ -113,6 +113,7 @@ public final class ShaderVoxelMaskAtlas {
     /** One early fog snapshot which the later water pass must consume instead of replacing. */
     private static long earlyFogPreparedToken = Long.MIN_VALUE;
     private static FrameSnapshot pausedFrame;
+    /** Latest checked GPU contents; null also covers a failed, partially applied prefix upload. */
     private static float[] uploadedPrefix;
     private static volatile Set<Long> watchedCellKeys = Set.of();
     /**
@@ -144,6 +145,8 @@ public final class ShaderVoxelMaskAtlas {
     /** Plot-space candidate cells dirtied by committed block/fluid events. */
     private static final ConcurrentLinkedQueue<Long> dirtyCellKeys =
             new ConcurrentLinkedQueue<>();
+    private static final ApertureEventCache.OpticalSlots PLAIN_OPTICAL_SLOTS =
+            new ApertureEventCache.OpticalSlots(Map.of(), 0, 0L);
 
     private ShaderVoxelMaskAtlas() {
     }
@@ -151,103 +154,76 @@ public final class ShaderVoxelMaskAtlas {
     /** Runs on the render thread at the parent-world translucent-pass boundary. */
     public static void update(final double cameraX, final double cameraY,
                               final double cameraZ) {
-        if (retainEarlyFogFrameForWater(cameraX, cameraY, cameraZ)) return;
-        preparedFrame = null;
-        preparedOpticalFrame = null;
-        final Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.level == null) {
-            return;
-        }
-        final SubLevelContainer container = SubLevelContainer.getContainer(minecraft.level);
-        if (container == null) {
-            return;
-        }
-        if (OPTICAL_LAYOUT_REBUILD_REQUESTED.getAndSet(false)) {
-            /*
-             * Do not destroy the current GL texture here.  Invalidating the CPU generation makes
-             * the next block below build and upload a complete candidate texture first; install()
-             * swaps the texture name only after that upload succeeds.  During a failed build the
-             * old object remains allocated but unpublished, which is the required fail-open
-             * behaviour and avoids the old post-program activation hitch.
-             */
-            publishedOpticalView = null;
-            pausedFrame = null;
-            uploadedPrefix = null;
-            topologyKey = Long.MIN_VALUE;
-            voxelStateKey = Long.MIN_VALUE;
-        }
-        // Do not consume committed block/fluid events until a live plot container exists.
-        // Dimension changes and first-world startup can expose a level for a frame before its
-        // container; draining earlier would permanently lose the invalidation while retaining
-        // an atlas built from the old block state.
-        final Set<Long> dirtyCells = drainDirtyCells();
-        final Map<UUID, List<ClientCompartmentVisualCache.RoomSnapshot>> snapshots =
-                ClientCompartmentVisualCache.shaderAtlasSnapshots();
-        final List<CarrierInput> inputs = collectInputs(
-                container, snapshots, cameraX, cameraY, cameraZ);
-        watchedPlotBounds = watchedPlotBounds(inputs);
-        final long topologyOnlyKey = topologyKey(inputs);
-        final long now = System.nanoTime();
-        // The expensive full plot-state fingerprint belongs only to a new atomic generation.
-        // Committed block/fluid events use the local brick path below; no timed scan runs here.
-        if (voxelStateKey == Long.MIN_VALUE || topologyKey == Long.MIN_VALUE
-                || topologyOnlyKey != (topologyKey ^ voxelStateKey)) {
-            voxelStateKey = voxelStateKey(inputs);
-        }
-        long nextTopologyKey = topologyOnlyKey ^ voxelStateKey;
-        if (inputs.isEmpty()) {
-            releaseOnRenderThread();
-            topologyKey = nextTopologyKey;
-            return;
-        }
-        // A topology which produced no packable carrier is a stable fail-open result. Do not
-        // rescan and rematerialise it every water pass; an exact plot block/fluid event or a new
-        // topology key below is the only reason to retry.
-        if (layout == null && topologyKey == nextTopologyKey && dirtyCells.isEmpty()) {
-            return;
-        }
-        if (layout == null || topologyKey != nextTopologyKey) {
-            final AtlasLayout replacement = buildLayoutSafely(inputs);
-            if (replacement == null) {
-                layout = null;
-                watchedCellKeys = Set.of();
+        final int diagnosticsSource = ClientWaterDiagnostics.enter(ClientWaterDiagnostics.source() == ClientWaterDiagnostics.Source.ATLAS_EARLY_FOG
+                ? ClientWaterDiagnostics.Source.ATLAS_EARLY_FOG : ClientWaterDiagnostics.Source.ATLAS_WATER);
+        try {
+            final boolean plain = !WaterOcclusionPassBridge.isShaderPackActive();
+            if (layout != null && layout.plain() != plain) {
+                // A pack switch changes voxel ownership: plain includes the complete one-cell
+                // padding, while Iris retains its existing interior/optical-shell semantics.
+                // Neither an early-fog frame nor a paused frame may reuse the previous mode.
+                preparedOpticalFrame = null;
+                publishedOpticalView = null;
+                earlyFogPreparedToken = Long.MIN_VALUE;
+                pausedFrame = null;
+            } else if (!plain && retainEarlyFogFrameForWater(cameraX, cameraY, cameraZ)) {
+                return;
+            }
+            preparedFrame = null;
+            preparedOpticalFrame = null;
+            final Minecraft minecraft = Minecraft.getInstance();
+            if (minecraft.level == null) {
+                return;
+            }
+            final SubLevelContainer container = SubLevelContainer.getContainer(minecraft.level);
+            if (container == null) {
+                return;
+            }
+            if (OPTICAL_LAYOUT_REBUILD_REQUESTED.getAndSet(false)) {
+                /*
+                 * Do not destroy the current GL texture here.  Invalidating the CPU generation makes
+                 * the next block below build and upload a complete candidate texture first; install()
+                 * swaps the texture name only after that upload succeeds.  During a failed build the
+                 * old object remains allocated but unpublished, which is the required fail-open
+                 * behaviour and avoids the old post-program activation hitch.
+                 */
+                publishedOpticalView = null;
+                pausedFrame = null;
+                uploadedPrefix = null;
+                topologyKey = Long.MIN_VALUE;
+                voxelStateKey = Long.MIN_VALUE;
+            }
+            // Do not consume committed block/fluid events until a live plot container exists.
+            // Dimension changes and first-world startup can expose a level for a frame before its
+            // container; draining earlier would permanently lose the invalidation while retaining
+            // an atlas built from the old block state.
+            final Set<Long> dirtyCells = drainDirtyCells();
+            final Map<UUID, List<ClientCompartmentVisualCache.RoomSnapshot>> snapshots =
+                    ClientCompartmentVisualCache.shaderAtlasSnapshots();
+            final List<CarrierInput> inputs = collectInputs(
+                    container, snapshots, cameraX, cameraY, cameraZ, plain);
+            watchedPlotBounds = watchedPlotBounds(inputs);
+            final long topologyOnlyKey = topologyKey(inputs);
+            final long now = System.nanoTime();
+            // The expensive full plot-state fingerprint belongs only to a new atomic generation.
+            // Committed block/fluid events use the local brick path below; no timed scan runs here.
+            if (voxelStateKey == Long.MIN_VALUE || topologyKey == Long.MIN_VALUE
+                    || topologyOnlyKey != (topologyKey ^ voxelStateKey)) {
+                voxelStateKey = voxelStateKey(inputs);
+            }
+            long nextTopologyKey = topologyOnlyKey ^ voxelStateKey;
+            if (inputs.isEmpty()) {
+                releaseOnRenderThread();
                 topologyKey = nextTopologyKey;
                 return;
             }
-            if (!install(replacement)) {
-                // A stale atlas must never classify a new topology. Keep its GL object for a
-                // possible later retry, but publish no descriptors until replacement succeeds.
-                layout = null;
-                watchedCellKeys = Set.of();
-                topologyKey = Long.MIN_VALUE;
+            // A topology which produced no packable carrier is a stable fail-open result. Do not
+            // rescan and rematerialise it every water pass; an exact plot block/fluid event or a new
+            // topology key below is the only reason to retry.
+            if (layout == null && topologyKey == nextTopologyKey && dirtyCells.isEmpty()) {
                 return;
             }
-            layout = replacement;
-            ROOM_SURFACE_CACHE.clear();
-            topologyKey = nextTopologyKey;
-            watchedCellKeys = replacement.watchedCellKeys();
-            capacityWarningLogged = false;
-            layoutBuildWarningLogged = false;
-        } else if (!dirtyCells.isEmpty()) {
-            final LocalUpdateResult result;
-            try {
-                result = updateDirtyBricks(layout, inputs, dirtyCells);
-            } catch (final RuntimeException | LinkageError exception) {
-                if (!uploadWarningLogged) {
-                    uploadWarningLogged = true;
-                    CreateNautilus.LOGGER.warn(
-                            "[occlusion] exact voxel atlas local rebuild failed; "
-                                    + "water is left intact",
-                            exception);
-                }
-                disableStaleLayoutForRetry();
-                return;
-            }
-            if (result == LocalUpdateResult.REBUILD_REQUIRED) {
-                // A newly non-empty brick needs a new page-directory entry. Preserve the old
-                // texture until the complete replacement has uploaded successfully.
-                voxelStateKey = voxelStateKey(inputs);
-                nextTopologyKey = topologyOnlyKey ^ voxelStateKey;
+            if (layout == null || topologyKey != nextTopologyKey) {
                 final AtlasLayout replacement = buildLayoutSafely(inputs);
                 if (replacement == null) {
                     layout = null;
@@ -256,45 +232,95 @@ public final class ShaderVoxelMaskAtlas {
                     return;
                 }
                 if (!install(replacement)) {
-                    disableStaleLayoutForRetry();
+                    // A stale atlas must never classify a new topology. Keep its GL object for a
+                    // possible later retry, but publish no descriptors until replacement succeeds.
+                    layout = null;
+                    watchedCellKeys = Set.of();
+                    topologyKey = Long.MIN_VALUE;
                     return;
                 }
                 layout = replacement;
+                ROOM_SURFACE_CACHE.clear();
                 topologyKey = nextTopologyKey;
                 watchedCellKeys = replacement.watchedCellKeys();
                 capacityWarningLogged = false;
                 layoutBuildWarningLogged = false;
-            } else if (result == LocalUpdateResult.FAILED) {
-                // A sub-image upload may have changed only part of the old texture. Publish no
-                // descriptors until a complete atomic replacement succeeds on a later frame.
-                disableStaleLayoutForRetry();
-                return;
+            } else if (!dirtyCells.isEmpty()) {
+                final LocalUpdateResult result;
+                try {
+                    result = updateDirtyBricks(layout, inputs, dirtyCells);
+                } catch (final RuntimeException | LinkageError exception) {
+                    if (!uploadWarningLogged) {
+                        uploadWarningLogged = true;
+                        CreateNautilus.LOGGER.warn(
+                                "[occlusion] exact voxel atlas local rebuild failed; "
+                                        + "water is left intact",
+                                exception);
+                    }
+                    disableStaleLayoutForRetry();
+                    return;
+                }
+                if (result == LocalUpdateResult.REBUILD_REQUIRED) {
+                    // A newly non-empty brick needs a new page-directory entry. Preserve the old
+                    // texture until the complete replacement has uploaded successfully.
+                    voxelStateKey = voxelStateKey(inputs);
+                    nextTopologyKey = topologyOnlyKey ^ voxelStateKey;
+                    final AtlasLayout replacement = buildLayoutSafely(inputs);
+                    if (replacement == null) {
+                        layout = null;
+                        watchedCellKeys = Set.of();
+                        topologyKey = nextTopologyKey;
+                        return;
+                    }
+                    if (!install(replacement)) {
+                        disableStaleLayoutForRetry();
+                        return;
+                    }
+                    layout = replacement;
+                    topologyKey = nextTopologyKey;
+                    watchedCellKeys = replacement.watchedCellKeys();
+                    capacityWarningLogged = false;
+                    layoutBuildWarningLogged = false;
+                } else if (result == LocalUpdateResult.FAILED) {
+                    // A sub-image upload may have changed only part of the old texture. Publish no
+                    // descriptors until a complete atomic replacement succeeds on a later frame.
+                    disableStaleLayoutForRetry();
+                    return;
+                }
             }
-        }
-        final FrameSnapshot frozen = pausedFrame;
-        if (minecraft.isPaused() && compatibleFrame(frozen, layout, cameraX, cameraY, cameraZ)) {
-            preparedFrame = frozen;
-        } else {
-            preparedFrame = captureFrame(layout, container, snapshots,
-                    cameraX, cameraY, cameraZ);
-            pausedFrame = minecraft.isPaused() ? preparedFrame : null;
-        }
-        if (layout != null && now - lastSummaryNanos > 5_000_000_000L) {
-            lastSummaryNanos = now;
-            CreateNautilus.LOGGER.info(
-                    "[occlusion] exact voxel atlas ready carriers={} rooms={} bricks={} "
-                            + "interiorCells={} shellCells={} eventlessOpticalCells={} texture={}x{}",
-                    layout.carriers().size(), layout.roomCount(), layout.brickCount(),
-                    layout.interiorCellCount(), layout.shellCellCount(),
-                    layout.eventlessOpticalCellCount(), width, height);
+            final FrameSnapshot frozen = pausedFrame;
+            if (minecraft.isPaused() && compatibleFrame(frozen, layout, cameraX, cameraY, cameraZ)) {
+                ClientWaterDiagnostics.count(ClientWaterDiagnostics.Work.ATLAS_PAUSED_REUSED, 1L);
+                preparedFrame = frozen;
+            } else {
+                preparedFrame = captureFrame(layout, container, snapshots,
+                        cameraX, cameraY, cameraZ);
+                pausedFrame = minecraft.isPaused() ? preparedFrame : null;
+            }
+            if (CreateNautilus.LOGGER.isDebugEnabled() && layout != null && now - lastSummaryNanos > 5_000_000_000L) {
+                lastSummaryNanos = now;
+                CreateNautilus.LOGGER.debug(
+                        "[occlusion] exact voxel atlas ready carriers={} rooms={} bricks={} "
+                                + "interiorCells={} shellCells={} eventlessOpticalCells={} texture={}x{}",
+                        layout.carriers().size(), layout.roomCount(), layout.brickCount(),
+                        layout.interiorCellCount(), layout.shellCellCount(),
+                        layout.eventlessOpticalCellCount(), width, height);
+            }
+        } finally {
+            ClientWaterDiagnostics.leave(diagnosticsSource);
         }
     }
 
     /** Starts a new early-fog snapshot; a previous frame's retention marker is never reusable. */
     static void updateForEarlyFog(final double cameraX, final double cameraY,
                                   final double cameraZ) {
-        earlyFogPreparedToken = Long.MIN_VALUE;
-        update(cameraX, cameraY, cameraZ);
+        final int diagnosticsSource = ClientWaterDiagnostics.enter(ClientWaterDiagnostics.Source.ATLAS_EARLY_FOG);
+        try {
+            earlyFogPreparedToken = Long.MIN_VALUE;
+            update(cameraX, cameraY, cameraZ);
+        } finally {
+            ClientWaterDiagnostics.leave(diagnosticsSource);
+        }
     }
 
     /** Ends any unconsumed previous-frame retention without touching atlas or snapshot data. */
@@ -317,6 +343,7 @@ public final class ShaderVoxelMaskAtlas {
         // Sodium upload rewrite only the dynamic prefix/screen rectangle, never the layout or
         // texture name already consumed by deferred fog.
         earlyFogPreparedToken = Long.MIN_VALUE;
+        ClientWaterDiagnostics.count(ClientWaterDiagnostics.Work.ATLAS_EARLY_RETAINED, 1L);
         return true;
     }
 
@@ -331,58 +358,67 @@ public final class ShaderVoxelMaskAtlas {
                                  final int viewportX, final int viewportY,
                                  final int viewportWidth, final int viewportHeight,
                                  final boolean waveLayoutKnown) {
-        restoreBinding();
-        final AtlasLayout current = layout;
-        final FrameSnapshot frame = preparedFrame;
-        preparedFrame = null;
-        final PreparedOpticalFrame opticalPrepared = preparedOpticalFrame;
-        preparedOpticalFrame = null;
-        publishedOpticalView = null;
-        if (current == null || texture < 0 || current.carriers().isEmpty()
-                || frame == null || frame.layout() != current
-                || !sameDouble(frame.cameraX(), cameraX)
-                || !sameDouble(frame.cameraY(), cameraY)
-                || !sameDouble(frame.cameraZ(), cameraZ)) {
-            return false;
-        }
-        final EncodedPrefix encoded = encodePrefix(current, frame, opticalPrepared,
-                modelView, projection, viewportX, viewportY,
-                viewportWidth, viewportHeight, waveLayoutKnown);
-        if (encoded == null) return false;
-
-        final int previousActive = GL11C.glGetInteger(GL13C.GL_ACTIVE_TEXTURE);
-        GL13C.glActiveTexture(GL13C.GL_TEXTURE0 + textureUnit);
-        final int previousTexture = GL11C.glGetInteger(GL11C.GL_TEXTURE_BINDING_2D);
-        final int previousSampler = GL.getCapabilities().OpenGL33
-                ? GL30C.glGetIntegeri(GL33C.GL_SAMPLER_BINDING, textureUnit) : -1;
+        final int diagnosticsSource = ClientWaterDiagnostics.enter(ClientWaterDiagnostics.Source.ATLAS_WATER);
         try {
-            clearGlErrors();
-            GL11C.glBindTexture(GL11C.GL_TEXTURE_2D, texture);
-            if (previousSampler >= 0) {
-                // Texture-object NEAREST parameters are ignored while a sampler object is bound.
-                GL33C.glBindSampler(textureUnit, 0);
-            }
-            uploadPrefixIfChanged(encoded.data(), current.prefixTexels());
-            setUniform1i(program, SodiumOcclusionShaderSource.VOXEL_ATLAS_UNIFORM, textureUnit);
-            setUniform2f(program, SodiumOcclusionShaderSource.VOXEL_ATLAS_SIZE_UNIFORM,
-                    width, height);
-            setUniform1i(program, SodiumOcclusionShaderSource.VOXEL_CARRIER_COUNT_UNIFORM,
-                    current.carriers().size());
-            requireNoGlError("frame upload");
-            publishedOpticalView = encoded.opticalView();
-            activeBinding = new BoundTexture(textureUnit, previousActive, previousTexture,
-                    previousSampler);
-            GL13C.glActiveTexture(previousActive);
-            return true;
-        } catch (final RuntimeException | LinkageError exception) {
-            GL11C.glBindTexture(GL11C.GL_TEXTURE_2D, previousTexture);
-            if (previousSampler >= 0) {
-                GL33C.glBindSampler(textureUnit, previousSampler);
-            }
-            GL13C.glActiveTexture(previousActive);
-            logUploadFailure(exception);
+            restoreBinding();
+            final AtlasLayout current = layout;
+            final FrameSnapshot frame = preparedFrame;
+            preparedFrame = null;
+            final PreparedOpticalFrame opticalPrepared = preparedOpticalFrame;
+            preparedOpticalFrame = null;
             publishedOpticalView = null;
-            return false;
+            if (current == null || texture < 0 || current.carriers().isEmpty()
+                    || frame == null || frame.layout() != current
+                    || !sameDouble(frame.cameraX(), cameraX)
+                    || !sameDouble(frame.cameraY(), cameraY)
+                    || !sameDouble(frame.cameraZ(), cameraZ)) {
+                return false;
+            }
+            final long prefixStarted = ClientFrameDiagnostics.startWall();
+            final EncodedPrefix encoded = encodePrefix(current, frame, opticalPrepared,
+                    modelView, projection, viewportX, viewportY,
+                    viewportWidth, viewportHeight, waveLayoutKnown);
+            ClientFrameDiagnostics.recordWall(ClientFrameDiagnostics.Stage.ATLAS_PREFIX_ENCODE, prefixStarted);
+            if (encoded == null) return false;
+
+            final int previousActive = GL11C.glGetInteger(GL13C.GL_ACTIVE_TEXTURE);
+            GL13C.glActiveTexture(GL13C.GL_TEXTURE0 + textureUnit);
+            final int previousTexture = GL11C.glGetInteger(GL11C.GL_TEXTURE_BINDING_2D);
+            final int previousSampler = GL.getCapabilities().OpenGL33
+                    ? GL30C.glGetIntegeri(GL33C.GL_SAMPLER_BINDING, textureUnit) : -1;
+            try {
+                clearGlErrors();
+                GL11C.glBindTexture(GL11C.GL_TEXTURE_2D, texture);
+                if (previousSampler >= 0) {
+                    // Texture-object NEAREST parameters are ignored while a sampler object is bound.
+                    GL33C.glBindSampler(textureUnit, 0);
+                }
+                uploadPrefixIfChanged(encoded.data(), current.prefixTexels());
+                setUniform1i(program, SodiumOcclusionShaderSource.VOXEL_ATLAS_UNIFORM, textureUnit);
+                setUniform2f(program, SodiumOcclusionShaderSource.VOXEL_ATLAS_SIZE_UNIFORM,
+                        width, height);
+                setUniform1i(program, SodiumOcclusionShaderSource.VOXEL_CARRIER_COUNT_UNIFORM,
+                        current.carriers().size());
+                requireNoGlError("frame upload");
+                uploadedPrefix = encoded.data();
+                publishedOpticalView = encoded.opticalView();
+                activeBinding = new BoundTexture(textureUnit, previousActive, previousTexture,
+                        previousSampler);
+                GL13C.glActiveTexture(previousActive);
+                return true;
+            } catch (final RuntimeException | LinkageError exception) {
+                uploadedPrefix = null;
+                GL11C.glBindTexture(GL11C.GL_TEXTURE_2D, previousTexture);
+                if (previousSampler >= 0) {
+                    GL33C.glBindSampler(textureUnit, previousSampler);
+                }
+                GL13C.glActiveTexture(previousActive);
+                logUploadFailure(exception);
+                publishedOpticalView = null;
+                return false;
+            }
+        } finally {
+            ClientWaterDiagnostics.leave(diagnosticsSource);
         }
     }
 
@@ -401,42 +437,51 @@ public final class ShaderVoxelMaskAtlas {
                                              final int viewportY,
                                              final int viewportWidth,
                                              final int viewportHeight) {
-        restoreBinding();
-        publishedOpticalView = null;
-        final AtlasLayout current = layout;
-        final FrameSnapshot frame = preparedFrame;
-        final PreparedOpticalFrame opticalPrepared = preparedOpticalFrame;
-        if (current == null || texture < 0 || current.carriers().isEmpty()
-                || frame == null || frame.layout() != current
-                || !sameDouble(frame.cameraX(), cameraX)
-                || !sameDouble(frame.cameraY(), cameraY)
-                || !sameDouble(frame.cameraZ(), cameraZ)) {
-            return false;
-        }
-        // No water program has run yet, so its pack-specific wave varying is unavailable. A full
-        // viewport descriptor is the existing conservative fallback and does not alter occupancy.
-        final EncodedPrefix encoded = encodePrefix(current, frame, opticalPrepared,
-                modelView, projection, viewportX, viewportY,
-                viewportWidth, viewportHeight, false);
-        if (encoded == null || encoded.opticalView() == null) return false;
-
-        final int previousActive = GL11C.glGetInteger(GL13C.GL_ACTIVE_TEXTURE);
-        final int previousTexture = GL11C.glGetInteger(GL11C.GL_TEXTURE_BINDING_2D);
+        final int diagnosticsSource = ClientWaterDiagnostics.enter(ClientWaterDiagnostics.Source.ATLAS_EARLY_FOG);
         try {
-            clearGlErrors();
-            GL11C.glBindTexture(GL11C.GL_TEXTURE_2D, texture);
-            uploadPrefixIfChanged(encoded.data(), current.prefixTexels());
-            requireNoGlError("early optical frame upload");
-            publishedOpticalView = encoded.opticalView();
-            earlyFogPreparedToken = encoded.opticalView().frameToken();
-            return true;
-        } catch (final RuntimeException | LinkageError exception) {
-            logUploadFailure(exception);
+            restoreBinding();
             publishedOpticalView = null;
-            return false;
+            final AtlasLayout current = layout;
+            final FrameSnapshot frame = preparedFrame;
+            final PreparedOpticalFrame opticalPrepared = preparedOpticalFrame;
+            if (current == null || texture < 0 || current.carriers().isEmpty()
+                    || frame == null || frame.layout() != current
+                    || !sameDouble(frame.cameraX(), cameraX)
+                    || !sameDouble(frame.cameraY(), cameraY)
+                    || !sameDouble(frame.cameraZ(), cameraZ)) {
+                return false;
+            }
+            // No water program has run yet, so its pack-specific wave varying is unavailable. A full
+            // viewport descriptor is the existing conservative fallback and does not alter occupancy.
+            final long prefixStarted = ClientFrameDiagnostics.startWall();
+            final EncodedPrefix encoded = encodePrefix(current, frame, opticalPrepared,
+                    modelView, projection, viewportX, viewportY,
+                    viewportWidth, viewportHeight, false);
+            ClientFrameDiagnostics.recordWall(ClientFrameDiagnostics.Stage.ATLAS_PREFIX_ENCODE, prefixStarted);
+            if (encoded == null || encoded.opticalView() == null) return false;
+
+            final int previousActive = GL11C.glGetInteger(GL13C.GL_ACTIVE_TEXTURE);
+            final int previousTexture = GL11C.glGetInteger(GL11C.GL_TEXTURE_BINDING_2D);
+            try {
+                clearGlErrors();
+                GL11C.glBindTexture(GL11C.GL_TEXTURE_2D, texture);
+                uploadPrefixIfChanged(encoded.data(), current.prefixTexels());
+                requireNoGlError("early optical frame upload");
+                uploadedPrefix = encoded.data();
+                publishedOpticalView = encoded.opticalView();
+                earlyFogPreparedToken = encoded.opticalView().frameToken();
+                return true;
+            } catch (final RuntimeException | LinkageError exception) {
+                uploadedPrefix = null;
+                logUploadFailure(exception);
+                publishedOpticalView = null;
+                return false;
+            } finally {
+                GL11C.glBindTexture(GL11C.GL_TEXTURE_2D, previousTexture);
+                GL13C.glActiveTexture(previousActive);
+            }
         } finally {
-            GL11C.glBindTexture(GL11C.GL_TEXTURE_2D, previousTexture);
-            GL13C.glActiveTexture(previousActive);
+            ClientWaterDiagnostics.leave(diagnosticsSource);
         }
     }
 
@@ -455,7 +500,7 @@ public final class ShaderVoxelMaskAtlas {
         final FloatBuffer prefix = FloatBuffer.wrap(prefixData);
         put(prefix, current.carriers().size(), HEADER_TEXELS, width, height);
         final Map<UUID, ApertureEventCache.CarrierFrame> opticalById = new HashMap<>();
-        final boolean opticalFrameCoherent = opticalPrepared != null
+        final boolean opticalFrameCoherent = !current.plain() && opticalPrepared != null
                 && opticalPrepared.frameToken() > 0L
                 && opticalPrepared.frame().level() == Minecraft.getInstance().level;
         final Set<UUID> ambiguousOpticalIds = new HashSet<>();
@@ -546,9 +591,28 @@ public final class ShaderVoxelMaskAtlas {
 
     private static void uploadPrefixIfChanged(final float[] prefixData,
                                               final int prefixTexels) {
-        if (Arrays.equals(prefixData, uploadedPrefix)) return;
-        uploadLinearPrefix(prefixData, prefixTexels);
-        uploadedPrefix = prefixData;
+        if (prefixData.length != Math.multiplyExact(prefixTexels, 4)) {
+            throw new IllegalArgumentException("Atlas prefix length does not match its layout");
+        }
+        if (Arrays.equals(prefixData, uploadedPrefix)) {
+            ClientWaterDiagnostics.count(ClientWaterDiagnostics.Work.ATLAS_PREFIX_UNCHANGED, 1L);
+            return;
+        }
+        final AtlasPrefixUploadPlanner.Plan plan =
+                AtlasPrefixUploadPlanner.plan(prefixData, uploadedPrefix, width);
+        if (plan.unchanged()) {
+            ClientWaterDiagnostics.count(ClientWaterDiagnostics.Work.ATLAS_PREFIX_UNCHANGED, 1L);
+            return;
+        }
+        ClientWaterDiagnostics.count(plan.full() ? ClientWaterDiagnostics.Work.ATLAS_PREFIX_FULL
+                : ClientWaterDiagnostics.Work.ATLAS_PREFIX_PARTIAL, 1L);
+        ClientWaterDiagnostics.count(ClientWaterDiagnostics.Work.ATLAS_PREFIX_CHANGED,
+                plan.changedTexels());
+        ClientWaterDiagnostics.count(ClientWaterDiagnostics.Work.ATLAS_PREFIX_MERGED,
+                plan.stagedTexels());
+        ClientWaterDiagnostics.count(ClientWaterDiagnostics.Work.ATLAS_PREFIX_RECTS,
+                plan.rectangles().size());
+        uploadPrefixPlan(prefixData, plan);
     }
 
     private static void logUploadFailure(final Throwable exception) {
@@ -706,6 +770,13 @@ public final class ShaderVoxelMaskAtlas {
         return layout != null && texture >= 0;
     }
 
+    /** Only carriers actually resident in the plain atlas may replace their legacy depth mesh. */
+    public static boolean coversCarrier(final UUID carrierId) {
+        final AtlasLayout current = layout;
+        return carrierId != null && current != null && current.plain() && texture >= 0
+                && current.carriers().stream().anyMatch(carrier -> carrier.id().equals(carrierId));
+    }
+
     public static int textureWidth() {
         return width;
     }
@@ -718,7 +789,7 @@ public final class ShaderVoxelMaskAtlas {
     static PreparedRoomWater preparedRoomWater(final UUID carrierId, final UUID roomId,
                                                final long topologyRevision) {
         final FrameSnapshot frame = preparedFrame;
-        if (frame == null || carrierId == null || roomId == null) return null;
+        if (frame == null || frame.layout().plain() || carrierId == null || roomId == null) return null;
         for (final CarrierFrame carrier : frame.carriers()) {
             if (!carrier.layout().id().equals(carrierId)
                     || carrier.layout().revision() != topologyRevision) continue;
@@ -756,7 +827,8 @@ public final class ShaderVoxelMaskAtlas {
             final Map<UUID, List<ClientCompartmentVisualCache.RoomSnapshot>> snapshots,
             final double cameraX,
             final double cameraY,
-            final double cameraZ) {
+            final double cameraZ,
+            final boolean plain) {
         final List<DistanceCarrierInput> candidates = new ArrayList<>();
         final Minecraft minecraft = Minecraft.getInstance();
         final double possibleHitDistance = Math.max(64.0D,
@@ -779,7 +851,7 @@ public final class ShaderVoxelMaskAtlas {
                     ? residentExitDistance : possibleHitDistance;
             if (Double.isFinite(distanceSquared) && distanceSquared <= limit * limit) {
                 candidates.add(new DistanceCarrierInput(
-                        new CarrierInput(entry.getKey(), carrier, revisionOf(rooms), rooms),
+                        new CarrierInput(entry.getKey(), carrier, revisionOf(rooms), rooms, plain),
                         distanceSquared));
             }
         }
@@ -833,7 +905,8 @@ public final class ShaderVoxelMaskAtlas {
                 || !Double.isFinite(maxZ)) {
             return null;
         }
-        return new AABB(minX, minY, minZ, maxX, maxY, maxZ).inflate(3.0D);
+        // Plain needs its one-cell occupancy padding plus the block listener's neighbour ring.
+        return new AABB(minX, minY, minZ, maxX, maxY, maxZ).inflate(input.plain() ? 2.0D : 3.0D);
     }
 
     private static boolean isWatchedPlotCell(final ClientLevel level,
@@ -953,9 +1026,13 @@ public final class ShaderVoxelMaskAtlas {
                     return null;
                 }
                 final double fraction = Math.clamp(snapshot.waterFraction(), 0.0D, 1.0D);
-                // Dry rooms only need a conservative lower plane and full rooms disable clipping.
+                if (fraction <= FULL_EPSILON || fraction >= 1.0D - FULL_EPSILON) {
+                    ClientWaterDiagnostics.count(ClientWaterDiagnostics.Work.ATLAS_ENDPOINT, 1L);
+                }
+                // Optical medium consumers still need this plane/endpoint metadata; parent-water
+                // clipping uses room ownership throughout both dry and flooded room volume.
                 // Avoid the exact per-cell volume solve for both constant-medium endpoints.
-                final double surfaceWorld = fraction >= 1.0D - FULL_EPSILON
+                final double surfaceWorld = current.plain() || fraction >= 1.0D - FULL_EPSILON
                         ? cameraY
                         : cachedRoomSurfaceWorld(carrier.id(), snapshot, pose, poseMatrix,
                         fraction);
@@ -987,22 +1064,36 @@ public final class ShaderVoxelMaskAtlas {
         final long basisZBits = Double.doubleToLongBits(poseMatrix.m21());
         if (previous != null
                 && previous.topologyRevision() == room.topologyRevision()
+                && previous.waterCells() == room.waterCells()
                 && previous.fractionBits() == fractionBits
                 && previous.basisXBits() == basisXBits
                 && previous.basisYBits() == basisYBits
                 && previous.basisZBits() == basisZBits) {
+            ClientWaterDiagnostics.count(ClientWaterDiagnostics.Work.ATLAS_HIT, 1L);
             return poseMatrix.m31() + previous.surfaceRelativeToTranslation();
         }
+        if (ClientWaterDiagnostics.ENABLED) {
+            final ClientWaterDiagnostics.Work miss = previous == null
+                    ? ClientWaterDiagnostics.Work.ATLAS_MISS_COLD
+                    : previous.topologyRevision() != room.topologyRevision()
+                    ? ClientWaterDiagnostics.Work.ATLAS_MISS_TOPOLOGY
+                    : previous.waterCells() != room.waterCells()
+                    ? ClientWaterDiagnostics.Work.ATLAS_MISS_DOMAIN
+                    : previous.fractionBits() != fractionBits
+                    ? ClientWaterDiagnostics.Work.ATLAS_MISS_FRACTION
+                    : ClientWaterDiagnostics.Work.ATLAS_MISS_BASIS;
+            ClientWaterDiagnostics.count(miss, 1L);
+        }
         final double solved = fraction <= FULL_EPSILON
-                ? com.create.nautilus.physics.CompartmentWaterGeometry.surfaceY(
+                ? ClientWaterDiagnostics.surfaceY(carrierId, room.id(), room.topologyRevision(),
                 pose, List.of(), room.bounds(), 0.0D)
-                : com.create.nautilus.physics.CompartmentWaterGeometry.surfaceY(
-                pose, room.cells(), room.bounds(), fraction);
+                : ClientWaterDiagnostics.surfaceY(carrierId, room.id(), room.topologyRevision(),
+                pose, room.waterCells(), room.bounds(), fraction);
         if (Double.isFinite(solved)) {
             ROOM_SURFACE_CACHE.put(key, new RoomSurfaceCacheValue(
                     room.topologyRevision(), fractionBits,
                     basisXBits, basisYBits, basisZBits,
-                    solved - poseMatrix.m31()));
+                    solved - poseMatrix.m31(), room.waterCells()));
         } else {
             ROOM_SURFACE_CACHE.remove(key);
         }
@@ -1045,9 +1136,20 @@ public final class ShaderVoxelMaskAtlas {
     private static SemanticCells semanticCells(final CarrierInput input) {
         final Map<Long, Float> roomOwners = new Long2FloatOpenHashMap();
         for (int roomSlot = 0; roomSlot < input.rooms().size(); roomSlot++) {
-            for (final BlockPos cell : input.rooms().get(roomSlot).cells()) {
-                // Later room slots retain the existing deterministic overlap precedence.
-                roomOwners.put(cell.asLong(), roomSlot + 1.0F);
+            final ClientCompartmentVisualCache.RoomSnapshot room = input.rooms().get(roomSlot);
+            if (input.plain()) {
+                // Virtual water owns the complete padded volume, including flooded cells. A
+                // fragment point lookup handles the separate ray intervals around raised hatches;
+                // a single close/far pair cannot describe that concave outline.
+                for (final long cell : PlainWaterOcclusion.paddedCells(input.id(), room.id(),
+                        room.topologyRevision(), room.cells())) {
+                    roomOwners.put(cell, roomSlot + 1.0F);
+                }
+            } else {
+                for (final BlockPos cell : room.cells()) {
+                    // Later room slots retain the existing deterministic overlap precedence.
+                    roomOwners.put(cell.asLong(), roomSlot + 1.0F);
+                }
             }
         }
         final ApertureEventCache.OpticalSlots optical = opticalSlots(input);
@@ -1059,6 +1161,7 @@ public final class ShaderVoxelMaskAtlas {
     }
 
     private static ApertureEventCache.OpticalSlots opticalSlots(final CarrierInput input) {
+        if (input.plain()) return PLAIN_OPTICAL_SLOTS;
         return ApertureEventCache.opticalSlots(Minecraft.getInstance().level,
                 input.id(), input.carrier(), input.revision(), input.rooms());
     }
@@ -1169,7 +1272,7 @@ public final class ShaderVoxelMaskAtlas {
                 current.shellCellCount() + shellDelta,
                 current.eventlessOpticalCellCount() + eventlessOpticalDelta,
                 current.watchedCellKeys(),
-                current.width(), current.height(), current.data());
+                current.width(), current.height(), current.data(), current.plain());
         preparedFrame = null;
         pausedFrame = null;
         return LocalUpdateResult.PATCHED;
@@ -1328,27 +1431,27 @@ public final class ShaderVoxelMaskAtlas {
             final int startX = destination % width;
             if (startX != 0) {
                 final int count = Math.min(remaining, width - startX);
-                GL11C.glTexSubImage2D(GL11C.GL_TEXTURE_2D, 0, startX,
-                        destination / width, count, 1, GL11C.GL_RGBA, GL11C.GL_FLOAT,
-                        byteOffset(sourceTexel));
+                uploadRgbaRegion(startX, destination / width, count, 1, byteOffset(sourceTexel));
+                ClientWaterDiagnostics.count(ClientWaterDiagnostics.Work.ATLAS_TEXTURE_UPLOAD,
+                        (long) count * BYTES_PER_TEXEL);
                 sourceTexel += count;
                 destination += count;
                 remaining -= count;
             }
             final int fullRows = remaining / width;
             if (fullRows > 0) {
-                GL11C.glTexSubImage2D(GL11C.GL_TEXTURE_2D, 0, 0,
-                        destination / width, width, fullRows, GL11C.GL_RGBA, GL11C.GL_FLOAT,
-                        byteOffset(sourceTexel));
+                uploadRgbaRegion(0, destination / width, width, fullRows, byteOffset(sourceTexel));
+                ClientWaterDiagnostics.count(ClientWaterDiagnostics.Work.ATLAS_TEXTURE_UPLOAD,
+                        (long) width * fullRows * BYTES_PER_TEXEL);
                 final int count = fullRows * width;
                 sourceTexel += count;
                 destination += count;
                 remaining -= count;
             }
             if (remaining > 0) {
-                GL11C.glTexSubImage2D(GL11C.GL_TEXTURE_2D, 0, 0,
-                        destination / width, remaining, 1, GL11C.GL_RGBA, GL11C.GL_FLOAT,
-                        byteOffset(sourceTexel));
+                uploadRgbaRegion(0, destination / width, remaining, 1, byteOffset(sourceTexel));
+                ClientWaterDiagnostics.count(ClientWaterDiagnostics.Work.ATLAS_TEXTURE_UPLOAD,
+                        (long) remaining * BYTES_PER_TEXEL);
             }
         } finally {
             unpack.restore();
@@ -1562,7 +1665,7 @@ public final class ShaderVoxelMaskAtlas {
         return new AtlasLayout(List.copyOf(carriers), prefix, roomCount, brickCount,
                 interiorCellCount, shellCellCount, eventlessOpticalCellCount,
                 Collections.unmodifiableSet(watchedCells),
-                atlasWidth, atlasHeight, data);
+                atlasWidth, atlasHeight, data, inputs.getFirst().plain());
     }
 
     private static boolean install(final AtlasLayout replacement) {
@@ -1589,6 +1692,8 @@ public final class ShaderVoxelMaskAtlas {
                 GL11C.glTexImage2D(GL11C.GL_TEXTURE_2D, 0, GL30C.GL_RGBA32F,
                         replacement.width(), replacement.height(), 0,
                         GL11C.GL_RGBA, GL11C.GL_FLOAT, 0L);
+                ClientWaterDiagnostics.count(ClientWaterDiagnostics.Work.ATLAS_TEXTURE_UPLOAD,
+                        (long) replacement.width() * replacement.height() * BYTES_PER_TEXEL);
             } finally {
                 unpack.restore();
             }
@@ -1638,22 +1743,32 @@ public final class ShaderVoxelMaskAtlas {
         }
     }
 
-    private static void uploadLinearPrefix(final float[] data, final int texels) {
-        final PixelUnpackState unpack = stagePixelUnpack(data);
-        final int fullRows = texels / width;
-        final int remainder = texels % width;
+    private static void uploadPrefixPlan(final float[] data,
+                                         final AtlasPrefixUploadPlanner.Plan plan) {
+        final PixelUnpackState unpack = stagePixelUnpack(data, plan);
+        final long uploadGpu = ClientFrameDiagnostics.beginGpu(ClientFrameDiagnostics.Stage.VOXEL_ATLAS);
         try {
-            if (fullRows > 0) {
-                GL11C.glTexSubImage2D(GL11C.GL_TEXTURE_2D, 0, 0, 0,
-                        width, fullRows, GL11C.GL_RGBA, GL11C.GL_FLOAT, 0L);
-            }
-            if (remainder > 0) {
-                final long byteOffset = (long) fullRows * width * 4L * Float.BYTES;
-                GL11C.glTexSubImage2D(GL11C.GL_TEXTURE_2D, 0, 0, fullRows,
-                        remainder, 1, GL11C.GL_RGBA, GL11C.GL_FLOAT, byteOffset);
+            for (final AtlasPrefixUploadPlanner.Rectangle rectangle : plan.rectangles()) {
+                uploadRgbaRegion(rectangle.x(), rectangle.y(), rectangle.width(), rectangle.height(),
+                        byteOffset(rectangle.stagingTexel()));
+                ClientWaterDiagnostics.count(ClientWaterDiagnostics.Work.ATLAS_TEXTURE_UPLOAD,
+                        (long) rectangle.width() * rectangle.height() * BYTES_PER_TEXEL);
             }
         } finally {
+            ClientFrameDiagnostics.endGpu(uploadGpu);
             unpack.restore();
+        }
+    }
+
+    /** CPU wall time of the native call, not GPU execution or an inferred stall. */
+    private static void uploadRgbaRegion(final int x, final int y, final int regionWidth,
+                                         final int regionHeight, final long offset) {
+        final long started = ClientFrameDiagnostics.startWall();
+        try {
+            GL11C.glTexSubImage2D(GL11C.GL_TEXTURE_2D, 0, x, y, regionWidth, regionHeight,
+                    GL11C.GL_RGBA, GL11C.GL_FLOAT, offset);
+        } finally {
+            ClientFrameDiagnostics.recordWall(ClientFrameDiagnostics.Stage.GL_TEXTURE_UPLOAD, started);
         }
     }
 
@@ -1663,6 +1778,11 @@ public final class ShaderVoxelMaskAtlas {
      * row/skip state left by surrounding renderers.
      */
     private static PixelUnpackState stagePixelUnpack(final float[] data) {
+        return stagePixelUnpack(data, null);
+    }
+
+    private static PixelUnpackState stagePixelUnpack(
+            final float[] data, final AtlasPrefixUploadPlanner.Plan prefixPlan) {
         final int previousBuffer = GL11C.glGetInteger(GL21C.GL_PIXEL_UNPACK_BUFFER_BINDING);
         final int previousAlignment = GL11C.glGetInteger(GL11C.GL_UNPACK_ALIGNMENT);
         final int previousRowLength = GL11C.glGetInteger(GL11C.GL_UNPACK_ROW_LENGTH);
@@ -1677,19 +1797,40 @@ public final class ShaderVoxelMaskAtlas {
                 }
             }
             GL15C.glBindBuffer(GL21C.GL_PIXEL_UNPACK_BUFFER, pixelUnpackBuffer);
-            final long logicalBytes = Math.multiplyExact((long) data.length, Float.BYTES);
+            final long logicalBytes = prefixPlan == null
+                    ? Math.multiplyExact((long) data.length, Float.BYTES)
+                    : Math.multiplyExact((long) prefixPlan.stagedTexels(), BYTES_PER_TEXEL);
             final long stagingBytes = Math.addExact(logicalBytes, PIXEL_UNPACK_GUARD_BYTES);
-            GL15C.glBufferData(GL21C.GL_PIXEL_UNPACK_BUFFER, stagingBytes,
-                    GL15C.GL_STREAM_DRAW);
-            final ByteBuffer bytes = GL30C.glMapBufferRange(GL21C.GL_PIXEL_UNPACK_BUFFER,
-                    0L, stagingBytes,
-                    GL30C.GL_MAP_WRITE_BIT | GL30C.GL_MAP_INVALIDATE_BUFFER_BIT);
+            final long bufferStarted = ClientFrameDiagnostics.startWall();
+            try {
+                GL15C.glBufferData(GL21C.GL_PIXEL_UNPACK_BUFFER, stagingBytes,
+                        GL15C.GL_STREAM_DRAW);
+            } finally {
+                ClientFrameDiagnostics.recordWall(ClientFrameDiagnostics.Stage.GL_BUFFER_DATA, bufferStarted);
+            }
+            final ByteBuffer bytes;
+            final long mapStarted = ClientFrameDiagnostics.startWall();
+            try {
+                bytes = GL30C.glMapBufferRange(GL21C.GL_PIXEL_UNPACK_BUFFER,
+                        0L, stagingBytes,
+                        GL30C.GL_MAP_WRITE_BIT | GL30C.GL_MAP_INVALIDATE_BUFFER_BIT);
+            } finally {
+                ClientFrameDiagnostics.recordWall(ClientFrameDiagnostics.Stage.GL_MAP_BUFFER, mapStarted);
+            }
             if (bytes == null) {
                 throw new IllegalStateException("Unable to map pixel-unpack buffer");
             }
             mapped = true;
-            bytes.order(ByteOrder.nativeOrder()).asFloatBuffer().put(data);
-            if (!GL15C.glUnmapBuffer(GL21C.GL_PIXEL_UNPACK_BUFFER)) {
+            final FloatBuffer staging = bytes.order(ByteOrder.nativeOrder()).asFloatBuffer();
+            if (prefixPlan == null) {
+                staging.put(data);
+            } else {
+                for (final AtlasPrefixUploadPlanner.Run run : prefixPlan.runs()) {
+                    staging.put(data, run.startTexel() * 4, run.texels() * 4);
+                }
+            }
+            ClientWaterDiagnostics.count(ClientWaterDiagnostics.Work.ATLAS_STAGING, logicalBytes);
+            if (!unmapPixelBuffer()) {
                 mapped = false;
                 throw new IllegalStateException("Pixel-unpack buffer contents became invalid");
             }
@@ -1702,7 +1843,7 @@ public final class ShaderVoxelMaskAtlas {
                     previousSkipRows, previousSkipPixels);
         } catch (final RuntimeException | LinkageError exception) {
             if (mapped) {
-                GL15C.glUnmapBuffer(GL21C.GL_PIXEL_UNPACK_BUFFER);
+                unmapPixelBuffer();
             }
             GL11C.glPixelStorei(GL11C.GL_UNPACK_ALIGNMENT, previousAlignment);
             GL11C.glPixelStorei(GL11C.GL_UNPACK_ROW_LENGTH, previousRowLength);
@@ -1710,6 +1851,15 @@ public final class ShaderVoxelMaskAtlas {
             GL11C.glPixelStorei(GL11C.GL_UNPACK_SKIP_PIXELS, previousSkipPixels);
             GL15C.glBindBuffer(GL21C.GL_PIXEL_UNPACK_BUFFER, previousBuffer);
             throw exception;
+        }
+    }
+
+    private static boolean unmapPixelBuffer() {
+        final long started = ClientFrameDiagnostics.startWall();
+        try {
+            return GL15C.glUnmapBuffer(GL21C.GL_PIXEL_UNPACK_BUFFER);
+        } finally {
+            ClientFrameDiagnostics.recordWall(ClientFrameDiagnostics.Stage.GL_UNMAP_BUFFER, started);
         }
     }
 
@@ -1912,7 +2062,7 @@ public final class ShaderVoxelMaskAtlas {
                     for (int dy = minDy; dy <= maxDy; dy++) {
                         for (int dz = minDz; dz <= maxDz; dz++) {
                             final BrickKey brick = new BrickKey(bx + dx, by + dy, bz + dz);
-                            if (brickIntersectsPlot(brick, plot)
+                            if ((input.plain() || brickIntersectsPlot(brick, plot))
                                     && footprint.add(brick)
                                     && footprint.size() > maximumBricks) {
                                 return false;
@@ -1975,6 +2125,9 @@ public final class ShaderVoxelMaskAtlas {
             final CarrierInput input,
             final Set<Long> interior,
             final ApertureEventCache.OpticalSlots optical) {
+        // Keep real-WATER positions in this immutable candidate set. A later bucket/block event
+        // must be able to clear or restore their payload without a topology replacement.
+        if (input.plain()) return new LongOpenHashSet(interior);
         final Set<Long> candidates = shellCandidates(input, interior);
         final BoundingBox3ic bounds = input.carrier().getPlot().getBoundingBox();
         if (bounds != null && bounds.volume() > 0) {
@@ -2050,7 +2203,11 @@ public final class ShaderVoxelMaskAtlas {
 
     private static long topologyKey(final List<CarrierInput> inputs) {
         long hash = 0xcbf29ce484222325L;
-        for (final CarrierInput input : inputs) {
+        // Distance chooses budget priority only when a layout must be built. Crossing an
+        // equal-distance line must not repack an otherwise unchanged resident carrier set.
+        for (final CarrierInput input : inputs.stream()
+                .sorted(Comparator.comparing(CarrierInput::id)).toList()) {
+            if (input.plain()) hash = mix(hash, 0x504c41494eL);
             hash = mix(hash, input.id().getMostSignificantBits());
             hash = mix(hash, input.id().getLeastSignificantBits());
             hash = mix(hash, input.revision());
@@ -2074,7 +2231,21 @@ public final class ShaderVoxelMaskAtlas {
     /** Full shell/fluid fingerprint used only while creating an atomic atlas generation. */
     private static long voxelStateKey(final List<CarrierInput> inputs) {
         long hash = 0x9e3779b97f4a7c15L;
-        for (final CarrierInput input : inputs) {
+        for (final CarrierInput input : inputs.stream()
+                .sorted(Comparator.comparing(CarrierInput::id)).toList()) {
+            if (input.plain()) {
+                hash = mix(hash, 0x504144444544L);
+                // A rejected carrier stays cheap and level-watched. Do not materialise a large
+                // padding map before the same bounded preflight used by the layout builder.
+                if (!carrierFitsAtlasBudget(input)) continue;
+                final Set<Long> candidates = semanticCells(input).candidates();
+                hash = mix(hash, candidates.size());
+                for (final long key : candidates.stream().mapToLong(Long::longValue).sorted().toArray()) {
+                    hash = mix(hash, key);
+                    hash = mix(hash, isRealPlotWater(input.carrier(), BlockPos.of(key)) ? 1L : 0L);
+                }
+                continue;
+            }
             final Set<Long> interior = new HashSet<>();
             for (final ClientCompartmentVisualCache.RoomSnapshot room : input.rooms()) {
                 for (final BlockPos cell : room.cells()) {
@@ -2175,6 +2346,7 @@ public final class ShaderVoxelMaskAtlas {
             put(target, Float.NaN, Float.NaN, Float.NaN, Float.NaN);
             put(target, Float.NaN, Float.NaN, Float.NaN, Float.NaN);
             put(target, -1.0F, 0.0F, -1.0F, generationFloat(topologyRevision));
+            put(target, Float.NaN, 0.0F, 0.0F, 0.0F);
             return;
         }
         final ApertureEventCache.Plane negative = event.planes().negative();
@@ -2187,10 +2359,14 @@ public final class ShaderVoxelMaskAtlas {
                 + negative.y() * originDeltaY + negative.z() * originDeltaZ;
         final double positiveW = positive.w() + positive.x() * originDeltaX
                 + positive.y() * originDeltaY + positive.z() * originDeltaZ;
-        if (!Double.isFinite(negativeW) || !Double.isFinite(positiveW)) {
+        final double faceCoordinate = event.faceCoordinate()
+                - event.axis().choose(originDeltaX, originDeltaY, originDeltaZ);
+        if (!Double.isFinite(negativeW) || !Double.isFinite(positiveW)
+                || !Double.isFinite(faceCoordinate)) {
             put(target, Float.NaN, Float.NaN, Float.NaN, Float.NaN);
             put(target, Float.NaN, Float.NaN, Float.NaN, Float.NaN);
             put(target, -1.0F, 0.0F, -1.0F, generationFloat(topologyRevision));
+            put(target, Float.NaN, 0.0F, 0.0F, 0.0F);
             return;
         }
         put(target, (float) negative.x(), (float) negative.y(),
@@ -2206,6 +2382,7 @@ public final class ShaderVoxelMaskAtlas {
                 == net.minecraft.core.Direction.AxisDirection.POSITIVE ? 2.0F : 1.0F)
                 + (event.floodedExteriorShell() ? 2.0F : 0.0F);
         put(target, axis, outwardCode, event.slot(), generationFloat(topologyRevision));
+        put(target, (float) faceCoordinate, 0.0F, 0.0F, 0.0F);
     }
 
     private static void put(final float[] target, final int texel, final float x,
@@ -2240,7 +2417,13 @@ public final class ShaderVoxelMaskAtlas {
     }
 
     private record CarrierInput(UUID id, ClientSubLevel carrier, long revision,
-                                 List<ClientCompartmentVisualCache.RoomSnapshot> rooms) {
+                                 List<ClientCompartmentVisualCache.RoomSnapshot> rooms,
+                                 boolean plain) {
+        private CarrierInput(final UUID id, final ClientSubLevel carrier, final long revision,
+                             final List<ClientCompartmentVisualCache.RoomSnapshot> rooms) {
+            this(id, carrier, revision, rooms, false);
+        }
+
         private CarrierInput {
             Objects.requireNonNull(id);
             Objects.requireNonNull(carrier);
@@ -2295,7 +2478,8 @@ public final class ShaderVoxelMaskAtlas {
 
     private record RoomSurfaceCacheValue(long topologyRevision, long fractionBits,
                                          long basisXBits, long basisYBits, long basisZBits,
-                                         double surfaceRelativeToTranslation) {
+                                         double surfaceRelativeToTranslation,
+                                         List<BlockPos> waterCells) {
     }
 
     private record RoomFrame(UUID id, float surfaceY, float fraction, float clipEnabled,
@@ -2368,7 +2552,7 @@ public final class ShaderVoxelMaskAtlas {
                                int interiorCellCount, int shellCellCount,
                                int eventlessOpticalCellCount,
                                Set<Long> watchedCellKeys,
-                               int width, int height, float[] data) {
+                               int width, int height, float[] data, boolean plain) {
     }
 
     private record BoundTexture(int unit, int previousActive, int previousTexture,

@@ -41,7 +41,8 @@ public final class CompartmentFluidInventory {
         synchronized (CACHE) {
             final CachedSnapshot cached = CACHE.get(carrier);
             if (cached != null && cached.gameTime() == gameTime
-                    && cached.topologyRevision() == state.topologyRevision()) {
+                    && cached.topologyRevision() == state.topologyRevision()
+                    && cached.fluidRevision() == state.fluidRevision()) {
                 return cached.snapshot();
             }
         }
@@ -50,33 +51,29 @@ public final class CompartmentFluidInventory {
         double totalNativeMass = 0.0D;
         final BoundingBox3ic bounds = carrier.getPlot().getBoundingBox();
         if (bounds != null) {
-            final BlockPos.MutableBlockPos cursor = new BlockPos.MutableBlockPos();
             final double nativeMassPerSource = NautilusConfig.WATER_DENSITY / 1000.0D;
-            for (int x = bounds.minX(); x <= bounds.maxX(); x++) {
-                for (int y = bounds.minY(); y <= bounds.maxY(); y++) {
-                    for (int z = bounds.minZ(); z <= bounds.maxZ(); z++) {
-                        final BlockPos pos = cursor.set(x, y, z);
-                        final BlockState block = carrier.getLevel().getBlockState(pos);
-                        final FluidState fluid = block.getFluidState();
-                        if (!block.liquid() || !fluid.is(FluidTags.WATER)
-                                || !fluid.isSource()) {
-                            continue;
-                        }
-
-                        final BlockPos immutable = pos.immutable();
-                        final SourceWater source = new SourceWater(
-                                immutable, 1.0D, nativeMassPerSource);
-                        sources.put(immutable.asLong(), source);
-                        totalNativeMass += nativeMassPerSource;
-                    }
+            final PlotBlockCursor cursor = PlotBlockCursor.create(carrier, bounds);
+            while (cursor.advance()) {
+                final BlockPos pos = cursor.position();
+                final BlockState block = cursor.blockState();
+                final FluidState fluid = block.getFluidState();
+                if (!block.liquid() || !fluid.is(FluidTags.WATER)
+                        || !fluid.isSource()) {
+                    continue;
                 }
+
+                final BlockPos immutable = pos.immutable();
+                final SourceWater source = new SourceWater(
+                        immutable, 1.0D, nativeMassPerSource);
+                sources.put(immutable.asLong(), source);
+                totalNativeMass += nativeMassPerSource;
             }
         }
 
         final Snapshot measured = new Snapshot(Map.copyOf(sources), totalNativeMass);
         synchronized (CACHE) {
             CACHE.put(carrier, new CachedSnapshot(
-                    gameTime, state.topologyRevision(), measured));
+                    gameTime, state.topologyRevision(), state.fluidRevision(), measured));
         }
         return measured;
     }
@@ -85,11 +82,18 @@ public final class CompartmentFluidInventory {
     public record SourceWater(BlockPos position,
                               double volumeCubicMetres,
                               double nativeMass) {
+        public SourceWater {
+            position = position.immutable();
+        }
     }
 
     /** Immutable per-tick snapshot shared by mass and buoyancy calculations. */
     public record Snapshot(Map<Long, SourceWater> sources,
                            double totalNativeMass) {
+        public Snapshot {
+            sources = Map.copyOf(sources);
+        }
+
         public boolean containsSource(final BlockPos position) {
             return sources.containsKey(position.asLong());
         }
@@ -101,6 +105,11 @@ public final class CompartmentFluidInventory {
 
     private record CachedSnapshot(long gameTime,
                                   long topologyRevision,
+                                  long fluidRevision,
                                   Snapshot snapshot) {
+    }
+
+    public static void forget(final ServerSubLevel carrier) {
+        synchronized (CACHE) { CACHE.remove(carrier); }
     }
 }

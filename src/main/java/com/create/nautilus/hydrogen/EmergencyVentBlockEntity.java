@@ -50,6 +50,16 @@ public final class EmergencyVentBlockEntity extends SmartBlockEntity
                         ? null : GasHandlerView.of(be.buffer.getCapability()));
     }
 
+    /** Sided capability results (including null) depend on the current facing. */
+    @Override
+    public void setBlockState(final BlockState state) {
+        final BlockState previous = getBlockState();
+        super.setBlockState(state);
+        if (previous.getValue(EmergencyVentBlock.FACING) != state.getValue(EmergencyVentBlock.FACING)) {
+            invalidateCapabilities();
+        }
+    }
+
     @Override
     public void addBehaviours(final List<BlockEntityBehaviour> behaviours) {
         buffer = new SmartFluidTankBehaviour(SmartFluidTankBehaviour.INPUT,
@@ -94,6 +104,7 @@ public final class EmergencyVentBlockEntity extends SmartBlockEntity
     }
 
     private int drainAdjacentGas(final int maximum) {
+        int released = 0;
         for (final Direction direction : Direction.values()) {
             if (direction == exhaustFace()) {
                 continue;
@@ -103,14 +114,15 @@ public final class EmergencyVentBlockEntity extends SmartBlockEntity
             if (handler == null) {
                 continue;
             }
-            final FluidStack simulated = handler.drain(maximum,
+            final FluidStack simulated = handler.drain(maximum - released,
                     IFluidHandler.FluidAction.SIMULATE);
             if (HydrogenFluids.isGas(simulated)) {
-                return handler.drain(simulated.getAmount(),
+                released += handler.drain(simulated,
                         IFluidHandler.FluidAction.EXECUTE).getAmount();
+                if (released >= maximum) break;
             }
         }
-        return 0;
+        return released;
     }
 
     private void spawnExhaust(final int released) {

@@ -3,7 +3,10 @@ package com.create.nautilus.config;
 import net.neoforged.neoforge.common.ModConfigSpec;
 
 /**
- * Server-authoritative settings which are intentionally exposed to players.
+ * Player-facing gameplay settings and client rendering preferences in the COMMON config.
+ *
+ * <p>Simulation and weather settings are server-authoritative. The rendering
+ * section is consumed only by the local client.</p>
  *
  * <p>Values which are part of the simulation model, rather than gameplay
  * tuning knobs, are kept as fixed defaults in the accessors below. They are
@@ -25,8 +28,6 @@ public final class NautilusConfig {
 
     public static final double OPEN_TOP_AIR_DISPLACEMENT_EFFICIENCY = 1.0D;
     public static final double SEALED_AIR_DISPLACEMENT_EFFICIENCY = 1.0D;
-    public static final double MINIMUM_USEFUL_AIR_FRACTION = 0.05D;
-    public static final double FULL_AIR_EFFICIENCY_FRACTION = 0.25D;
     public static final double DRAG_COEFFICIENT = 0.8D;
     public static final double WATER_DENSITY = 1_000.0D;
     public static final double ADDED_MASS_COEFFICIENT = 0.5D;
@@ -46,6 +47,14 @@ public final class NautilusConfig {
 
     public static double buoyancyCoefficient() {
         return VALUES.buoyancyCoefficient.get();
+    }
+
+    public static boolean preventNaturalSnowOnCarriers() {
+        return VALUES.preventNaturalSnowOnCarriers.get();
+    }
+
+    public static boolean shaderUnderwaterFogEnabled() {
+        return VALUES.shaderUnderwaterFogEnabled.get();
     }
 
     public static int maximumCompartmentVolume() {
@@ -99,6 +108,8 @@ public final class NautilusConfig {
 
     private static final class Values {
         private final ModConfigSpec.DoubleValue buoyancyCoefficient;
+        private final ModConfigSpec.BooleanValue preventNaturalSnowOnCarriers;
+        private final ModConfigSpec.BooleanValue shaderUnderwaterFogEnabled;
         private final ModConfigSpec.IntValue maximumCompartmentVolume;
         private final ModConfigSpec.IntValue compartmentScanIntervalTicks;
         private final ModConfigSpec.DoubleValue airDensityPerBlock;
@@ -119,6 +130,22 @@ public final class NautilusConfig {
                     .comment("Global multiplier for the target water displacement.")
                     .translation("create_nautilus.config.buoyancyCoefficient")
                     .defineInRange("buoyancyCoefficient", 1.0D, 0.0D, 10.0D);
+            builder.pop();
+
+            builder.comment("Weather effects on physics carriers")
+                    .push("weather");
+            preventNaturalSnowOnCarriers = builder
+                    .comment("Prevent natural snow layers from forming or thickening on physics carriers. Existing snow, player placement and freezing are unchanged.")
+                    .translation("create_nautilus.config.preventNaturalSnowOnCarriers")
+                    .define("preventNaturalSnowOnCarriers", true);
+            builder.pop();
+
+            builder.comment("Client rendering settings")
+                    .push("rendering");
+            shaderUnderwaterFogEnabled = builder
+                    .comment("Enable Nautilus underwater fog integration while a shader pack is active. Client rendering only; does not change water physics or world weather.")
+                    .translation("create_nautilus.config.shaderUnderwaterFogEnabled")
+                    .define("shaderUnderwaterFogEnabled", true);
             builder.pop();
 
             builder.comment("Flooding and compartment detection settings")

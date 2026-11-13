@@ -3,6 +3,8 @@ package com.create.nautilus.mixin.client;
 import com.create.nautilus.CreateNautilus;
 import com.create.nautilus.client.render.ApertureMediumMaskRenderer;
 import com.create.nautilus.client.render.IrisCompositeShaderSource;
+import com.create.nautilus.client.render.ClientFrameDiagnostics;
+import com.create.nautilus.config.NautilusConfig;
 import net.irisshaders.iris.Iris;
 import net.irisshaders.iris.shaderpack.ShaderPack;
 import net.irisshaders.iris.shaderpack.option.MergedStringOption;
@@ -35,11 +37,25 @@ import java.util.Locale;
 /** Binds the immutable per-frame Photon entry depth after Iris binds each program. */
 @Pseudo
 @Mixin(targets = "net.irisshaders.iris.gl.program.Program", remap = false)
-public abstract class IrisProgramMixin {
+public abstract class IrisProgramMixin implements ClientFrameDiagnostics.PhotonProgram {
     @Unique
-    private static boolean createNautilus$noUnitLogged;
+    private ClientFrameDiagnostics.Stage createNautilus$frameDiagnosticStage;
+
+    @Override
+    public ClientFrameDiagnostics.Stage createNautilus$getFrameDiagnosticStage() {
+        return createNautilus$frameDiagnosticStage;
+    }
+
+    @Override
+    public void createNautilus$setFrameDiagnosticStage(final ClientFrameDiagnostics.Stage stage) {
+        createNautilus$frameDiagnosticStage = stage;
+    }
+
     @Unique
-    private static int createNautilus$loggedBindingGeneration;
+    private static final boolean createNautilus$pixelDiagnostics =
+            Boolean.getBoolean("create_nautilus.renderPixelDiagnostics");
+    @Unique
+    private int createNautilus$loggedCameraWater = -1;
     @Unique
     private static int createNautilus$loggedBlissFogSampleGeneration;
     @Unique
@@ -83,6 +99,8 @@ public abstract class IrisProgramMixin {
     @Unique
     private int createNautilus$expectedAdapterGenerationUniform = -1;
     @Unique
+    private int createNautilus$eyeInWaterUniform = -1;
+    @Unique
     private int[] createNautilus$textureUnits;
 
     /** Every cached dimension pipeline keeps its generation without changing the GLSL source. */
@@ -100,11 +118,13 @@ public abstract class IrisProgramMixin {
     @Inject(method = "use", at = @At("HEAD"), require = 0)
     private void createNautilus$restoreBeforeProgramUse(final CallbackInfo callback) {
         createNautilus$restoreCompositeBinding();
+        ClientFrameDiagnostics.usePhotonProgram(this);
     }
 
     @Inject(method = "unbind", at = @At("HEAD"), require = 0)
     private static void createNautilus$restoreOnProgramUnbind(final CallbackInfo callback) {
         createNautilus$restoreCompositeBinding();
+        ClientFrameDiagnostics.unbindPhotonProgram();
     }
 
     @Inject(method = "use", at = @At("RETURN"), require = 0)
@@ -155,6 +175,10 @@ public abstract class IrisProgramMixin {
                     || createNautilus$cameraWaterUniform >= 0
                     || createNautilus$adapterGenerationUniform >= 0
                     || createNautilus$expectedAdapterGenerationUniform >= 0;
+            if (createNautilus$hasBoundaryUniforms) {
+                createNautilus$eyeInWaterUniform = GL20C.glGetUniformLocation(
+                        currentProgram, "isEyeInWater");
+            }
             createNautilus$uniformsResolved = true;
         }
         if (!createNautilus$hasBoundaryUniforms) {
@@ -178,6 +202,28 @@ public abstract class IrisProgramMixin {
 
         // Ready is published last, so a partial program or changing frame remains fail-open.
         if (ready >= 0) GL20C.glUniform1i(ready, 0);
+
+        // Sampler type validation happens at draw time even when Ready=0 skips every texture
+        // lookup. A newly linked usampler2D otherwise aliases the pack's sampler2D at unit 0.
+        // Assign all active private samplers before any adapter/renderer early return. This only
+        // changes this program's uniforms; fallback neither binds textures nor steals pack units.
+        int[] units = createNautilus$textureUnits;
+        final boolean initializeSamplers = units == null;
+        if (initializeSamplers) {
+            units = createNautilus$findUnreferencedTextureUnits(
+                    program, entrySampler, directionSampler, atlasSampler);
+            createNautilus$textureUnits = units;
+        }
+        if (entrySampler >= 0) GL20C.glUniform1i(entrySampler, units[0]);
+        if (directionSampler >= 0) GL20C.glUniform1i(directionSampler, units[1]);
+        if (atlasSampler >= 0) GL20C.glUniform1i(atlasSampler, units[2]);
+        if (initializeSamplers) {
+            CreateNautilus.LOGGER.info(
+                    "[water-entry] program={} samplerUnits=[{}, {}, {}] contextFlags=0x{}",
+                    program, units[0], units[1], units[2],
+                    Integer.toHexString(GL11C.glGetInteger(GL30C.GL_CONTEXT_FLAGS)));
+        }
+
         final int adapterGeneration = createNautilus$adapterGeneration;
         // Cached AST/driver output is shared, but this linked Program's ownership is not.
         if (expectedAdapterGenerationUniform >= 0) {
@@ -207,6 +253,10 @@ public abstract class IrisProgramMixin {
             }
         }
         if (!createNautilus$linkedAdapterConfirmed) return;
+        // Keep the linked adapter and legal sampler assignments alive while disabled. This lets
+        // the next frame re-enable fog without recompiling the pack, and Ready=0 retains its
+        // native air/real-water path without binding any of Nautilus' fog textures.
+        if (!NautilusConfig.shaderUnderwaterFogEnabled()) return;
         // The first real use only completes the source->link handshake. The renderer did no work
         // earlier in this frame; it may publish a coherent D24S8 snapshot from the next frame.
         if (!ApertureMediumMaskRenderer.ready()) return;
@@ -238,22 +288,6 @@ public abstract class IrisProgramMixin {
         final int[] textures = {texture, directionTexture, atlasTexture};
         if (!createNautilus$validTextureSet(textures)) return;
 
-        int[] units = createNautilus$textureUnits;
-        if (units == null) {
-            units = createNautilus$findUnreferencedTextureUnits(
-                    program, textures.length, entrySampler, directionSampler, atlasSampler);
-            if (units != null) createNautilus$textureUnits = units;
-        }
-        if (units == null) {
-            if (!createNautilus$noUnitLogged) {
-                createNautilus$noUnitLogged = true;
-                CreateNautilus.LOGGER.warn(
-                        "[water-entry] no unused fragment texture unit; "
-                                + "adapter stays disabled");
-            }
-            return;
-        }
-
         final createNautilus$CompositeBinding binding =
                 createNautilus$bindTextureSet(units, textures);
         if (binding == null) return;
@@ -282,9 +316,6 @@ public abstract class IrisProgramMixin {
         }
 
         createNautilus$activeBinding = binding;
-        GL20C.glUniform1i(entrySampler, units[0]);
-        GL20C.glUniform1i(directionSampler, units[1]);
-        GL20C.glUniform1i(atlasSampler, units[2]);
         GL20C.glUniform2f(atlasSizeUniform, atlasWidth, atlasHeight);
         GL20C.glUniform1i(atlasCarrierCountUniform, atlasCarrierCount);
         GL20C.glUniform1i(entryGenerationUniform, generation);
@@ -295,12 +326,17 @@ public abstract class IrisProgramMixin {
         GL20C.glUniform1i(cameraWater, cameraStartsInWater ? 1 : 0);
         GL20C.glUniform1i(adapterGenerationUniform, rendererAdapterGeneration);
         GL20C.glUniform1i(ready, 1);
-        if (createNautilus$loggedBindingGeneration != adapterGeneration) {
-            createNautilus$loggedBindingGeneration = adapterGeneration;
+        if (createNautilus$loggedCameraWater != (cameraStartsInWater ? 1 : 0)) {
+            createNautilus$loggedCameraWater = cameraStartsInWater ? 1 : 0;
+            final int[] eyeInWater = {-1};
+            if (createNautilus$eyeInWaterUniform >= 0) {
+                GL20C.glGetUniformiv(program, createNautilus$eyeInWaterUniform, eyeInWater);
+            }
             CreateNautilus.LOGGER.info(
-                    "[water-entry] bound render generation {} / adapter generation {} "
-                            + "at {}x{} to texture units [{}, {}, {}]",
-                    generation, adapterGeneration, boundaryWidth, boundaryHeight,
+                    "[water-entry] program={} ready=1 renderGeneration={} adapterGeneration={} "
+                            + "cameraWater={} isEyeInWater={} at {}x{} textureUnits=[{}, {}, {}]",
+                    program, generation, adapterGeneration, cameraStartsInWater,
+                    eyeInWater[0], boundaryWidth, boundaryHeight,
                     units[0], units[1], units[2]);
         }
         createNautilus$logBlissFogSamples(
@@ -317,7 +353,8 @@ public abstract class IrisProgramMixin {
             final int program, final int adapterGeneration,
             final int entryTexture, final int entryWidth, final int entryHeight) {
         try {
-            if (createNautilus$loggedBlissFogSampleGeneration == adapterGeneration
+            if (!createNautilus$pixelDiagnostics
+                    || createNautilus$loggedBlissFogSampleGeneration == adapterGeneration
                     || !GL.getCapabilities().OpenGL45) return;
             createNautilus$logBlissFogSamplesUnsafe(
                     program, adapterGeneration, entryTexture, entryWidth, entryHeight);
@@ -335,6 +372,10 @@ public abstract class IrisProgramMixin {
         final int frameCounterLocation = GL20C.glGetUniformLocation(program, "frameCounter");
         final int colortex13Location = GL20C.glGetUniformLocation(program, "colortex13");
         if (frameCounterLocation < 0 || colortex13Location < 0) return;
+
+        // A failed readback is still an attempt. Never synchronize with the GPU every frame
+        // merely because one diagnostic texture or driver call was unavailable.
+        createNautilus$loggedBlissFogSampleGeneration = adapterGeneration;
 
         final int previousActive = GL11C.glGetInteger(GL13C.GL_ACTIVE_TEXTURE);
         final int previousPackBuffer = GL11C.glGetInteger(
@@ -562,14 +603,16 @@ public abstract class IrisProgramMixin {
      */
     @Unique
     private static int[] createNautilus$findUnreferencedTextureUnits(
-            final int program, final int count,
+            final int program,
             final int entrySampler, final int directionSampler,
             final int atlasSampler) {
-        final int fragmentUnits = GL11C.glGetInteger(GL20C.GL_MAX_TEXTURE_IMAGE_UNITS);
-        final int combinedUnits = GL11C.glGetInteger(
+        // A sampler's value is an index into the combined unit space. The fragment limit bounds
+        // active samplers in that stage at link time; it does not restrict these unit indices.
+        final int maximum = GL11C.glGetInteger(
                 GL20C.GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS);
-        final int maximum = Math.min(fragmentUnits, combinedUnits);
-        if (program <= 0 || count <= 0 || maximum < count) return null;
+        if (program <= 0 || maximum <= 0) {
+            throw new IllegalStateException("Invalid linked Iris sampler layout");
+        }
 
         final boolean[] referenced = new boolean[maximum];
         final int activeUniforms = GL20C.glGetProgrami(program, GL20C.GL_ACTIVE_UNIFORMS);
@@ -580,30 +623,43 @@ public abstract class IrisProgramMixin {
             final int size = Math.max(1, GL31C.glGetActiveUniformsi(
                     program, uniformIndex, GL31C.GL_UNIFORM_SIZE));
             final String activeName = GL31C.glGetActiveUniformName(program, uniformIndex);
-            if (activeName == null || activeName.isEmpty()) return null;
+            if (activeName == null || activeName.isEmpty()) {
+                throw new IllegalStateException("Missing active Iris sampler name");
+            }
             final String baseName = activeName.endsWith("[0]")
                     ? activeName.substring(0, activeName.length() - 3) : activeName;
             for (int element = 0; element < size; element++) {
                 final String name = size == 1 ? activeName : baseName + '[' + element + ']';
                 final int location = GL20C.glGetUniformLocation(program, name);
-                if (location < 0) return null;
+                if (location < 0) {
+                    throw new IllegalStateException("Missing active Iris sampler location: " + name);
+                }
                 if (location == entrySampler || location == directionSampler
                         || location == atlasSampler) continue;
                 final int[] value = new int[1];
                 GL20C.glGetUniformiv(program, location, value);
-                if (value[0] < 0 || value[0] >= maximum) return null;
+                if (value[0] < 0 || value[0] >= maximum) {
+                    throw new IllegalStateException("Invalid Iris sampler unit: " + value[0]);
+                }
                 referenced[value[0]] = true;
             }
         }
 
-        final int[] result = new int[count];
-        int found = 0;
-        for (int unit = maximum - 1; unit >= 0; unit--) {
-            if (referenced[unit]) continue;
-            result[found++] = unit;
-            if (found == count) return result;
+        final int[] locations = {entrySampler, directionSampler, atlasSampler};
+        final int[] result = {-1, -1, -1};
+        int unit = maximum - 1;
+        for (int index = 0; index < locations.length; index++) {
+            if (locations[index] < 0) continue;
+            while (unit >= 0 && referenced[unit]) unit--;
+            if (unit < 0) {
+                // A valid linked program cannot exhaust the combined unit space after its own
+                // active samplers are excluded. Never submit an invalid mixed-sampler draw if
+                // the driver nevertheless reports an inconsistent program layout.
+                throw new IllegalStateException("No unused combined texture unit for Iris adapter");
+            }
+            result[index] = unit--;
         }
-        return null;
+        return result;
     }
 
     @Unique

@@ -25,6 +25,20 @@ public final class PropellerBoostRegistry {
     private PropellerBoostRegistry() {
     }
 
+    public static void clearLevel(final Level level) {
+        ACTIVE.keySet().removeIf(key -> key.level() == level);
+        TARGET_BY_SOURCE.entrySet().removeIf(entry ->
+                entry.getKey().level() == level || entry.getValue().level() == level);
+        ACTIVE.values().forEach(sources -> sources.keySet().removeIf(key -> key.level() == level));
+        ACTIVE.values().removeIf(Map::isEmpty);
+    }
+
+    public static void clearAll() {
+        ACTIVE.clear();
+        TARGET_BY_SOURCE.clear();
+        currentServerTick = 0L;
+    }
+
     public static void beginServerTick(final long serverTick) {
         currentServerTick = serverTick;
         // Bound stale keys from unloaded or destroyed sublevels. Running
@@ -92,8 +106,13 @@ public final class PropellerBoostRegistry {
         }
     }
 
-    /** Immediately removes a source whose propeller is gone or no longer adjacent. */
+    /** Compatibility alias for callers that already pass a BlockEntity source. */
     public static void markInactive(final BlockEntity source) {
+        removeSource(source);
+    }
+
+    /** Source-only name avoids selecting the KineticBlockEntity propeller overload. */
+    public static void removeSource(final BlockEntity source) {
         final Level sourceLevel = source.getLevel();
         if (sourceLevel != null) {
             final Key sourceKey = new Key(sourceLevel, source.getBlockPos().asLong());

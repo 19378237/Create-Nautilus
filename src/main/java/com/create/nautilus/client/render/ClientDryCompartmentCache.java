@@ -16,7 +16,9 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.SectionPos;
+import net.minecraft.tags.FluidTags;
 import net.minecraft.world.level.BlockAndTintGetter;
+import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 import net.neoforged.neoforge.event.level.LevelEvent;
@@ -29,6 +31,7 @@ import java.util.Set;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.List;
 
 /**
@@ -67,8 +70,7 @@ public final class ClientDryCompartmentCache {
      */
     private static volatile boolean MESH_SUPPRESSION_ENABLED = true;
     private static boolean worldDryLogged;
-    private static boolean suppressionHitLogged;
-    private static long suppressionHitCount;
+    private static final AtomicBoolean SUPPRESSION_HIT_LOGGED = new AtomicBoolean();
     /**
      * Snapshots can arrive before Sable has created the ClientSubLevel render data. Keep those
      * carrier ids here and retry instead of relying on a later block update to rebuild the mesh.
@@ -210,16 +212,11 @@ public final class ClientDryCompartmentCache {
             snapshot.inversePose().transformPosition(world, local);
             if (Arrays.binarySearch(snapshot.cells(),
                     BlockPos.containing(local.x, local.y, local.z).asLong()) >= 0) {
-                final long hit = ++suppressionHitCount;
-                if (!suppressionHitLogged) {
-                    suppressionHitLogged = true;
-                    CreateNautilus.LOGGER.info(
+                if (CreateNautilus.LOGGER.isDebugEnabled()
+                        && SUPPRESSION_HIT_LOGGED.compareAndSet(false, true)) {
+                    CreateNautilus.LOGGER.debug(
                             "[occlusion] first suppressed parent water block at {}",
                             pos);
-                } else if ((hit & 0x3FF) == 0L) {
-                    CreateNautilus.LOGGER.info(
-                            "[occlusion] suppressed parent water blocks so far: {} (last at {})",
-                            hit, pos);
                 }
                 return true;
             }
@@ -258,8 +255,8 @@ public final class ClientDryCompartmentCache {
             }
             list.add(new WorldDrySnapshot(carrierEntry.getKey(),
                     pose.invert(new Matrix4d()), packed));
-            if (!worldDryLogged) {
-                CreateNautilus.LOGGER.info(
+            if (CreateNautilus.LOGGER.isDebugEnabled() && !worldDryLogged) {
+                CreateNautilus.LOGGER.debug(
                         "[occlusion] carrier pose translation=({}, {}, {}) sampleCell=({}, {}, {})",
                         pose.m30(), pose.m31(), pose.m32(),
                         BlockPos.getX(packed[0]),
@@ -268,13 +265,13 @@ public final class ClientDryCompartmentCache {
             }
         }
         WORLD_DRY = list.toArray(new WorldDrySnapshot[0]);
-        if (!worldDryLogged && WORLD_DRY.length > 0) {
+        if (CreateNautilus.LOGGER.isDebugEnabled() && !worldDryLogged && WORLD_DRY.length > 0) {
             worldDryLogged = true;
             long cells = 0L;
             for (final WorldDrySnapshot snapshot : WORLD_DRY) {
                 cells += snapshot.cells().length;
             }
-            CreateNautilus.LOGGER.info(
+            CreateNautilus.LOGGER.debug(
                     "[occlusion] world dry snapshot carriers={} totalCells={}",
                     WORLD_DRY.length, cells);
         }
@@ -284,7 +281,9 @@ public final class ClientDryCompartmentCache {
     private static Map<UUID, PackedTopology> refreshPackedTopologies() {
         final Map<UUID, List<ClientCompartmentVisualCache.RoomSnapshot>> snapshots =
                 ClientCompartmentVisualCache.shaderAtlasSnapshots();
-        if (snapshots.isEmpty()) {
+        final ClientLevel level = Minecraft.getInstance().level;
+        final SubLevelContainer container = level == null ? null : SubLevelContainer.getContainer(level);
+        if (snapshots.isEmpty() || container == null) {
             PACKED_TOPOLOGIES = Map.of();
             return PACKED_TOPOLOGIES;
         }
@@ -292,7 +291,8 @@ public final class ClientDryCompartmentCache {
         for (final Map.Entry<UUID, List<ClientCompartmentVisualCache.RoomSnapshot>> entry
                 : snapshots.entrySet()) {
             final List<ClientCompartmentVisualCache.RoomSnapshot> rooms = entry.getValue();
-            if (rooms.isEmpty()) {
+            if (rooms.isEmpty() || !(container.getSubLevel(entry.getKey())
+                    instanceof final ClientSubLevel carrier)) {
                 continue;
             }
             final long revision = rooms.get(0).topologyRevision();
@@ -307,18 +307,21 @@ public final class ClientDryCompartmentCache {
                 for (final ClientCompartmentVisualCache.RoomSnapshot room : rooms) {
                     cellCount = Math.addExact(cellCount, room.cells().size());
                 }
-                final long[] cells = new long[cellCount];
-                int cursor = 0;
+                final List<BlockPos> cells = new java.util.ArrayList<>(cellCount);
                 for (final ClientCompartmentVisualCache.RoomSnapshot room : rooms) {
-                    for (final BlockPos cell : room.cells()) {
-                        cells[cursor++] = cell.asLong();
-                    }
+                    cells.addAll(room.cells());
                 }
-                Arrays.sort(cells);
-                packed = new PackedTopology(revision, cells);
+                // This cache is used only by the no-shader whole-block fallback. Its expanded
+                // cells are also the input to dirty-section bounds and old-mesh restoration.
+                packed = new PackedTopology(revision, PlainWaterOcclusion.cells(cells, true));
                 PACKED_TOPOLOGY_CACHE.put(entry.getKey(), packed);
             }
-            current.put(entry.getKey(), packed);
+            // A plot fluid can change without replacing the room topology. Keep the cached
+            // candidates, but refresh the filtered render domain before comparing dirty state.
+            final long[] maskCells = PlainWaterOcclusion.withoutWater(packed.cells(),
+                    cell -> carrier.getLevel().getFluidState(cell).is(FluidTags.WATER));
+            current.put(entry.getKey(), maskCells == packed.cells()
+                    ? packed : new PackedTopology(revision, maskCells));
         }
         PACKED_TOPOLOGY_CACHE.keySet().removeIf(id -> !snapshots.containsKey(id));
         PACKED_TOPOLOGIES = Map.copyOf(current);
@@ -385,19 +388,15 @@ public final class ClientDryCompartmentCache {
                 continue;
             }
             final Matrix4d pose = subLevel.renderPose().bakeIntoMatrix(new Matrix4d());
-            final long[] currentSections = worldSections(pose, cells);
             final boolean moved = previous == null || poseChangedEnough(previous, pose);
             if (previous == null || moved || !previous.sameCells(cells)) {
+                final long[] currentSections = worldSections(pose, cells);
                 if (previous != null) {
                     // Restore water where the hull used to be, remove it where it is now.
-                    if (moved) {
-                        addAllSections(sectionsToDirty, previous.sections());
-                        addAllSections(sectionsToDirty, currentSections);
-                    } else {
-                        // Same pose: only cells that left/entered the dry set changed.
-                        addChangedCellSections(sectionsToDirty,
-                                previous.cells(), cells);
-                    }
+                    // Both sets are world sections. Plot-coordinate cell differences cannot
+                    // be passed to the parent renderer, including at a stable rotated pose.
+                    addAllSections(sectionsToDirty, previous.sections());
+                    addAllSections(sectionsToDirty, currentSections);
                 } else {
                     addAllSections(sectionsToDirty, currentSections);
                 }
@@ -418,11 +417,11 @@ public final class ClientDryCompartmentCache {
         });
 
         markParentSectionsDirty(minecraft, sectionsToDirty);
-        if (!sectionsToDirty.isEmpty()) {
+        if (CreateNautilus.LOGGER.isDebugEnabled() && !sectionsToDirty.isEmpty()) {
             final long now = System.nanoTime();
             if (now - lastParentDirtyLogNanos > 5_000_000_000L) {
                 lastParentDirtyLogNanos = now;
-                CreateNautilus.LOGGER.info(
+                CreateNautilus.LOGGER.debug(
                         "[occlusion] parent water sections dirtied: {} "
                                 + "(meshSuppression={})",
                         sectionsToDirty.size(), MESH_SUPPRESSION_ENABLED);
@@ -435,22 +434,6 @@ public final class ClientDryCompartmentCache {
         for (final long section : sections) {
             minecraft.levelRenderer.setSectionDirty(
                     SectionPos.x(section), SectionPos.y(section), SectionPos.z(section));
-        }
-    }
-
-    /** Sections whose dry membership changed between two snapshots. */
-    private static void addChangedCellSections(final LongSet output,
-                                               final long[] previousCells,
-                                               final long[] currentCells) {
-        for (final long cell : previousCells) {
-            if (Arrays.binarySearch(currentCells, cell) < 0) {
-                addSection(output, cell);
-            }
-        }
-        for (final long cell : currentCells) {
-            if (Arrays.binarySearch(previousCells, cell) < 0) {
-                addSection(output, cell);
-            }
         }
     }
 
@@ -575,10 +558,22 @@ public final class ClientDryCompartmentCache {
             return false;
         }
 
+        final boolean shaderPackActive = WaterOcclusionPassBridge.isShaderPackActive();
+        final Map<UUID, List<ClientCompartmentVisualCache.RoomSnapshot>> visualSnapshots =
+                shaderPackActive ? Map.of() : ClientCompartmentVisualCache.snapshots();
         for (final UUID carrierId : OCCLUSION_REGIONS.keySet()) {
             final Snapshot snapshot = SNAPSHOTS.get(carrierId);
             if (snapshot == null || !(container.getSubLevel(carrierId)
                     instanceof final ClientSubLevel subLevel)) {
+                continue;
+            }
+            if (!shaderPackActive) {
+                for (final ClientCompartmentVisualCache.RoomSnapshot room :
+                        visualSnapshots.getOrDefault(carrierId, List.of())) {
+                    if (ContinuousCompartmentOcclusionRegion.containsCamera(subLevel, room, worldPosition)) {
+                        return true;
+                    }
+                }
                 continue;
             }
             final Vector3d local = subLevel.renderPose().transformPositionInverse(new Vector3d(
@@ -586,6 +581,75 @@ public final class ClientDryCompartmentCache {
             if (containsCameraWithHullMargin(snapshot, local)) {
                 return true;
             }
+        }
+        return false;
+    }
+
+    /** Sable's vanilla depth pass needs the render domain without changing fluid/physics queries. */
+    public static boolean isCameraOccludedForPlainRender(final WaterOcclusionContainer<?> container,
+                                                         final Vec3 cameraPosition) {
+        if (WaterOcclusionPassBridge.isShaderPackActive() || OCCLUSION_REGIONS.isEmpty()) {
+            return container.isOccluded(cameraPosition);
+        }
+        final ClientLevel level = Minecraft.getInstance().level;
+        if (level == null || WaterOcclusionContainer.getContainer(level) != container) {
+            return container.isOccluded(cameraPosition);
+        }
+        if (isCameraInsideRegisteredDryRegion(cameraPosition)) return true;
+
+        // Only Nautilus' regions replace their integer camera test. Preserve Sable's exact
+        // logical-pose/voxel semantics for regions supplied by another mod or the caller.
+        for (final WaterOcclusionRegion region : container.getRegions()) {
+            if (OCCLUSION_REGIONS.values().stream().anyMatch(registered ->
+                    registered.container() == container && registered.region() == region)) continue;
+            final BoundedBitVolume3i volume = region.getVolume();
+            final var carrier = dev.ryanhcode.sable.Sable.HELPER.getContaining(
+                    level, volume.getMinBlockPos());
+            final Vec3 local = carrier == null ? cameraPosition
+                    : carrier.logicalPose().transformPositionInverse(cameraPosition);
+            if (volume.getOccupied((int) Math.floor(local.x), (int) Math.floor(local.y),
+                    (int) Math.floor(local.z))) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Camera clear for the external-only depth mask used alongside Nautilus' room atlas.
+     * Only atlas-resident continuous regions leave this depth domain. Other continuous regions
+     * retain their padded render-pose test; stock fallback regions and other integrations keep
+     * Sable's logical-pose/voxel semantics. Unavailable renderer identity throws so the caller can
+     * retain the original complete Sable pass.
+     */
+    public static boolean isCameraOccludedByExternalRegions(final WaterOcclusionContainer<?> container,
+                                                            final Vec3 cameraPosition)
+            throws ReflectiveOperationException {
+        final ClientLevel level = Minecraft.getInstance().level;
+        if (level == null || WaterOcclusionContainer.getContainer(level) != container) {
+            return container.isOccluded(cameraPosition);
+        }
+        for (final WaterOcclusionRegion region : container.getRegions()) {
+            final UUID continuousCarrierId = ContinuousCompartmentOcclusionRegion.continuousCarrierId(region);
+            if (continuousCarrierId != null) {
+                if (ShaderVoxelMaskAtlas.coversCarrier(continuousCarrierId)) continue;
+                final SubLevelContainer subLevels = SubLevelContainer.getContainer(level);
+                if (subLevels != null && subLevels.getSubLevel(continuousCarrierId)
+                        instanceof final ClientSubLevel subLevel) {
+                    for (final ClientCompartmentVisualCache.RoomSnapshot room :
+                            ClientCompartmentVisualCache.snapshots().getOrDefault(continuousCarrierId, List.of())) {
+                        if (ContinuousCompartmentOcclusionRegion.containsCamera(subLevel, room, cameraPosition)) {
+                            return true;
+                        }
+                    }
+                }
+                continue;
+            }
+            final BoundedBitVolume3i volume = region.getVolume();
+            final var carrier = dev.ryanhcode.sable.Sable.HELPER.getContaining(
+                    level, volume.getMinBlockPos());
+            final Vec3 local = carrier == null ? cameraPosition
+                    : carrier.logicalPose().transformPositionInverse(cameraPosition);
+            if (volume.getOccupied((int) Math.floor(local.x), (int) Math.floor(local.y),
+                    (int) Math.floor(local.z))) return true;
         }
         return false;
     }
@@ -639,6 +703,7 @@ public final class ClientDryCompartmentCache {
         removeClientOcclusion(carrierId);
         PENDING_RENDER_REBUILDS.remove(carrierId);
         PACKED_TOPOLOGY_CACHE.remove(carrierId);
+        PlainWaterOcclusion.forget(carrierId);
         final Map<UUID, PackedTopology> retained = new java.util.LinkedHashMap<>(PACKED_TOPOLOGIES);
         retained.remove(carrierId);
         PACKED_TOPOLOGIES = Map.copyOf(retained);
@@ -672,6 +737,7 @@ public final class ClientDryCompartmentCache {
         WORLD_DRY = EMPTY_WORLD_DRY;
         PACKED_TOPOLOGIES = Map.of();
         PACKED_TOPOLOGY_CACHE.clear();
+        PlainWaterOcclusion.clear();
         PARENT_DIRTY_STATE.clear();
         PENDING_RENDER_REBUILDS.clear();
         ClientCompartmentVisualCache.clear();
@@ -719,7 +785,7 @@ public final class ClientDryCompartmentCache {
              */
             ContinuousCompartmentOcclusionRegion.install(carrierId, region);
             OCCLUSION_REGIONS.put(carrierId, new OcclusionRegistration(container, region));
-            CreateNautilus.LOGGER.info(
+            if (CreateNautilus.LOGGER.isDebugEnabled()) CreateNautilus.LOGGER.debug(
                     "Registered client dry-compartment occlusion for {} "
                             + "(cells={}, clientRegions={})",
                     carrierId, cells.length, container.getRegions().size());

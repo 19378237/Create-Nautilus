@@ -12,6 +12,7 @@ import java.util.concurrent.ConcurrentHashMap;
 /** Thread-safe bridge from Sable's physics callback to Minecraft server ticks. */
 final class GasTankImpactTracker {
     private static final long IMPACT_EXPIRY_NANOS = TimeUnit.SECONDS.toNanos(10L);
+    private static final int MAX_PENDING_IMPACTS = 16_384;
     private static final ConcurrentHashMap<Key, Impact> IMPACTS = new ConcurrentHashMap<>();
 
     static final BlockSubLevelCollisionCallback CALLBACK =
@@ -23,6 +24,12 @@ final class GasTankImpactTracker {
                 final Level level = SubLevelPhysicsSystem.getCurrentlySteppingSystem().getLevel();
                 final Key key = new Key(level, localPos.asLong());
                 final long now = System.nanoTime();
+                if (!IMPACTS.containsKey(key) && IMPACTS.size() >= MAX_PENDING_IMPACTS) {
+                    expire(now);
+                    if (IMPACTS.size() >= MAX_PENDING_IMPACTS) {
+                        return BlockSubLevelCollisionCallback.CollisionResult.NONE;
+                    }
+                }
                 IMPACTS.merge(key, new Impact(speed, now), (previous, current) ->
                         now - previous.recordedAtNanos() > IMPACT_EXPIRY_NANOS
                                 ? current
@@ -31,6 +38,19 @@ final class GasTankImpactTracker {
             };
 
     private GasTankImpactTracker() {
+    }
+
+    static void expire(final long now) {
+        IMPACTS.entrySet().removeIf(entry ->
+                now - entry.getValue().recordedAtNanos() > IMPACT_EXPIRY_NANOS);
+    }
+
+    static void clearLevel(final Level level) {
+        IMPACTS.keySet().removeIf(key -> key.level() == level);
+    }
+
+    static void clearAll() {
+        IMPACTS.clear();
     }
 
     static double consume(final GasTankBlockEntity tank) {

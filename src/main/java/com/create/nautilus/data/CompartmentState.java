@@ -1,20 +1,23 @@
 package com.create.nautilus.data;
 
 import com.create.nautilus.config.NautilusConfig;
+import com.create.nautilus.physics.CompartmentFluidInventory;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.phys.AABB;
 import org.joml.Vector3dc;
 
 import java.util.Objects;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
 
 /**
  * 一个密封舱室的持久状态。
  *
- * <p>氧气和舱水均使用 mB；一 Minecraft 方块按一立方米处理。cells 只作为
- * 本次运行的精确成员缓存，舱室重新扫描后重建，因此不会把数十万坐标写入存档。</p>
+ * <p>氧气和舱水均使用 mB；一 Minecraft 方块按一立方米处理。精确格成员以
+ * 紧凑 long[] 写入存档，运行时按需展开，避免读档时用重叠包围盒猜测舱室连通关系。</p>
  */
 public final class CompartmentState {
     private final UUID id;
@@ -33,6 +36,12 @@ public final class CompartmentState {
     private double internalPressureKpa;
     private boolean sealed;
     private transient Set<Long> cells;
+    /** Compact exact geometry survives save/load and temporary carrier unloads. */
+    private long[] packedCells = new long[0];
+    private transient Set<Long> realWaterCells = Set.of();
+    private boolean realWaterGeometryKnown = true;
+    private transient Set<Long> virtualWaterCells;
+    private transient CompartmentFluidInventory.Snapshot assignedRealWater;
 
     public CompartmentState(final UUID id, final AABB bounds, final int volumeBlocks,
                             final Set<Long> cells) {
@@ -40,6 +49,7 @@ public final class CompartmentState {
         this.bounds = Objects.requireNonNull(bounds, "bounds");
         this.volumeBlocks = Math.max(1, volumeBlocks);
         this.cells = Set.copyOf(Objects.requireNonNull(cells, "cells"));
+        this.packedCells = cells.stream().mapToLong(Long::longValue).sorted().toArray();
         this.oxygenMb = capacityMb();
         this.standardGasMb = waterCapacityMb();
         this.internalPressureKpa = NautilusConfig.SURFACE_PRESSURE_KPA;
@@ -89,19 +99,69 @@ public final class CompartmentState {
     /**
      * Exact plot-space cells from the latest flood-fill scan.
      *
-     * <p>The collection is an immutable view and is intentionally transient: after loading a
-     * world, bounds-based queries remain available until the coordinator performs its next scan.</p>
+     * <p>The immutable Set is a runtime index rebuilt lazily from the persisted packed geometry.</p>
      */
     public Set<Long> cells() {
+        if (cells.isEmpty() && packedCells.length > 0) {
+            final Set<Long> restored = new HashSet<>();
+            for (final long packed : packedCells) restored.add(packed);
+            cells = Set.copyOf(restored);
+        }
         return cells;
+    }
+
+    public boolean hasExactGeometry() { return packedCells.length > 0; }
+
+    public void clearRuntimeCachesOnUnload() {
+        assignedRealWater = null;
+        com.create.nautilus.physics.CompartmentWaterGeometry.forget(this);
+        cells = Set.of();
+        virtualWaterCells = null;
+    }
+
+    /** Space available to continuous water; real Minecraft sources own their complete cells. */
+    public Set<Long> waterCells() {
+        if (realWaterCells.isEmpty()) return cells();
+        if (virtualWaterCells == null) {
+            final Set<Long> available = new HashSet<>(cells());
+            available.removeAll(realWaterCells);
+            virtualWaterCells = Set.copyOf(available);
+        }
+        return virtualWaterCells;
+    }
+
+    public boolean setRealWaterCells(final Set<Long> sources) {
+        assignedRealWater = null;
+        realWaterGeometryKnown = true;
+        final Set<Long> occupied = new HashSet<>(sources);
+        occupied.retainAll(cells());
+        if (occupied.equals(realWaterCells)) return false;
+        realWaterCells = Set.copyOf(occupied);
+        virtualWaterCells = null;
+        // A newly placed real source physically displaces any excess synthetic water. It is not
+        // converted into Attachment water; commands/buckets keep ordinary Minecraft fluid rules.
+        waterMb = Math.min(waterMb, waterCapacityMb());
+        return true;
+    }
+
+    /** A measurement may be shared by physics substeps; direct mutations clear this identity. */
+    public boolean setRealWaterCells(final CompartmentFluidInventory.Snapshot snapshot) {
+        Objects.requireNonNull(snapshot, "snapshot");
+        if (assignedRealWater == snapshot) return false;
+        final boolean changed = setRealWaterCells(snapshot.sources().keySet());
+        assignedRealWater = snapshot;
+        return changed;
     }
 
     public double capacityMb() {
         return volumeBlocks * NautilusConfig.airDensityPerBlock();
     }
 
+    /** Older saves did not persist the source exclusion mask; the first scan may infer it. */
+    public boolean hasKnownRealWaterGeometry() { return realWaterGeometryKnown; }
+
     public double waterCapacityMb() {
-        return volumeBlocks * 1000.0D;
+        return Math.max(0, volumeBlocks - realWaterCells.size()) * 1000.0D;
     }
 
     public double oxygenFraction() {
@@ -116,6 +176,7 @@ public final class CompartmentState {
         if (!cells.isEmpty()) {
             return cells.contains(pos.asLong());
         }
+        if (packedCells.length > 0) return Arrays.binarySearch(packedCells, pos.asLong()) >= 0;
         return bounds.contains(pos.getX() + 0.5D, pos.getY() + 0.5D, pos.getZ() + 0.5D);
     }
 
@@ -131,7 +192,7 @@ public final class CompartmentState {
     }
 
     public double addOxygen(final double amountMb) {
-        final double accepted = Math.min(capacityMb() - oxygenMb, Math.max(0.0D, amountMb));
+        final double accepted = Math.min(Math.max(0.0D, capacityMb() - oxygenMb), Math.max(0.0D, amountMb));
         oxygenMb += accepted;
         // Oxygen introduced by a generator/tank is real gas and therefore also contributes to
         // pressure. Consumption intentionally does not subtract standardGasMb: exhaled gases are
@@ -158,8 +219,7 @@ public final class CompartmentState {
      */
     public void restoreContents(final double oxygenMb, final double standardGasMb,
                                 final double waterMb) {
-        this.oxygenMb = Math.clamp(
-                Double.isFinite(oxygenMb) ? oxygenMb : 0.0D, 0.0D, capacityMb());
+        this.oxygenMb = Math.max(0.0D, Double.isFinite(oxygenMb) ? oxygenMb : 0.0D);
         this.standardGasMb = Math.max(0.0D,
                 Double.isFinite(standardGasMb) ? standardGasMb : 0.0D);
         this.waterMb = Math.clamp(
@@ -194,7 +254,7 @@ public final class CompartmentState {
         if (deltaMb > 0.0D) {
             standardGasMb += deltaMb;
             final double ambientOxygen = deltaMb * NautilusConfig.airDensityPerBlock() / 1000.0D;
-            oxygenMb = Math.min(capacityMb(), oxygenMb + ambientOxygen);
+            oxygenMb += ambientOxygen;
             return;
         }
 
@@ -212,6 +272,13 @@ public final class CompartmentState {
         internalPressureKpa = Math.max(0.0D, Double.isFinite(pressure) ? pressure : 0.0D);
     }
 
+    /** Replaces a fraction of the cabin mixture with ambient air at unchanged total gas. */
+    public void ventilateAmbientAir(final double fraction) {
+        if (!Double.isFinite(fraction) || fraction <= 0.0D || standardGasMb <= 0.0D) return;
+        final double ambientOxygen = standardGasMb * NautilusConfig.airDensityPerBlock() / 1000.0D;
+        oxygenMb += (ambientOxygen - oxygenMb) * Math.min(1.0D, fraction);
+    }
+
     public void setSealed(final boolean sealed) {
         this.sealed = sealed;
     }
@@ -220,10 +287,15 @@ public final class CompartmentState {
      * 舱室几何改变后保留实际气体/水量，而不是按比例凭空增减物质。
      */
     public void updateGeometry(final AABB newBounds, final int newVolume, final Set<Long> newCells) {
+        assignedRealWater = null;
         this.bounds = Objects.requireNonNull(newBounds, "newBounds");
         this.volumeBlocks = Math.max(1, newVolume);
         this.cells = Set.copyOf(Objects.requireNonNull(newCells, "newCells"));
-        this.oxygenMb = Math.min(oxygenMb, capacityMb());
+        this.packedCells = newCells.stream().mapToLong(Long::longValue).sorted().toArray();
+        final Set<Long> retainedSources = new HashSet<>(realWaterCells);
+        retainedSources.retainAll(newCells);
+        realWaterCells = Set.copyOf(retainedSources);
+        virtualWaterCells = null;
         this.waterMb = Math.min(waterMb, waterCapacityMb());
         this.sealed = true;
     }
@@ -243,6 +315,9 @@ public final class CompartmentState {
         tag.putDouble("water_mb", waterMb);
         tag.putDouble("pressure_kpa", internalPressureKpa);
         tag.putBoolean("sealed", sealed);
+        tag.putLongArray("cells", packedCells);
+        tag.putLongArray("real_water_cells", realWaterCells.stream().mapToLong(Long::longValue).sorted().toArray());
+        tag.putBoolean("real_water_geometry_known", realWaterGeometryKnown);
         return tag;
     }
 
@@ -252,7 +327,12 @@ public final class CompartmentState {
                 tag.getDouble("min_x"), tag.getDouble("min_y"), tag.getDouble("min_z"),
                 tag.getDouble("max_x"), tag.getDouble("max_y"), tag.getDouble("max_z"));
         state.volumeBlocks = Math.max(1, tag.getInt("volume"));
-        state.oxygenMb = Math.clamp(tag.getDouble("oxygen_mb"), 0.0D, state.capacityMb());
+        final Set<Long> savedSources = new HashSet<>();
+        for (final long cell : tag.getLongArray("real_water_cells")) savedSources.add(cell);
+        state.realWaterCells = Set.copyOf(savedSources);
+        state.realWaterGeometryKnown = tag.contains("real_water_cells")
+                && (!tag.contains("real_water_geometry_known") || tag.getBoolean("real_water_geometry_known"));
+        state.oxygenMb = Math.max(0.0D, tag.getDouble("oxygen_mb"));
         state.waterMb = Math.clamp(tag.getDouble("water_mb"), 0.0D, state.waterCapacityMb());
         state.internalPressureKpa = Math.max(0.0D, tag.getDouble("pressure_kpa"));
         // Backward compatibility for saves created before pressure state had an explicit gas
@@ -265,6 +345,8 @@ public final class CompartmentState {
             state.standardGasMb = freeVolumeMb * state.internalPressureKpa / surfacePressure;
         }
         state.sealed = tag.getBoolean("sealed");
+        state.packedCells = tag.getLongArray("cells");
+        Arrays.sort(state.packedCells);
         return state;
     }
 }

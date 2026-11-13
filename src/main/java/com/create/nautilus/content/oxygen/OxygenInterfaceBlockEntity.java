@@ -33,6 +33,16 @@ public final class OxygenInterfaceBlockEntity extends SmartBlockEntity
         super(type, pos, state);
     }
 
+    /** Sided capability results (including null) depend on the current facing. */
+    @Override
+    public void setBlockState(final BlockState state) {
+        final BlockState previous = getBlockState();
+        super.setBlockState(state);
+        if (previous.getValue(OxygenInterfaceBlock.FACING) != state.getValue(OxygenInterfaceBlock.FACING)) {
+            invalidateCapabilities();
+        }
+    }
+
     @Override
     public void addBehaviours(final List<BlockEntityBehaviour> behaviours) {
         oxygenInput = SmartFluidTankBehaviour.single(this, 1_000).forbidExtraction();
@@ -49,7 +59,9 @@ public final class OxygenInterfaceBlockEntity extends SmartBlockEntity
         if (carrier.getLevel().getGameTime() % 20L != 0L) {
             return;
         }
-        final var compartment = OxygenStorageManager.compartmentAt(carrier, worldPosition);
+        final BlockPos outlet = worldPosition.relative(
+                getBlockState().getValue(OxygenInterfaceBlock.FACING));
+        final var compartment = OxygenStorageManager.compartmentAt(carrier, outlet);
         if (compartment.isEmpty()) {
             return;
         }

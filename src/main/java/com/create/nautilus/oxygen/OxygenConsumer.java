@@ -27,6 +27,7 @@ public final class OxygenConsumer {
 
     public static void tick(final ServerSubLevel carrier, final CarrierState state, final double dt) {
         for (ServerPlayer player : carrier.getLevel().players()) {
+            if (player.isCreative() || player.isSpectator() || player.getAbilities().invulnerable) continue;
             if (Sable.HELPER.getTrackingOrVehicleSubLevel(player) != carrier) continue;
             final Vector3d local = carrier.logicalPose().transformPositionInverse(
                     new Vector3d(player.getX(), player.getEyeY(), player.getZ()));
@@ -48,15 +49,16 @@ public final class OxygenConsumer {
     /**
      * Extends NeoForge's normal breath decision to Nautilus' non-block virtual water.
      *
-     * <p>{@code VirtualCompartmentWaterMixin} publishes the vanilla water <em>tag</em> used by
-     * swimming and camera behaviour. NeoForge's breathing hook, however, selects its default from
-     * the eye {@code FluidType}; a virtual surface has no real fluid block and therefore still
-     * reports the air fluid type. Overriding this event is the supported point at which to close
-     * that gap. NeoForge then performs the normal one-point countdown, respiration/oxygen-bonus
-     * rolls, {@code -20} drowning threshold, drown event and damage itself.</p>
+     * <p>The entity mixins publish both body and eye water FluidTypes. This event also handles
+     * exhausted dry rooms and preserves the same native breath counter across real and virtual
+     * water. NeoForge retains ownership of respiration/oxygen-bonus rolls, drowning and damage.</p>
      */
     public static void onLivingBreathe(final LivingBreatheEvent event) {
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
+        // A real non-water eye fluid keeps its own breath rules, even where the virtual plane
+        // geometrically overlaps its voxel. The eye restorer follows this same precedence.
+        if (!player.getEyeInFluidType().isAir()
+                && player.getEyeInFluidType() != NeoForgeMod.WATER_TYPE.value()) return;
 
         final boolean virtualWaterAtEyes = VirtualCompartmentWater.serverDepthAt(
                 player, player.getEyePosition()) > 0.0D;
@@ -69,9 +71,7 @@ public final class OxygenConsumer {
         if (!player.canDrownInFluidType(NeoForgeMod.WATER_TYPE.value())
                 || MobEffectUtil.hasWaterBreathing(player)
                 || player.getAbilities().invulnerable) {
-            // Real-water CommonHooks deliberately keeps the current air value for these
-            // exemptions rather than applying dry-air recovery. The virtual eye FluidType is
-            // technically air, so mirror that zero-refill detail explicitly as well.
+            // Match CommonHooks' zero-refill rule for water exemptions, also in airless rooms.
             event.setCanBreathe(true);
             event.setRefillAirAmount(0);
             return;

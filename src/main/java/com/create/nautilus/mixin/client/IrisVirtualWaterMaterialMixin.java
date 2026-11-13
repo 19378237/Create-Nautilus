@@ -28,6 +28,6 @@ public abstract class IrisVirtualWaterMaterialMixin {
         if (source == null || source.equals(patched)) return;
         args.set(5, patched);
         CreateNautilus.LOGGER.info(
-                "[virtual-water] patched Photon virtual texture/absorption for immediate shader {}", name);
+                "[virtual-water] patched Photon virtual material for immediate shader {}; native surface refraction retained", name);
     }
 }

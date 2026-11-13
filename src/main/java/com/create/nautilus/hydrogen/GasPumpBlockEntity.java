@@ -1,10 +1,12 @@
 package com.create.nautilus.hydrogen;
 
+import com.create.nautilus.CreateNautilus;
 import com.simibubi.create.content.fluids.FluidPropagator;
 import com.simibubi.create.content.kinetics.base.KineticBlockEntity;
-import com.simibubi.create.foundation.blockEntity.behaviour.BlockEntityBehaviour;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.HolderLookup;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.neoforge.fluids.FluidStack;
@@ -16,16 +18,14 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-/**
- * Mechanical driver for the standalone gas network.
- *
- * <p>The facing side is the outlet and the opposite side is the inlet, just
- * like Create's mechanical pump. Throughput also follows Create's pressure
- * scale ({@code |RPM| / 2 mB per tick}), but graph discovery and transfer use
- * only {@link GasCapabilities#HANDLER}. No Create FluidNetwork is created.</p>
- */
+/** Independent gas-network driver; facing is the outlet for either rotation sign. */
 public final class GasPumpBlockEntity extends KineticBlockEntity {
     private static final int MAX_VISITED_NODES = 4_096;
+    private static final Direction[] DIRECTIONS = Direction.values();
+    private double transferRemainder;
+    private int sourceCursor;
+    private FluidStack pendingTransfer = FluidStack.EMPTY;
+    private long lastNetworkWarningTick = Long.MIN_VALUE;
 
     public GasPumpBlockEntity(final BlockEntityType<?> type, final BlockPos pos,
                               final BlockState state) {
@@ -33,173 +33,182 @@ public final class GasPumpBlockEntity extends KineticBlockEntity {
     }
 
     @Override
-    public void addBehaviours(final List<BlockEntityBehaviour> behaviours) {
-        super.addBehaviours(behaviours);
-    }
-
-    @Override
     public void tick() {
         super.tick();
-        if (level == null || level.isClientSide || getSpeed() == 0.0F) {
-            return;
-        }
+        if (level == null || level.isClientSide || getSpeed() == 0.0F) return;
+        // Discard unused whole-tick work even when starved or blocked. Only the
+        // fractional budget survives, so fractional RPM is linear without bursts.
+        int budget = nextTransferBudget(getSpeed());
+        if (budget <= 0) return;
 
         final Direction output = getBlockState().getValue(GasPumpBlock.FACING);
-        final List<Endpoint> sources = discoverEndpoints(output.getOpposite());
-        final List<Endpoint> sinks = discoverEndpoints(output);
-        if (sources.isEmpty() || sinks.isEmpty()) {
+        final Discovery sources = discoverEndpoints(output.getOpposite());
+        final Discovery sinks = discoverEndpoints(output);
+        if (!sources.complete() || !sinks.complete()) {
+            final long now = level.getGameTime();
+            if (lastNetworkWarningTick == Long.MIN_VALUE || now - lastNetworkWarningTick >= 200L) {
+                lastNetworkWarningTick = now;
+                CreateNautilus.LOGGER.warn("Gas pump at {} stopped: network exceeds {} pipe nodes",
+                        worldPosition, MAX_VISITED_NODES);
+            }
             return;
         }
+        if (sinks.endpoints().isEmpty()) return;
+        budget -= deliverPending(sinks.endpoints(), budget);
+        if (!pendingTransfer.isEmpty() || budget <= 0 || sources.endpoints().isEmpty()) return;
+        pumpFromSources(sources.endpoints(), sinks.endpoints(), budget);
+    }
 
-        int budget = Math.max(1, (int) (Math.abs(getSpeed()) / 2.0F));
-        for (final Endpoint source : sources) {
-            if (budget <= 0) {
-                break;
-            }
-            budget -= transferFrom(source, sinks, budget);
+    private int nextTransferBudget(final double rpm) {
+        transferRemainder += Math.abs(rpm) / 2.0D;
+        final int budget = (int) Math.floor(transferRemainder);
+        transferRemainder -= budget;
+        return budget;
+    }
+
+    private void pumpFromSources(final List<Endpoint> candidates, final List<Endpoint> sinks,
+                                 int budget) {
+        final int start = Math.floorMod(sourceCursor, candidates.size());
+        // Advance after every attempt, including a blocked source. A permanently
+        // productive first source therefore cannot starve the rest of the network.
+        for (int offset = 0; offset < candidates.size() && budget > 0; offset++) {
+            final int index = (start + offset) % candidates.size();
+            sourceCursor = (index + 1) % candidates.size();
+            budget -= transferFrom(candidates.get(index), sinks, budget);
+            if (!pendingTransfer.isEmpty()) break;
         }
     }
 
-    private static int transferFrom(final Endpoint sourceEndpoint,
-                                    final List<Endpoint> sinks, final int maximum) {
+    /** Amount removed from a source, including any retained, undelivered gas. */
+    private int transferFrom(final Endpoint sourceEndpoint,
+                             final List<Endpoint> sinks, final int maximum) {
         final IGasHandler source = sourceEndpoint.handler();
-        FluidStack candidate = FluidStack.EMPTY;
-        for (int tank = 0; tank < source.getTanks(); tank++) {
+        int transferred = 0;
+        for (int tank = 0; tank < source.getTanks() && transferred < maximum; tank++) {
             final FluidStack stored = source.getFluidInTank(tank);
-            if (HydrogenFluids.isGas(stored)) {
-                candidate = stored.copyWithAmount(Math.min(maximum, stored.getAmount()));
-                break;
+            if (!HydrogenFluids.isGas(stored)) continue;
+            final FluidStack available = source.drain(stored.copyWithAmount(
+                    Math.min(maximum - transferred, stored.getAmount())), IFluidHandler.FluidAction.SIMULATE);
+            if (!HydrogenFluids.isGas(available)) continue;
+            int remaining = available.getAmount();
+            for (final Endpoint sink : sinks) {
+                if (remaining <= 0 || transferred >= maximum) break;
+                if (sink.inventory().equals(sourceEndpoint.inventory()) || sink.handler() == source) continue;
+                final FluidStack offer = available.copyWithAmount(Math.min(remaining, maximum - transferred));
+                final int accepted = Math.clamp(sink.handler().fill(offer,
+                        IFluidHandler.FluidAction.SIMULATE), 0, offer.getAmount());
+                if (accepted <= 0) continue;
+                // Take ownership before invoking another capability. A sink may
+                // accept less on commit; the remainder remains a persisted pump
+                // inventory instead of relying on an output-only source refund.
+                pendingTransfer = source.drain(offer.copyWithAmount(accepted), IFluidHandler.FluidAction.EXECUTE);
+                if (pendingTransfer.isEmpty()) break;
+                final int extracted = pendingTransfer.getAmount();
+                transferred += extracted;
+                remaining -= extracted;
+                setChanged();
+                final int filled = Math.clamp(sink.handler().fill(pendingTransfer.copy(),
+                        IFluidHandler.FluidAction.EXECUTE), 0, extracted);
+                pendingTransfer.shrink(filled);
+                if (!pendingTransfer.isEmpty()) return transferred;
+                pendingTransfer = FluidStack.EMPTY;
             }
         }
-        if (candidate.isEmpty()) {
-            candidate = source.drain(maximum, IFluidHandler.FluidAction.SIMULATE);
-        }
-        if (!HydrogenFluids.isGas(candidate)) {
-            return 0;
-        }
+        return transferred;
+    }
 
-        final FluidStack available = source.drain(candidate,
-                IFluidHandler.FluidAction.SIMULATE);
-        if (available.isEmpty()) {
-            return 0;
-        }
-
+    private int deliverPending(final List<Endpoint> sinks, final int maximum) {
+        if (pendingTransfer.isEmpty()) return 0;
         int inserted = 0;
         for (final Endpoint sink : sinks) {
-            if (inserted >= available.getAmount()) {
-                break;
-            }
-            if (sink.pos().equals(sourceEndpoint.pos()) || sink.handler() == source) {
-                continue;
-            }
-            // Several endpoints can expose the same multiblock inventory.
-            // Commit each destination before simulating the next one, so its
-            // shared free space cannot be counted twice and over-extracted
-            // from an output-only source that cannot accept a refund.
-            final FluidStack offer = available.copyWithAmount(available.getAmount() - inserted);
-            final int accepted = sink.handler().fill(offer, IFluidHandler.FluidAction.SIMULATE);
-            if (accepted <= 0) {
-                continue;
-            }
-            final FluidStack extracted = source.drain(offer.copyWithAmount(accepted),
-                    IFluidHandler.FluidAction.EXECUTE);
-            if (extracted.isEmpty()) {
-                break;
-            }
-            final int filled = sink.handler().fill(extracted,
-                    IFluidHandler.FluidAction.EXECUTE);
+            if (inserted >= maximum || pendingTransfer.isEmpty()) break;
+            final FluidStack offer = pendingTransfer.copyWithAmount(
+                    Math.min(maximum - inserted, pendingTransfer.getAmount()));
+            final int filled = Math.clamp(sink.handler().fill(offer,
+                    IFluidHandler.FluidAction.EXECUTE), 0, offer.getAmount());
+            pendingTransfer.shrink(filled);
             inserted += filled;
-            extracted.shrink(filled);
-            // Our main-thread handlers agree with their simulation. Keep a
-            // best-effort refund for external handlers that do not, and stop
-            // this source instead of extracting again after a failed commit.
-            if (!extracted.isEmpty()) {
-                source.fill(extracted, IFluidHandler.FluidAction.EXECUTE);
-                break;
-            }
         }
+        if (pendingTransfer.isEmpty()) pendingTransfer = FluidStack.EMPTY;
+        if (inserted > 0) setChanged();
         return inserted;
     }
 
-    private List<Endpoint> discoverEndpoints(final Direction side) {
+    private Discovery discoverEndpoints(final Direction side) {
         final BlockPos first = worldPosition.relative(side);
-        if (!level.isLoaded(first)) {
-            return List.of();
-        }
-
-        final IGasHandler direct = level.getCapability(GasCapabilities.HANDLER,
-                first, side.getOpposite());
-        if (direct != null) {
-            return List.of(endpoint(first, direct));
-        }
+        if (!level.isLoaded(first)) return new Discovery(List.of(), true);
+        final IGasHandler direct = level.getCapability(GasCapabilities.HANDLER, first, side.getOpposite());
+        if (direct != null) return new Discovery(List.of(endpoint(first, side.getOpposite(), direct)), true);
         if (!(level.getBlockState(first).getBlock() instanceof GasPipeBlock)) {
-            return List.of();
+            return new Discovery(List.of(), true);
         }
-
         final int maxDistance = Math.max(1, FluidPropagator.getPumpRange());
         final ArrayDeque<Node> queue = new ArrayDeque<>();
-        final Set<BlockPos> visited = new HashSet<>();
-        final Set<BlockPos> endpointPositions = new HashSet<>();
+        final Set<BlockPos> enqueued = new HashSet<>();
+        final Set<InventoryKey> inventories = new HashSet<>();
         final List<Endpoint> endpoints = new ArrayList<>();
+        enqueued.add(first.immutable());
         queue.add(new Node(first.immutable(), 1));
-
-        while (!queue.isEmpty() && visited.size() < MAX_VISITED_NODES) {
+        // Deduplicate on first discovery, but keep the budget on loaded, dequeued nodes.
+        int visitedNodes = 0;
+        while (!queue.isEmpty()) {
             final Node node = queue.removeFirst();
-            if (node.distance() > maxDistance || !visited.add(node.pos())
-                    || !level.isLoaded(node.pos())) {
-                continue;
-            }
+            if (node.distance() > maxDistance || !level.isLoaded(node.pos())) continue;
+            if (visitedNodes >= MAX_VISITED_NODES) return new Discovery(List.of(), false);
+            visitedNodes++;
             final BlockState pipeState = level.getBlockState(node.pos());
-            if (!(pipeState.getBlock() instanceof GasPipeBlock)) {
-                continue;
-            }
-
-            for (final Direction direction : Direction.values()) {
-                if (!GasPipeBlock.isOpenAt(pipeState, direction)) {
-                    continue;
-                }
+            if (!(pipeState.getBlock() instanceof GasPipeBlock)) continue;
+            for (final Direction direction : DIRECTIONS) {
+                if (!GasPipeBlock.isOpenAt(pipeState, direction)) continue;
                 final BlockPos adjacent = node.pos().relative(direction);
-                if (adjacent.equals(worldPosition) || !level.isLoaded(adjacent)) {
-                    continue;
-                }
+                if (adjacent.equals(worldPosition) || !level.isLoaded(adjacent)) continue;
                 final BlockState adjacentState = level.getBlockState(adjacent);
                 if (adjacentState.getBlock() instanceof GasPipeBlock) {
                     if (node.distance() < maxDistance
-                            && GasPipeBlock.isOpenAt(adjacentState,
-                            direction.getOpposite())) {
+                            && GasPipeBlock.isOpenAt(adjacentState, direction.getOpposite())
+                            && enqueued.add(adjacent.immutable())) {
                         queue.addLast(new Node(adjacent.immutable(), node.distance() + 1));
                     }
                     continue;
                 }
-                // Pumps separate pressure domains and are never endpoints.
-                if (adjacentState.getBlock() instanceof GasPumpBlock) {
-                    continue;
-                }
-                final IGasHandler handler = level.getCapability(
-                        GasCapabilities.HANDLER, adjacent, direction.getOpposite());
+                if (adjacentState.getBlock() instanceof GasPumpBlock) continue;
+                final IGasHandler handler = level.getCapability(GasCapabilities.HANDLER, adjacent, direction.getOpposite());
                 if (handler != null) {
-                    final Endpoint endpoint = endpoint(adjacent, handler);
-                    if (endpointPositions.add(endpoint.pos())) {
-                        endpoints.add(endpoint);
-                    }
+                    final Endpoint endpoint = endpoint(adjacent, direction.getOpposite(), handler);
+                    if (inventories.add(endpoint.inventory())) endpoints.add(endpoint);
                 }
             }
         }
-        return endpoints;
+        return new Discovery(endpoints, true);
     }
 
-    private Endpoint endpoint(final BlockPos pos, final IGasHandler handler) {
-        // Every segment of a gas tank exposes its controller's inventory.
-        // Use that inventory position both for discovery deduplication and
-        // to exclude loops from the pump outlet back into its own source.
-        final BlockPos inventoryPos = level.getBlockEntity(pos) instanceof GasTankBlockEntity tank
-                ? tank.getController() : pos;
-        return new Endpoint(inventoryPos.immutable(), handler);
+    private Endpoint endpoint(final BlockPos pos, final Direction side, final IGasHandler handler) {
+        // Only Create multiblock tank segments are known to share an inventory.
+        // Other machines may expose independent O2/H2/input/output inventories by face.
+        final InventoryKey inventory = level.getBlockEntity(pos) instanceof GasTankBlockEntity tank
+                ? new InventoryKey(tank.getController().immutable(), null)
+                : new InventoryKey(pos.immutable(), side);
+        return new Endpoint(inventory, handler);
     }
 
-    private record Node(BlockPos pos, int distance) {
+    @Override
+    protected void write(final CompoundTag tag, final HolderLookup.Provider registries, final boolean clientPacket) {
+        super.write(tag, registries, clientPacket);
+        tag.putDouble("TransferRemainder", transferRemainder);
+        if (!pendingTransfer.isEmpty()) tag.put("PendingGas", pendingTransfer.save(registries));
     }
 
-    private record Endpoint(BlockPos pos, IGasHandler handler) {
+    @Override
+    protected void read(final CompoundTag tag, final HolderLookup.Provider registries, final boolean clientPacket) {
+        super.read(tag, registries, clientPacket);
+        transferRemainder = tag.getDouble("TransferRemainder");
+        if (!Double.isFinite(transferRemainder)) transferRemainder = 0.0D;
+        transferRemainder -= Math.floor(transferRemainder);
+        pendingTransfer = FluidStack.parseOptional(registries, tag.getCompound("PendingGas"));
     }
+
+    private record Node(BlockPos pos, int distance) {}
+    private record InventoryKey(BlockPos pos, Direction side) {}
+    private record Endpoint(InventoryKey inventory, IGasHandler handler) {}
+    private record Discovery(List<Endpoint> endpoints, boolean complete) {}
 }

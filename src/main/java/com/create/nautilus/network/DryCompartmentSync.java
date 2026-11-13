@@ -37,35 +37,32 @@ public final class DryCompartmentSync {
                                              final long[] visualOcclusionCells) {
         Objects.requireNonNull(carrier, "carrier");
         final UUID carrierId = Objects.requireNonNull(carrier.getUniqueId(), "carrier UUID");
-        final long[] physical = normalize(physicalDryCells);
+        return syncNormalizedToTrackingPlayers(carrier, OcclusionCells.copyOf(physicalDryCells),
+                CompartmentVisualSync.isTopologyRejected(carrierId) ? OcclusionCells.empty()
+                        : OcclusionCells.copyOf(visualOcclusionCells));
+    }
+
+    /** Internal producers retain immutable, canonical masks instead of sorting them each tick. */
+    public static long syncNormalizedToTrackingPlayers(final ServerSubLevel carrier,
+                                                       final OcclusionCells physicalDryCells,
+                                                       final OcclusionCells visualOcclusionCells) {
+        Objects.requireNonNull(carrier, "carrier");
+        final UUID carrierId = Objects.requireNonNull(carrier.getUniqueId(), "carrier UUID");
+        final OcclusionCells physical = Objects.requireNonNull(physicalDryCells, "physicalDryCells");
+        final OcclusionCells visual = CompartmentVisualSync.isTopologyRejected(carrierId)
+                    ? OcclusionCells.empty()
+                    : Objects.requireNonNull(visualOcclusionCells, "visualOcclusionCells");
         final ServerSnapshot previous = CURRENT.get(carrierId);
-        final long revision = previous == null ? 1L
-                : Math.incrementExact(previous.payload().revision());
-
-        final DryCompartmentSnapshotPayload payload;
-        try {
-            payload = new DryCompartmentSnapshotPayload(
-                    carrierId, revision, CompartmentVisualSync.isTopologyRejected(carrierId)
-                    ? new long[0] : visualOcclusionCells);
-        } catch (final IllegalArgumentException exception) {
-            CreateNautilus.LOGGER.error("Refusing invalid compartment-occlusion snapshot for {}",
-                    carrierId, exception);
-            return previous == null ? 0L : previous.payload().revision();
-        }
-
         final Set<UUID> players = carrier.getTrackingPlayers().stream()
                 .collect(java.util.stream.Collectors.toUnmodifiableSet());
-        final long gameTime = carrier.getLevel().getGameTime();
-        final boolean sameVisual = previous != null && Arrays.equals(
-                previous.payload().dryCells(), payload.dryCells());
-        final boolean samePhysical = previous != null && Arrays.equals(
-                previous.physicalDryCells(), physical);
+        final boolean sameVisual = previous != null
+                && previous.payload().matchesNormalizedCells(visual.values());
+        final boolean samePhysical = previous != null
+                && previous.physicalDryCells().sameCells(physical);
 
         if (sameVisual) {
-            final boolean periodic = gameTime < previous.lastBroadcastTick()
-                    || gameTime - previous.lastBroadcastTick() >= 20L;
             for (final UUID playerId : players) {
-                if (periodic || !previous.trackingPlayers().contains(playerId)) {
+                if (!previous.trackingPlayers().contains(playerId)) {
                     sendTo(carrier, playerId, previous.payload());
                 }
             }
@@ -73,15 +70,30 @@ public final class DryCompartmentSync {
                     && previous.serverOcclusion() != null
                     ? previous.serverOcclusion()
                     : replaceServerOcclusion(carrier, physical, previous.serverOcclusion());
-            CURRENT.put(carrierId, new ServerSnapshot(previous.payload(), physical, region,
-                    players, periodic ? gameTime : previous.lastBroadcastTick()));
+            if (!samePhysical || region != previous.serverOcclusion()
+                    || !players.equals(previous.trackingPlayers())) {
+                CURRENT.put(carrierId, new ServerSnapshot(previous.payload(), physical, region,
+                        players));
+            }
             return previous.payload().revision();
         }
 
-        final OcclusionRegistration region = replaceServerOcclusion(carrier, physical,
-                previous == null ? null : previous.serverOcclusion());
-        CURRENT.put(carrierId, new ServerSnapshot(payload, physical, region,
-                players, gameTime));
+        final long revision = previous == null ? 1L
+                : Math.incrementExact(previous.payload().revision());
+        final DryCompartmentSnapshotPayload payload;
+        try {
+            payload = new DryCompartmentSnapshotPayload(carrierId, revision, visual.values());
+        } catch (final IllegalArgumentException exception) {
+            CreateNautilus.LOGGER.error("Refusing invalid compartment-occlusion snapshot for {}",
+                    carrierId, exception);
+            return previous == null ? 0L : previous.payload().revision();
+        }
+        // Waterline/rendering changes do not alter the server's physical cell mask.
+        final OcclusionRegistration region = samePhysical && previous.serverOcclusion() != null
+                ? previous.serverOcclusion()
+                : replaceServerOcclusion(carrier, physical,
+                        previous == null ? null : previous.serverOcclusion());
+        CURRENT.put(carrierId, new ServerSnapshot(payload, physical, region, players));
         for (final UUID playerId : players) {
             sendTo(carrier, playerId, payload);
         }
@@ -100,8 +112,19 @@ public final class DryCompartmentSync {
             players.add(player.getUUID());
             CURRENT.put(carrierId, new ServerSnapshot(snapshot.payload(),
                     snapshot.physicalDryCells(), snapshot.serverOcclusion(),
-                    Set.copyOf(players), snapshot.lastBroadcastTick()));
+                    Set.copyOf(players)));
         }
+    }
+
+    /** The same UUID can return with an empty client cache after respawn or dimension travel. */
+    public static void forgetPlayer(final UUID playerId) {
+        CURRENT.replaceAll((carrierId, previous) -> {
+            if (!previous.trackingPlayers().contains(playerId)) return previous;
+            final Set<UUID> retained = new HashSet<>(previous.trackingPlayers());
+            retained.remove(playerId);
+            return new ServerSnapshot(previous.payload(), previous.physicalDryCells(),
+                    previous.serverOcclusion(), Set.copyOf(retained));
+        });
     }
 
     public static void forget(final UUID carrierId) {
@@ -124,14 +147,14 @@ public final class DryCompartmentSync {
     }
 
     private static OcclusionRegistration replaceServerOcclusion(
-            final ServerSubLevel carrier, final long[] physicalDryCells,
+            final ServerSubLevel carrier, final OcclusionCells physicalDryCells,
             final OcclusionRegistration previous) {
         if (previous != null) {
             previous.container().removeRegion(previous.region());
         }
         final WaterOcclusionContainer<?> container =
                 WaterOcclusionContainer.getContainer(carrier.getLevel());
-        final BoundedBitVolume3i volume = toVolume(physicalDryCells);
+        final BoundedBitVolume3i volume = toVolume(physicalDryCells.values());
         if (container == null || volume == null) {
             return null;
         }
@@ -146,21 +169,6 @@ public final class DryCompartmentSync {
         return BoundedBitVolume3i.fromBlocks(positions);
     }
 
-    private static long[] normalize(final long[] cells) {
-        final long[] copy = Objects.requireNonNull(cells, "cells").clone();
-        Arrays.sort(copy);
-        if (copy.length < 2) {
-            return copy;
-        }
-        int size = 1;
-        for (int i = 1; i < copy.length; i++) {
-            if (copy[i] != copy[size - 1]) {
-                copy[size++] = copy[i];
-            }
-        }
-        return size == copy.length ? copy : Arrays.copyOf(copy, size);
-    }
-
     private static void sendTo(final ServerSubLevel carrier, final UUID playerId,
                                final DryCompartmentSnapshotPayload payload) {
         if (carrier.getLevel().getPlayerByUUID(playerId) instanceof ServerPlayer player) {
@@ -173,17 +181,9 @@ public final class DryCompartmentSync {
     }
 
     private record ServerSnapshot(DryCompartmentSnapshotPayload payload,
-                                  long[] physicalDryCells,
+                                  OcclusionCells physicalDryCells,
                                   OcclusionRegistration serverOcclusion,
-                                  Set<UUID> trackingPlayers,
-                                  long lastBroadcastTick) {
-        private ServerSnapshot {
-            physicalDryCells = physicalDryCells.clone();
-        }
-
-        @Override
-        public long[] physicalDryCells() {
-            return physicalDryCells.clone();
-        }
+                                  Set<UUID> trackingPlayers) {
+        // The immutable physical mask can be retained directly across sync and tracking changes.
     }
 }

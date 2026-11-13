@@ -43,6 +43,16 @@ public final class PressureRegulatorBlockEntity extends SmartBlockEntity
                 (be, side) -> be.gasHandler(side));
     }
 
+    /** Sided capability results (including null) depend on the current facing. */
+    @Override
+    public void setBlockState(final BlockState state) {
+        final BlockState previous = getBlockState();
+        super.setBlockState(state);
+        if (previous.getValue(PressureRegulatorBlock.FACING) != state.getValue(PressureRegulatorBlock.FACING)) {
+            invalidateCapabilities();
+        }
+    }
+
     @Override
     public void addBehaviours(final List<BlockEntityBehaviour> behaviours) {
         input = new SmartFluidTankBehaviour(SmartFluidTankBehaviour.INPUT,

@@ -6,6 +6,7 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import dev.ryanhcode.sable.SableClient;
 import dev.ryanhcode.sable.api.sublevel.SubLevelContainer;
 import dev.ryanhcode.sable.render.water_occlusion.WaterOcclusionRenderer;
+import dev.ryanhcode.sable.sublevel.water_occlusion.WaterOcclusionContainer;
 import dev.ryanhcode.sable.sublevel.ClientSubLevel;
 import foundry.veil.api.client.render.framebuffer.AdvancedFbo;
 import foundry.veil.api.client.render.framebuffer.AdvancedFboTextureAttachment;
@@ -40,10 +41,10 @@ import java.util.concurrent.ConcurrentMap;
  * Binds the exact compartment voxel atlas, or Sable's entry/exit depth textures, to an active
  * Sodium terrain program.
  *
- * <p>Iris water programs use a camera-relative per-fragment lookup in
- * {@link ShaderVoxelMaskAtlas}. Plain Sodium keeps Sable's close/far depth-mask path as its
- * established no-shader baseline. Both bindings are scoped to the parent-world translucent draw
- * and are restored before another transparent producer is submitted.</p>
+ * <p>Both terrain paths use a camera-relative per-fragment lookup in
+ * {@link ShaderVoxelMaskAtlas}. Native Sodium also retains Sable's close/far masks for regions
+ * outside the Nautilus atlas. Both bindings are scoped to the parent-world translucent draw and
+ * are restored before another transparent producer is submitted.</p>
  */
 public final class SodiumWaterOcclusionShaderBridge {
     /** OpenGL's depth-clamp capability; Sable enables it while drawing its hull-depth meshes. */
@@ -54,6 +55,9 @@ public final class SodiumWaterOcclusionShaderBridge {
     private static final Method IRIS_SHADOW_QUERY = findIrisShadowQuery();
     private static BindingState activeBinding;
     private static VoxelBindingState activeVoxelBinding;
+    private static volatile boolean plainDepthBuffersPrepared;
+    /** True when no registered region was delegated exclusively to the atlas for this draw. */
+    private static volatile boolean plainDepthBuffersComplete;
     private static boolean failureLogged;
     private static boolean activationLogged;
     private static boolean missingUniformLogged;
@@ -73,15 +77,12 @@ public final class SodiumWaterOcclusionShaderBridge {
      */
     private static final ConcurrentMap<TextureUnitCacheKey, Integer>
             VOXEL_TEXTURE_UNIT_CACHE = new ConcurrentHashMap<>();
+    private static final ConcurrentMap<TextureUnitCacheKey, Integer>
+            PLAIN_VOXEL_TEXTURE_UNIT_CACHE = new ConcurrentHashMap<>();
     private static volatile int voxelTextureUnitPipelineGeneration = 1;
     private static String liveProjectionSource = "unavailable";
     private static String liveModelViewSource = "unavailable";
-    /*
-     * The water pass's real matrices only become current when Sodium binds the pass (begin()).
-     * Rebuilding the masks inside begin() corrupted Iris's framebuffer/state (whole-ocean black),
-     * so the matrices are merely recorded there and the next frame's HEAD rebuild uses them. The
-     * projection is frame-constant; the one-frame camera lag is imperceptible at normal speeds.
-     */
+    /** Historical composite-only accessors retain the last draw; active masks use draw inputs. */
     private static final Matrix4f LAST_WATER_MODEL_VIEW = new Matrix4f();
     private static final Matrix4f LAST_WATER_PROJECTION = new Matrix4f();
     private static boolean lastWaterMatricesValid;
@@ -94,22 +95,14 @@ public final class SodiumWaterOcclusionShaderBridge {
     private SodiumWaterOcclusionShaderBridge() {
     }
 
-    /**
-     * Builds Sable's close/far hull depth textures at Sable's native pre-translucent frame stage.
-     *
-     * <p>Sable 2.0.3 deliberately disables its vanilla LevelRenderer water-occlusion mixin when
-     * Sodium is installed, but its Sodium renderer does not provide an equivalent call to
-     * {@link WaterOcclusionRenderer#preRenderTranslucent(Matrix4f, Matrix4f)}. Binding the two
-     * textures without this step therefore only binds null/stale framebuffers. This method fills
-     * that missing integration point from {@code LevelRenderer.renderLevel}, at the same call site
-     * used by Sable's vanilla branch. The later Sodium hook only binds these completed textures to
-     * the active translucent program.</p>
-     */
+    /** Freezes the exact atlas and any native Sable depth masks for this translucent draw. */
     public static boolean prepareDepthBuffers(final Matrix4f modelView,
                                                final Matrix4f projection,
                                                final double cameraX,
                                                final double cameraY,
                                                final double cameraZ) {
+        plainDepthBuffersPrepared = false;
+        plainDepthBuffersComplete = false;
         if (!headModelViewLogged) {
             headModelViewLogged = true;
             CreateNautilus.LOGGER.info(
@@ -118,29 +111,20 @@ public final class SodiumWaterOcclusionShaderBridge {
                     modelView.m30(), modelView.m31(), modelView.m32(),
                     modelView.m02(), modelView.m12(), modelView.m22());
         }
-        /* Iris uses the exact voxel atlas. Never build Sable's FBOs under a pack: Iris redirects
-         * those draws into pack-owned targets. update() runs on the render thread at this exact
-         * parent-world translucent stage and restores every GL binding it touches. */
-        if (WaterOcclusionPassBridge.isShaderPackActive()) {
-            try {
-                ShaderVoxelMaskAtlas.update(cameraX, cameraY, cameraZ);
-            } catch (final RuntimeException | LinkageError exception) {
-                logFailureOnce("Unable to update exact compartment voxel atlas", exception);
-            }
-            return true;
+        boolean atlasReady = false;
+        try {
+            ShaderVoxelMaskAtlas.update(cameraX, cameraY, cameraZ);
+            atlasReady = ShaderVoxelMaskAtlas.isReady();
+        } catch (final RuntimeException | LinkageError exception) {
+            ShaderVoxelMaskAtlas.discardPreparedFrame();
+            logFailureOnce("Unable to update exact compartment voxel atlas", exception);
         }
-        /*
-         * Prefer the water program's captured matrices when available. Both these uniforms and
-         * drawChunkLayer's fallback operate on camera-relative positions; their translation may
-         * contain view effects, but is not the absolute world-camera offset. Mask vertices already
-         * subtract the camera, so consumers must neither add it back nor strip view translation.
-         */
-        final Matrix4f activeModelView = lastWaterMatricesValid
-                ? new Matrix4f(LAST_WATER_MODEL_VIEW)
-                : new Matrix4f(modelView);
-        final Matrix4f activeProjection = lastWaterMatricesValid
-                ? new Matrix4f(LAST_WATER_PROJECTION)
-                : new Matrix4f(projection);
+        // Never build Sable's FBOs under a pack: Iris redirects those draws into pack targets.
+        if (WaterOcclusionPassBridge.isShaderPackActive()) return true;
+        // drawChunkLayer HEAD supplies this exact draw's matrices before Sodium uploads them.
+        // A prior program's uniforms may still be bound here and must not select the mask pose.
+        final Matrix4f activeModelView = new Matrix4f(modelView);
+        final Matrix4f activeProjection = new Matrix4f(projection);
         if (!projectionLogged) {
             projectionLogged = true;
             CreateNautilus.LOGGER.info(
@@ -150,10 +134,32 @@ public final class SodiumWaterOcclusionShaderBridge {
         if (!SodiumOcclusionShaderSource.isSafeToUseCustomOcclusion()) {
             return false;
         }
+        return preparePlainDepthBuffers(activeModelView, activeProjection, atlasReady) || atlasReady;
+    }
+
+    /** The same state sandbox serves initial external depths and a failed-atlas full fallback. */
+    private static boolean preparePlainDepthBuffers(final Matrix4f activeModelView,
+                                                    final Matrix4f activeProjection,
+                                                    boolean externalOnly) {
+        plainDepthBuffersPrepared = false;
+        plainDepthBuffersComplete = false;
         try {
             if (isIrisShadowPass() || !WaterOcclusionRenderer.isEnabled()) {
                 return true;
             }
+            try {
+                if (!ContinuousCompartmentOcclusionRegion.hasExternalRegistered()
+                        && (externalOnly || !ClientDryCompartmentCache.hasOcclusionRegions())) {
+                    plainDepthBuffersComplete = !externalOnly
+                            || !ClientDryCompartmentCache.hasOcclusionRegions();
+                    return true;
+                }
+            } catch (final ReflectiveOperationException | RuntimeException | LinkageError exception) {
+                externalOnly = false;
+                logFailureOnce("Unable to identify external Sable regions; retaining complete depth masks",
+                        exception);
+            }
+            if (FRAMEBUFFERS == null) return false;
             final WaterOcclusionRenderer renderer = SableClient.WATER_OCCLUSION_RENDERER;
 
             final RenderPassState state = captureRenderPassState();
@@ -201,8 +207,19 @@ public final class SodiumWaterOcclusionShaderBridge {
                     renderer.preRenderTranslucent(
                             new Matrix4f(activeModelView), new Matrix4f(activeProjection));
                 }
-                rebuildOcclusionDepths(
-                        new Matrix4f(activeModelView), new Matrix4f(activeProjection));
+                try {
+                    plainDepthBuffersPrepared = rebuildOcclusionDepths(
+                            new Matrix4f(activeModelView), new Matrix4f(activeProjection), externalOnly);
+                } catch (final ReflectiveOperationException | RuntimeException | LinkageError exception) {
+                    if (!externalOnly) throw exception;
+                    // An unavailable logical/render identity must not drop stock or other-mod regions.
+                    logFailureOnce("Unable to filter external Sable regions; retaining complete depth masks",
+                            exception);
+                    externalOnly = false;
+                    plainDepthBuffersPrepared = rebuildOcclusionDepths(
+                            new Matrix4f(activeModelView), new Matrix4f(activeProjection), false);
+                }
+                plainDepthBuffersComplete = plainDepthBuffersPrepared && !externalOnly;
             } finally {
                 restoreRenderPassState(state);
             }
@@ -210,6 +227,8 @@ public final class SodiumWaterOcclusionShaderBridge {
         } catch (final ReflectiveOperationException | RuntimeException | LinkageError exception) {
             logFailureOnce("Unable to prepare compartment water-occlusion resources for Sodium",
                     exception);
+            plainDepthBuffersPrepared = false;
+            plainDepthBuffersComplete = false;
             return false;
         }
     }
@@ -253,7 +272,9 @@ public final class SodiumWaterOcclusionShaderBridge {
         }
         final int enabled = GL20C.glGetUniformLocation(program,
                 SodiumOcclusionShaderSource.ENABLE_UNIFORM);
-        if (enabled < 0) {
+        final boolean irisShaderPack = WaterOcclusionPassBridge.isShaderPackActive();
+        if (enabled < 0 && (irisShaderPack || GL20C.glGetUniformLocation(program,
+                SodiumOcclusionShaderSource.DEPTH_ACTIVE_UNIFORM) < 0)) {
             if (!missingUniformLogged) {
                 missingUniformLogged = true;
                 CreateNautilus.LOGGER.warn(
@@ -263,10 +284,9 @@ public final class SodiumWaterOcclusionShaderBridge {
             }
             return false;
         }
-        final boolean irisShaderPack = WaterOcclusionPassBridge.isShaderPackActive();
         final Matrix4f waterModelView;
         final Matrix4f waterProjection;
-        if (irisShaderPack) {
+        if (drawModelView != null && drawProjection != null) {
             /*
              * DefaultChunkRenderer uploads ChunkRenderMatrices after ShaderChunkRenderer.begin
              * returns. Reading iris_* here would therefore observe the previous draw. The values
@@ -299,14 +319,12 @@ public final class SodiumWaterOcclusionShaderBridge {
             GL11C.glGetFloatv(GL11C.GL_DEPTH_RANGE, depthRange);
             waterDepthNear = depthRange.get(0);
             waterDepthFar = depthRange.get(1);
-            if (irisShaderPack) {
-                final IntBuffer viewport = stack.mallocInt(4);
-                GL11C.glGetIntegerv(GL11C.GL_VIEWPORT, viewport);
-                waterViewportX = viewport.get(0);
-                waterViewportY = viewport.get(1);
-                waterViewportWidth = viewport.get(2);
-                waterViewportHeight = viewport.get(3);
-            }
+            final IntBuffer viewport = stack.mallocInt(4);
+            GL11C.glGetIntegerv(GL11C.GL_VIEWPORT, viewport);
+            waterViewportX = viewport.get(0);
+            waterViewportY = viewport.get(1);
+            waterViewportWidth = viewport.get(2);
+            waterViewportHeight = viewport.get(3);
         }
         waterDepthReversed = waterDepthNear > waterDepthFar;
         if (!depthRangeLogged) {
@@ -326,21 +344,14 @@ public final class SodiumWaterOcclusionShaderBridge {
         }
 
         try {
+            activeVoxelBinding = new VoxelBindingState(program, enabled);
+            GL20C.glUniform1f(enabled, 0.0F);
+            setDepthActiveUniform(program, 0.0F);
+            setVirtualWaterPassUniform(program, 0.0F);
             if (!WaterOcclusionRenderer.isEnabled()) {
-                GL20C.glUniform1f(enabled, 0.0F);
                 return true;
             }
-            if (!irisShaderPack && !isOcclusionRelevant()) {
-                /*
-                 * Keep the fragment shader's two depth samples dormant while no compartment is
-                 * anywhere near the camera. The mask only removes ocean inside a dry hull, which
-                 * cannot be visible from more than a few hundred blocks away.
-                 */
-                GL20C.glUniform1f(enabled, 0.0F);
-                return true;
-            }
-            /* Iris programs carry the exact voxel atlas; plain Sodium carries Sable's close/far
-             * samplers as the unchanged no-shader baseline. */
+            // Both programs carry the atlas. Only native Sodium also consumes external-region depths.
             final boolean voxelPath = GL20C.glGetUniformLocation(program,
                     SodiumOcclusionShaderSource.VOXEL_ATLAS_UNIFORM) >= 0;
             final boolean depthPath = GL20C.glGetUniformLocation(program,
@@ -390,35 +401,51 @@ public final class SodiumWaterOcclusionShaderBridge {
                 logOcclusionPath("disabled (voxel atlas unavailable)");
                 return true;
             }
-            if (depthPath) {
-                /*
-                 * No shader pack: Sable's own close/far masks are the working baseline and are
-                 * not subject to Iris interception.
-                 */
-                if (bindDepthTexturePath(program, enabled)) {
-                    setDepthActiveUniform(program, 1.0F);
-                    if (!activationLogged) {
-                        activationLogged = true;
-                        CreateNautilus.LOGGER.info(
-                                "Continuous dry-compartment water occlusion is active "
-                                        + "(depth-texture path, program={})",
-                                program);
+            boolean atlasBound = false;
+            if (voxelPath && enabled >= 0 && waterModelView != null && waterProjection != null) {
+                try {
+                    // A linked atlas sampler does not prove that a source preprocessor left a
+                    // usable camera-relative vertex capture. Only recognized captures publish
+                    // the ready uniform; otherwise retain the complete depth-mask fallback.
+                    final boolean positionReady = uploadVoxelFrameUniforms(program);
+                    final int textureUnit = positionReady
+                            ? cachedUnusedPlainTextureUnit(program) : -1;
+                    if (textureUnit >= 0 && ShaderVoxelMaskAtlas.upload(
+                            program, textureUnit, cameraX, cameraY, cameraZ,
+                            waterModelView, waterProjection,
+                            waterViewportX, waterViewportY, waterViewportWidth, waterViewportHeight,
+                            true)) {
+                        GL20C.glUniform1f(enabled, 1.0F);
+                        atlasBound = true;
                     }
-                    return true;
+                } catch (final RuntimeException | LinkageError exception) {
+                    ShaderVoxelMaskAtlas.restoreBinding();
+                    GL20C.glUniform1f(enabled, 0.0F);
+                    logFailureOnce("Unable to bind native compartment atlas; external depth masks remain available",
+                            exception);
                 }
             }
-            if (!missingUniformLogged) {
-                missingUniformLogged = true;
-                CreateNautilus.LOGGER.warn(
-                        "[occlusion] current program {} has no Nautilus uniforms; "
-                                + "fragment occlusion cannot run in this pass",
-                        program);
+            // Atlas layout readiness precedes the linked-program upload. If that upload cannot
+            // run, restore the omitted own regions before advertising a native depth fallback.
+            if (depthPath && !atlasBound && !plainDepthBuffersComplete
+                    && waterModelView != null && waterProjection != null) {
+                preparePlainDepthBuffers(waterModelView, waterProjection, false);
             }
-            GL20C.glUniform1f(enabled, 0.0F);
-            return false;
+            final boolean depthBound = depthPath && plainDepthBuffersPrepared
+                    && bindDepthTexturePath(program, enabled);
+            if (depthBound) setDepthActiveUniform(program, 1.0F);
+            logOcclusionPath(atlasBound
+                    ? depthBound ? "native-exact-atlas+external-depth" : "native-exact-atlas"
+                    : depthBound ? "native-depth-fallback" : "disabled (native atlas/depth unavailable)");
+            if (!activationLogged && (atlasBound || depthBound)) {
+                activationLogged = true;
+                CreateNautilus.LOGGER.info(
+                        "Continuous compartment water occlusion is active "
+                                + "(native atlas={}, depth={}, program={})", atlasBound, depthBound, program);
+            }
+            return true;
         } catch (final RuntimeException | LinkageError exception) {
-            ShaderVoxelMaskAtlas.restoreBinding();
-            GL20C.glUniform1f(enabled, 0.0F);
+            end();
             logFailureOnce("Unable to bind compartment water-occlusion resources to Sodium",
                     exception);
             return false;
@@ -600,8 +627,9 @@ public final class SodiumWaterOcclusionShaderBridge {
     }
 
     /**
-     * Enables the pack-specific physical-position varying. Each adapter anchors its wave delta to
-     * Sodium's {@code getVertexPosition()}, so no projection or model-view inverse is needed here.
+     * Enables a recognized camera-relative position capture. Native Sodium captures its draw
+     * position; pack adapters also anchor their wave delta to Sodium's vertex position. Neither
+     * path needs a projection or model-view inverse here.
      */
     private static boolean uploadVoxelFrameUniforms(final int program) {
         final int readyLocation = GL20C.glGetUniformLocation(program,
@@ -805,7 +833,6 @@ public final class SodiumWaterOcclusionShaderBridge {
                 GL20C.glUniform1f(rangeBias, depthRangeBias);
             }
             setVirtualWaterPassUniform(program, 0.0F);
-            GL20C.glUniform1f(enabled, 1.0F);
             activeBinding = binding;
             return true;
         } catch (final RuntimeException | LinkageError exception) {
@@ -913,7 +940,8 @@ public final class SodiumWaterOcclusionShaderBridge {
                                 .put((float) ((bounds.maxY - bounds.minY) * 0.5D * scaleY))
                                 .put((float) ((bounds.maxZ - bounds.minZ) * 0.5D * scaleZ));
                         if (room.waterFraction() > 1.0E-5D) {
-                            waterLevel.put((float) CompartmentWaterGeometry.surfaceY(
+                            waterLevel.put((float) ClientWaterDiagnostics.surfaceY(
+                                    carrier.getUniqueId(), room.id(), room.topologyRevision(),
                                     carrier.renderPose(), room.cells(), room.bounds(),
                                     room.waterFraction()));
                         } else {
@@ -1001,6 +1029,9 @@ public final class SodiumWaterOcclusionShaderBridge {
      * Render-pass bindings are always restored by {@link #end()} on the render thread.</p>
      */
     public static void onPipelineReset() {
+        invalidateWaterMatrices();
+        plainDepthBuffersPrepared = false;
+        plainDepthBuffersComplete = false;
         failureLogged = false;
         activationLogged = false;
         liveMatrixSourcesLogged = false;
@@ -1010,7 +1041,13 @@ public final class SodiumWaterOcclusionShaderBridge {
         voxelTextureUnitPipelineGeneration = nextTextureUnitGeneration > 0
                 ? nextTextureUnitGeneration : 1;
         VOXEL_TEXTURE_UNIT_CACHE.clear();
+        PLAIN_VOXEL_TEXTURE_UNIT_CACHE.clear();
         SodiumOcclusionShaderSource.onPipelineReset();
+    }
+
+    /** No GL work: a new level or pipeline must never inherit a previous draw's matrix cache. */
+    public static void invalidateWaterMatrices() {
+        lastWaterMatricesValid = false;
     }
 
     /**
@@ -1103,8 +1140,29 @@ public final class SodiumWaterOcclusionShaderBridge {
         return raced == null ? resolved : raced;
     }
 
+    /** Native atlas and legacy external depths coexist; reserve their fixed sampler units. */
+    private static int cachedUnusedPlainTextureUnit(final int program) {
+        if (program <= 0) return -1;
+        final int pipelineGeneration = voxelTextureUnitPipelineGeneration;
+        final TextureUnitCacheKey key = new TextureUnitCacheKey(program, pipelineGeneration);
+        final Integer cached = PLAIN_VOXEL_TEXTURE_UNIT_CACHE.get(key);
+        if (cached != null) return cached;
+        if (!GL20C.glIsProgram(program)
+                || GL20C.glGetProgrami(program, GL20C.GL_LINK_STATUS) != GL11C.GL_TRUE) {
+            return -1;
+        }
+        final int resolved = findUnusedTextureUnit(program, true);
+        if (pipelineGeneration != voxelTextureUnitPipelineGeneration) return -1;
+        final Integer raced = PLAIN_VOXEL_TEXTURE_UNIT_CACHE.putIfAbsent(key, resolved);
+        return raced == null ? resolved : raced;
+    }
+
     /** Finds one unit not sampled by the active pack; absence disables clipping for this draw. */
     private static int findUnusedTextureUnit(final int program) {
+        return findUnusedTextureUnit(program, false);
+    }
+
+    private static int findUnusedTextureUnit(final int program, final boolean reservePlainDepthUnits) {
         final int maximum = GL11C.glGetInteger(GL20C.GL_MAX_TEXTURE_IMAGE_UNITS);
         if (maximum < 1) {
             return -1;
@@ -1136,6 +1194,7 @@ public final class SodiumWaterOcclusionShaderBridge {
             }
         }
         for (int unit = maximum - 1; unit >= 0; unit--) {
+            if (reservePlainDepthUnits && (unit == 13 || unit == 14)) continue;
             if (!used[unit]) {
                 return unit;
             }
@@ -1164,7 +1223,9 @@ public final class SodiumWaterOcclusionShaderBridge {
             if (currentProgram != binding.program()) {
                 GL20C.glUseProgram(binding.program());
             }
-            GL20C.glUniform1f(binding.enabledUniform(), 0.0F);
+            // A failed depth bind must not disable an independently successful atlas bind.
+            setDepthActiveUniform(binding.program(), 0.0F);
+            setVirtualWaterPassUniform(binding.program(), 0.0F);
             if (currentProgram != binding.program()) {
                 GL20C.glUseProgram(currentProgram);
             }
@@ -1190,6 +1251,7 @@ public final class SodiumWaterOcclusionShaderBridge {
             GL20C.glUseProgram(binding.program());
         }
         GL20C.glUniform1f(binding.enabledUniform(), 0.0F);
+        setDepthActiveUniform(binding.program(), 0.0F);
         setVirtualWaterPassUniform(binding.program(), 0.0F);
         if (currentProgram != binding.program()) {
             GL20C.glUseProgram(currentProgram);
@@ -1199,15 +1261,16 @@ public final class SodiumWaterOcclusionShaderBridge {
     /**
      * Rebuilds Sable's close/far hull-depth textures with Sable's native cull-face semantics.
      *
-     * <p>Close buffer (cull back, clear 1.0 outside / 0.0 inside) stores the nearest outward
-     * face; far buffer (cull front, clear 1.0) stores the farthest outward face. A parent-ocean
+     * <p>Close buffer (cull back, clear 1.0 outside / 0.0 inside) stores the nearest front-facing
+     * face; far buffer (cull front, clear 1.0) stores the nearest back-facing face. A parent-ocean
      * fragment whose window depth lies strictly between them is geometrically inside the sealed
-     * dry volume and is discarded by the shader. Depth clamp stays off so walls behind the camera
-     * are clipped instead of writing a bogus near-plane value into the far buffer.</p>
+     * dry interval and is discarded by the shader. This retains Sable's depth-clamp setting; the
+     * surrounding sandbox restores the complete incoming state after the helper passes.</p>
      */
-    private static void rebuildOcclusionDepths(
+    private static boolean rebuildOcclusionDepths(
             final Matrix4f modelView,
-            final Matrix4f projection)
+            final Matrix4f projection,
+            final boolean externalOnly)
             throws ReflectiveOperationException {
         final long now = System.nanoTime();
         if (now - projectionLogNanos > 5_000_000_000L) {
@@ -1217,13 +1280,13 @@ public final class SodiumWaterOcclusionShaderBridge {
                     projection.m22(), projection.m23());
         }
         if (FRAMEBUFFERS == null) {
-            return;
+            return false;
         }
         final WaterOcclusionRenderer renderer = SableClient.WATER_OCCLUSION_RENDERER;
         final AdvancedFbo close = (AdvancedFbo) FRAMEBUFFERS.close().get(renderer);
         final AdvancedFbo far = (AdvancedFbo) FRAMEBUFFERS.far().get(renderer);
         if (close == null || far == null) {
-            return;
+            return false;
         }
 
         final RenderPassState state = captureRenderPassState();
@@ -1246,32 +1309,44 @@ public final class SodiumWaterOcclusionShaderBridge {
             RenderSystem.setShader(net.minecraft.client.renderer.GameRenderer::getPositionShader);
 
             final var camera = Minecraft.getInstance().gameRenderer.getMainCamera();
-            final boolean cameraInside = ClientDryCompartmentCache
-                    .isCameraInsideRegisteredDryRegion(camera.getPosition());
+            final WaterOcclusionContainer<?> occlusionContainer = WaterOcclusionContainer
+                    .getContainer(Minecraft.getInstance().level);
+            final boolean cameraInside = occlusionContainer != null && (externalOnly
+                    ? ClientDryCompartmentCache.isCameraOccludedByExternalRegions(
+                            occlusionContainer, camera.getPosition())
+                    : ClientDryCompartmentCache.isCameraOccludedForPlainRender(
+                            occlusionContainer, camera.getPosition()));
 
             // Close buffer: nearest outward face.  Inside a sealed room no face can pass a 0.0
             // clear, leaving the near plane -- exactly Sable's intended camera-inside state.
             close.bind(true);
             GL11C.glClearDepth(cameraInside ? 0.0D : 1.0D);
             GL11C.glClear(GL11C.GL_DEPTH_BUFFER_BIT);
-            ContinuousCompartmentOcclusionRegion.renderAllRegistered(
-                    modelView, projection);
+            if (externalOnly) {
+                ContinuousCompartmentOcclusionRegion.renderExternalRegistered(modelView, projection);
+            } else {
+                ContinuousCompartmentOcclusionRegion.renderAllRegistered(modelView, projection);
+            }
 
-            // Far buffer: farthest outward face.  Front-face culling keeps only the far wall
+            // Far buffer: nearest back-facing face. Front-face culling keeps the first exit wall
             // outside the room; from inside it keeps the wall in front of the camera (its back
             // face), so ocean beyond the hull is never mistaken for cabin water.
             far.bind(true);
             GL11C.glClearDepth(1.0D);
             GL11C.glClear(GL11C.GL_DEPTH_BUFFER_BIT);
             GL11C.glCullFace(GL11C.GL_FRONT);
-            ContinuousCompartmentOcclusionRegion.renderAllRegistered(
-                    modelView, projection);
+            if (externalOnly) {
+                ContinuousCompartmentOcclusionRegion.renderExternalRegistered(modelView, projection);
+            } else {
+                ContinuousCompartmentOcclusionRegion.renderAllRegistered(modelView, projection);
+            }
         } finally {
             RenderSystem.depthFunc(GL11C.GL_LEQUAL);
             GL11C.glDepthFunc(GL11C.GL_LEQUAL);
             AdvancedFbo.unbind();
             restoreRenderPassState(state);
         }
+        return true;
     }
 
     private static RenderPassState captureRenderPassState() {
@@ -1437,7 +1512,7 @@ public final class SodiumWaterOcclusionShaderBridge {
     }
 
     /** Iris reuses Sodium chunk programs for shadow maps, where Sable's camera-depth FBOs do not apply. */
-    private static boolean isIrisShadowPass() {
+    static boolean isIrisShadowPass() {
         if (IRIS_SHADOW_QUERY == null) {
             return false;
         }

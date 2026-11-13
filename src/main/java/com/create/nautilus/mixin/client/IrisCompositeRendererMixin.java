@@ -2,13 +2,16 @@ package com.create.nautilus.mixin.client;
 
 import com.create.nautilus.CreateNautilus;
 import com.create.nautilus.client.render.IrisCompositeShaderSource;
+import com.create.nautilus.client.render.ClientFrameDiagnostics;
 import net.irisshaders.iris.gl.program.Program;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Pseudo;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.ModifyArgs;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import org.spongepowered.asm.mixin.injection.invoke.arg.Args;
 
 /**
@@ -24,6 +27,18 @@ import org.spongepowered.asm.mixin.injection.invoke.arg.Args;
 @Pseudo
 @Mixin(targets = "net.irisshaders.iris.pipeline.CompositeRenderer", remap = false)
 public abstract class IrisCompositeRendererMixin {
+    @Unique private ClientFrameDiagnostics.Stage createNautilus$frameDiagnosticStage;
+
+    @Inject(method = "createProgram", at = @At("HEAD"), require = 0)
+    private void createNautilus$beginProgramDiagnostics(final CallbackInfoReturnable<Program> callback) {
+        createNautilus$frameDiagnosticStage = null;
+    }
+
+    @Inject(method = "createProgram", at = @At("RETURN"), require = 0)
+    private void createNautilus$registerProgramDiagnostics(final CallbackInfoReturnable<Program> callback) {
+        ClientFrameDiagnostics.registerPhotonProgram(callback.getReturnValue(), createNautilus$frameDiagnosticStage);
+    }
+
     @ModifyArgs(method = "createProgram", at = @At(value = "INVOKE",
             target = "Lnet/irisshaders/iris/pipeline/transform/TransformPatcher;"
                     + "patchComposite(Ljava/lang/String;Ljava/lang/String;"
@@ -35,11 +50,25 @@ public abstract class IrisCompositeRendererMixin {
         final String name = args.get(0);
         if (!IrisCompositeShaderSource.isCandidateProgram(name)) return;
         final String source = args.get(3);
+        createNautilus$frameDiagnosticStage = ClientFrameDiagnostics.photonStage(source);
         final String patched = IrisCompositeShaderSource.patchFragment(source, name);
         if (patched.equals(source)) return;
         args.set(3, patched);
         CreateNautilus.LOGGER.info(
                 "[water-boundary] patched pre-transform Iris fragment program: {}", name);
+    }
+
+    @Inject(method = "renderAll()V", at = @At(value = "INVOKE",
+            target = "Lnet/irisshaders/iris/pathways/FullScreenQuadRenderer;renderQuad()V"), require = 0)
+    private void createNautilus$beforeActualPhotonDraw(final CallbackInfo callback) {
+        ClientFrameDiagnostics.beginPhotonDraw();
+    }
+
+    @Inject(method = "renderAll()V", at = @At(value = "INVOKE",
+            target = "Lnet/irisshaders/iris/pathways/FullScreenQuadRenderer;renderQuad()V",
+            shift = At.Shift.AFTER), require = 0)
+    private void createNautilus$afterActualPhotonDraw(final CallbackInfo callback) {
+        ClientFrameDiagnostics.endPhotonDraw();
     }
 
     /**

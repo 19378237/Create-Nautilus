@@ -70,11 +70,16 @@ public final class RawDepthRenderer {
             return;
         }
 
+        final long packWall = ClientFrameDiagnostics.startWall();
+        final long packWater = ClientWaterDiagnostics.start();
         final FloatBuffer vertexBuffer = BufferUtils.createFloatBuffer(positions.size());
         for (final float value : positions) {
             vertexBuffer.put(value);
         }
         vertexBuffer.flip();
+        ClientFrameDiagnostics.recordWall(ClientFrameDiagnostics.Stage.RAW_DEPTH_PACK, packWall);
+        ClientWaterDiagnostics.finish(ClientWaterDiagnostics.Work.RAW_DEPTH_PACK,
+                packWater, (long) positions.size() * Float.BYTES);
 
         final int previousProgram = GL11C.glGetInteger(GL20C.GL_CURRENT_PROGRAM);
         final int previousVao = GL11C.glGetInteger(GL30C.GL_VERTEX_ARRAY_BINDING);
@@ -83,7 +88,15 @@ public final class RawDepthRenderer {
             GL20C.glUseProgram(program);
             GL30C.glBindVertexArray(vao);
             GL15C.glBindBuffer(GL15C.GL_ARRAY_BUFFER, vbo);
-            GL15C.glBufferData(GL15C.GL_ARRAY_BUFFER, vertexBuffer, GL15C.GL_STREAM_DRAW);
+            final long uploadWall = ClientFrameDiagnostics.startWall();
+            final long uploadWater = ClientWaterDiagnostics.start();
+            try {
+                GL15C.glBufferData(GL15C.GL_ARRAY_BUFFER, vertexBuffer, GL15C.GL_STREAM_DRAW);
+            } finally {
+                ClientFrameDiagnostics.recordWall(ClientFrameDiagnostics.Stage.GL_BUFFER_DATA, uploadWall);
+                ClientWaterDiagnostics.finish(ClientWaterDiagnostics.Work.RAW_DEPTH_UPLOAD,
+                        uploadWater, (long) positions.size() * Float.BYTES);
+            }
             GL20C.glEnableVertexAttribArray(0);
             GL20C.glVertexAttribPointer(0, 3, GL11C.GL_FLOAT, false, 12, 0L);
 
@@ -94,7 +107,17 @@ public final class RawDepthRenderer {
             view.get(viewBuffer);
             GL20C.glUniformMatrix4fv(modelViewUniform, false, viewBuffer);
 
-            GL11C.glDrawArrays(GL11C.GL_TRIANGLES, 0, positions.size() / 3);
+            final long drawWall = ClientFrameDiagnostics.startWall();
+            final long drawWater = ClientWaterDiagnostics.start();
+            final long drawGpu = ClientFrameDiagnostics.beginGpu(ClientFrameDiagnostics.Stage.RAW_DEPTH);
+            try {
+                GL11C.glDrawArrays(GL11C.GL_TRIANGLES, 0, positions.size() / 3);
+            } finally {
+                ClientFrameDiagnostics.endGpu(drawGpu);
+                ClientFrameDiagnostics.recordWall(ClientFrameDiagnostics.Stage.RAW_DEPTH, drawWall);
+                ClientWaterDiagnostics.finish(ClientWaterDiagnostics.Work.RAW_DEPTH_SUBMIT,
+                        drawWater, positions.size() / 3);
+            }
         } finally {
             GL20C.glDisableVertexAttribArray(0);
             GL15C.glBindBuffer(GL15C.GL_ARRAY_BUFFER, previousArray);

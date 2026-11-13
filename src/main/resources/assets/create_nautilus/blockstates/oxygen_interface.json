@@ -1,1 +1,10 @@
-{"variants":{"":{"model":"create_nautilus:block/oxygen_interface"}}}
+{
+  "variants": {
+    "facing=north": {"model": "create_nautilus:block/oxygen_interface"},
+    "facing=east": {"model": "create_nautilus:block/oxygen_interface", "y": 90},
+    "facing=south": {"model": "create_nautilus:block/oxygen_interface", "y": 180},
+    "facing=west": {"model": "create_nautilus:block/oxygen_interface", "y": 270},
+    "facing=up": {"model": "create_nautilus:block/oxygen_interface", "x": 270},
+    "facing=down": {"model": "create_nautilus:block/oxygen_interface", "x": 90}
+  }
+}

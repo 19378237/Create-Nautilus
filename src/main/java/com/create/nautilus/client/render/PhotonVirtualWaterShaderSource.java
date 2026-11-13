@@ -22,7 +22,7 @@ public final class PhotonVirtualWaterShaderSource {
     private PhotonVirtualWaterShaderSource() {
     }
 
-    /** Real water retains the pack's exact formulas; virtual water has no artificial depth floor. */
+    /** Adjust only virtual water's texture/thickness; keep the pack's native surface refraction. */
     public static String patchFragment(final String source) {
         if (source == null || source.contains(MARKER)) return source;
         if (!withoutComments(source).contains("water_absorption_approx")) return source;
@@ -30,12 +30,12 @@ public final class PhotonVirtualWaterShaderSource {
         patched = patchMinimumWaterDistance(patched);
         if (patched.equals(source)) return source;
         final String code = withoutComments(patched);
+        int declaration = patched.length();
         final Matcher material = WATER_MATERIAL.matcher(code);
-        if (!material.find()) return source;
-        int declaration = material.start();
+        if (material.find()) declaration = material.start();
         final Matcher fog = WATER_FOG.matcher(code);
         if (fog.find()) declaration = Math.min(declaration, fog.start());
-        // Both helpers precede main. Declare the draw-local switch before its first use.
+        if (declaration == patched.length()) return source;
         return patched.substring(0, declaration) + MARKER + "\n"
                 + "uniform float " + SodiumOcclusionShaderSource.VIRTUAL_WATER_UNIFORM + ";\n"
                 + patched.substring(declaration);

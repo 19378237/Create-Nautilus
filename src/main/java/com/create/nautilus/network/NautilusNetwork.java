@@ -23,12 +23,18 @@ public final class NautilusNetwork {
         registered = true;
         // These events invalidate the client's cache even if a UUID disappears and returns
         // between two server tracking snapshots. Ordinary Sable tracking is polled by syncLevels.
-        NeoForge.EVENT_BUS.addListener((PlayerEvent.PlayerLoggedOutEvent lifecycle) ->
-                CompartmentVisualSync.forgetPlayer(lifecycle.getEntity().getUUID()));
-        NeoForge.EVENT_BUS.addListener((PlayerEvent.PlayerChangedDimensionEvent lifecycle) ->
-                CompartmentVisualSync.forgetPlayer(lifecycle.getEntity().getUUID()));
-        NeoForge.EVENT_BUS.addListener((PlayerEvent.PlayerRespawnEvent lifecycle) ->
-                CompartmentVisualSync.forgetPlayer(lifecycle.getEntity().getUUID()));
+        NeoForge.EVENT_BUS.addListener((PlayerEvent.PlayerLoggedOutEvent lifecycle) -> {
+            CompartmentVisualSync.forgetPlayer(lifecycle.getEntity().getUUID());
+            DryCompartmentSync.forgetPlayer(lifecycle.getEntity().getUUID());
+        });
+        NeoForge.EVENT_BUS.addListener((PlayerEvent.PlayerChangedDimensionEvent lifecycle) -> {
+            CompartmentVisualSync.forgetPlayer(lifecycle.getEntity().getUUID());
+            DryCompartmentSync.forgetPlayer(lifecycle.getEntity().getUUID());
+        });
+        NeoForge.EVENT_BUS.addListener((PlayerEvent.PlayerRespawnEvent lifecycle) -> {
+            CompartmentVisualSync.forgetPlayer(lifecycle.getEntity().getUUID());
+            DryCompartmentSync.forgetPlayer(lifecycle.getEntity().getUUID());
+        });
         final PayloadRegistrar registrar = event.registrar(PROTOCOL_VERSION);
         registrar.playToClient(
                 DryCompartmentSnapshotPayload.TYPE,

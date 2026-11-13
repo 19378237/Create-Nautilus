@@ -45,6 +45,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public final class ContinuousCompartmentOcclusionRegion extends SimpleCulledRenderRegion {
     private static final double EPSILON = 1.0E-6D;
+    private static final double CAMERA_BOUNDARY_MARGIN = 1.0D / 1024.0D;
     private static final int[][] CUBE_EDGES = {
             {0, 1}, {0, 2}, {0, 4}, {1, 3}, {1, 5}, {2, 3},
             {2, 6}, {3, 7}, {4, 5}, {4, 6}, {5, 7}, {6, 7}
@@ -130,67 +131,144 @@ public final class ContinuousCompartmentOcclusionRegion extends SimpleCulledRend
     }
 
     /**
-     * Replays every Sable region into the framebuffer currently bound by the caller.
+     * Replays the registered regions into the framebuffer currently bound by the caller.
      *
-     * <p>This is needed only when Sable's integer camera test says the eye is inside the complete
-     * crossed voxel while the continuous water plane says it is actually in the wet half. The
-     * close buffer must then be cleared back to one and rebuilt; merely changing the clear value
-     * after Sable rendered would erase all legitimate entry faces.</p>
+     * <p>The plain depth pass clears Sable's shared buffers before rebuilding them, so it must
+     * replay the complete renderer set, including regions registered by other integrations.
+     * Shader rendering retains its existing Nautilus-only replay.</p>
      */
     public static void renderAllRegistered(final Matrix4f modelView,
                                            final Matrix4f projectionMatrix)
             throws ReflectiveOperationException {
-        // Copy before rendering so a packet-driven replacement cannot mutate the backing set
-        // while this render-thread pass is iterating it.
-        for (final ContinuousCompartmentOcclusionRegion region :
-                List.copyOf(OWN_REGIONS)) {
+        final Set<? extends SimpleCulledRenderRegion> renderRegions;
+        if (WaterOcclusionPassBridge.isShaderPackActive()) {
+            renderRegions = OWN_REGIONS;
+        } else {
+            if (RENDERER_REGIONS == null) {
+                throw new NoSuchFieldException("Sable WaterOcclusionRenderer.regions");
+            }
+            @SuppressWarnings("unchecked")
+            final Set<SimpleCulledRenderRegion> sableRegions =
+                    (Set<SimpleCulledRenderRegion>) RENDERER_REGIONS.get(
+                            SableClient.WATER_OCCLUSION_RENDERER);
+            renderRegions = sableRegions;
+        }
+        // Freeze the set before rendering so a region replacement cannot mutate this pass.
+        for (final SimpleCulledRenderRegion region : List.copyOf(renderRegions)) {
             region.render(modelView, projectionMatrix);
         }
     }
 
+    /**
+     * Whether Sable currently has any renderer outside Nautilus' continuous-room atlas domain.
+     * Missing or changed renderer access throws so the caller can retain its original depth pass.
+     */
+    public static boolean hasExternalRegistered() throws ReflectiveOperationException {
+        return registeredRenderRegions().stream()
+                .anyMatch(region -> !isAtlasCovered(region));
+    }
+
+    /** Replays only regions that still need Sable's close/far depth mask alongside the room atlas. */
+    public static void renderExternalRegistered(final Matrix4f modelView,
+                                                final Matrix4f projectionMatrix)
+            throws ReflectiveOperationException {
+        for (final SimpleCulledRenderRegion region : registeredRenderRegions()) {
+            if (!isAtlasCovered(region)) {
+                region.render(modelView, projectionMatrix);
+            }
+        }
+    }
+
+    private static boolean isAtlasCovered(final SimpleCulledRenderRegion region) {
+        return region instanceof final ContinuousCompartmentOcclusionRegion continuous
+                && ShaderVoxelMaskAtlas.coversCarrier(continuous.carrierId);
+    }
+
+    /** A failed continuous install retains the stock renderer and its native camera test. */
+    static UUID continuousCarrierId(final WaterOcclusionRegion region)
+            throws ReflectiveOperationException {
+        if (CLIENT_RENDER_REGION == null) {
+            throw new NoSuchFieldException("Sable ClientWaterOcclusionRegion.renderRegion");
+        }
+        return CLIENT_RENDER_REGION.getDeclaringClass().isInstance(region)
+                && CLIENT_RENDER_REGION.get(region) instanceof final ContinuousCompartmentOcclusionRegion continuous
+                ? continuous.carrierId : null;
+    }
+
+    private static List<SimpleCulledRenderRegion> registeredRenderRegions()
+            throws ReflectiveOperationException {
+        if (RENDERER_REGIONS == null) {
+            throw new NoSuchFieldException("Sable WaterOcclusionRenderer.regions");
+        }
+        final Object registered = RENDERER_REGIONS.get(SableClient.WATER_OCCLUSION_RENDERER);
+        if (!(registered instanceof Set<?> regions)) {
+            throw new ReflectiveOperationException("Unexpected Sable water-occlusion renderer set");
+        }
+        final List<SimpleCulledRenderRegion> snapshot = new ArrayList<>(regions.size());
+        for (final Object region : regions) {
+            if (!(region instanceof SimpleCulledRenderRegion drawable)) {
+                throw new ReflectiveOperationException("Unexpected Sable water-occlusion region type");
+            }
+            snapshot.add(drawable);
+        }
+        return snapshot;
+    }
+
     @Override
     public void render(final Matrix4f modelView, final Matrix4f projectionMatrix) {
-        final Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.level == null) {
-            return;
-        }
-        final SubLevelContainer container = SubLevelContainer.getContainer(minecraft.level);
-        if (container == null || !(container.getSubLevel(carrierId)
-                instanceof final ClientSubLevel carrier)) {
-            return;
-        }
-        final List<ClientCompartmentVisualCache.RoomSnapshot> rooms =
-                ClientCompartmentVisualCache.snapshots().get(carrierId);
-        if (rooms == null || rooms.isEmpty()) {
-            return;
-        }
+        final int diagnosticsSource = ClientWaterDiagnostics.enter(ClientWaterDiagnostics.Source.CONTINUOUS);
+        try {
+            final Minecraft minecraft = Minecraft.getInstance();
+            if (minecraft.level == null) {
+                return;
+            }
+            final SubLevelContainer container = SubLevelContainer.getContainer(minecraft.level);
+            if (container == null || !(container.getSubLevel(carrierId)
+                    instanceof final ClientSubLevel carrier)) {
+                return;
+            }
+            final List<ClientCompartmentVisualCache.RoomSnapshot> rooms =
+                    ClientCompartmentVisualCache.snapshots().get(carrierId);
+            if (rooms == null || rooms.isEmpty()) {
+                return;
+            }
 
-        final Vector3d camera = new Vector3d(
-                minecraft.gameRenderer.getMainCamera().getPosition().x,
-                minecraft.gameRenderer.getMainCamera().getPosition().y,
-                minecraft.gameRenderer.getMainCamera().getPosition().z);
-        /*
-         * Build raw camera-relative positions and draw with the raw-GL path. Iris intercepts
-         * ShaderInstance/BufferUploader and redirects the draw into its own gbuffer, which left
-         * the close/far masks cleared; glDrawArrays bypasses every Minecraft/Iris/Veil hook.
-         */
-        final List<Float> positions = new ArrayList<>();
-        for (final ClientCompartmentVisualCache.RoomSnapshot room : rooms) {
-            emitRoom(positions, carrier, room, camera);
+            final Vector3d camera = new Vector3d(
+                    minecraft.gameRenderer.getMainCamera().getPosition().x,
+                    minecraft.gameRenderer.getMainCamera().getPosition().y,
+                    minecraft.gameRenderer.getMainCamera().getPosition().z);
+            /*
+             * Build raw camera-relative positions and draw with the raw-GL path. Iris intercepts
+             * ShaderInstance/BufferUploader and redirects the draw into its own gbuffer, which left
+             * the close/far masks cleared; glDrawArrays bypasses every Minecraft/Iris/Veil hook.
+             */
+            final long diagnosticsMeshStart = ClientWaterDiagnostics.start();
+            final long frameGeometryStart = ClientFrameDiagnostics.startWall();
+            ClientWaterDiagnostics.count(ClientWaterDiagnostics.Work.MESH_PASSES, 1L);
+            final List<Float> positions = new ArrayList<>();
+            for (final ClientCompartmentVisualCache.RoomSnapshot room : rooms) {
+                emitRoom(positions, carrier, room, camera);
+            }
+            ClientWaterDiagnostics.finish(ClientWaterDiagnostics.Work.CONTINUOUS_GEOMETRY,
+                    diagnosticsMeshStart, positions.size() / 3);
+            ClientFrameDiagnostics.recordWall(ClientFrameDiagnostics.Stage.CONTINUOUS_GEOMETRY,
+                    frameGeometryStart);
+            if (positions.isEmpty()) {
+                return;
+            }
+            if (!createNautilus$renderLogTick) {
+                createNautilus$renderLogTick = true;
+                CreateNautilus.LOGGER.info(
+                        "[occlusion] region render vertices={}",
+                        positions.size() / 3);
+            }
+            // Vertices are already camera-relative. Sodium's model view has no absolute camera
+            // translation, so retain its view-bob and hurt translation without adding the camera.
+            final Matrix4f view = new Matrix4f(modelView);
+            RawDepthRenderer.draw(positions, view, projectionMatrix);
+        } finally {
+            ClientWaterDiagnostics.leave(diagnosticsSource);
         }
-        if (positions.isEmpty()) {
-            return;
-        }
-        if (!createNautilus$renderLogTick) {
-            createNautilus$renderLogTick = true;
-            CreateNautilus.LOGGER.info(
-                    "[occlusion] region render vertices={}",
-                    positions.size() / 3);
-        }
-        // Vertices are already camera-relative. Sodium's model view has no absolute camera
-        // translation, so retain its view-bob and hurt translation without adding the camera.
-        final Matrix4f view = new Matrix4f(modelView);
-        RawDepthRenderer.draw(positions, view, projectionMatrix);
     }
 
     private static void emitRoom(
@@ -205,22 +283,33 @@ public final class ContinuousCompartmentOcclusionRegion extends SimpleCulledRend
          * boundary water at the exact hull faces and waterline, instead of a block-stepped
          * staircase of individual dry cells.
          */
-        final double waterFraction = room.waterFraction();
+        final double waterFraction = room.waterCells().isEmpty() ? 0.0D : room.waterFraction();
         if (waterFraction >= 1.0D - 1.0E-5D) {
             // Fully flooded room: no dry air remains and the parent water renders throughout.
             return;
         }
-        final double surfaceY = CompartmentWaterGeometry.surfaceY(
-                carrier.renderPose(), room.cells(), room.bounds(), waterFraction);
+        final double surfaceY = ClientWaterDiagnostics.surfaceY(
+                carrier.getUniqueId(), room.id(), room.topologyRevision(),
+                carrier.renderPose(), room.waterCells(), room.bounds(), waterFraction);
+        final boolean shaderPackActive = WaterOcclusionPassBridge.isShaderPackActive();
         final Map<Long, Vector3d[]> cells = new HashMap<>();
-        for (final BlockPos cell : room.cells()) {
-            // Real water placed in the moving plot remains ordinary Minecraft/Create fluid and
-            // owns its own renderer. It must never become part of the virtual dry mask.
-            if (carrier.getLevel().getFluidState(cell).is(FluidTags.WATER)) {
-                continue;
+        if (shaderPackActive) {
+            ClientWaterDiagnostics.count(ClientWaterDiagnostics.Work.MESH_INPUT_CELLS, room.cells().size());
+            for (final BlockPos cell : room.cells()) {
+                if (carrier.getLevel().getFluidState(cell).is(FluidTags.WATER)) {
+                    ClientWaterDiagnostics.count(ClientWaterDiagnostics.Work.MESH_FILTERED_WATER, 1L);
+                    continue;
+                }
+                cells.put(cell.asLong(), worldCorners(carrier, cell));
             }
-            cells.put(cell.asLong(), worldCorners(carrier, cell));
+        } else {
+            for (final long key : roomMaskCells(carrier, room)) {
+                final BlockPos cell = BlockPos.of(key);
+                cells.put(cell.asLong(), worldCorners(carrier, cell));
+            }
         }
+        ClientWaterDiagnostics.count(ClientWaterDiagnostics.Work.MESH_EFFECTIVE_CELLS, cells.size());
+        ClientWaterDiagnostics.count(ClientWaterDiagnostics.Work.MESH_CORNER_TRANSFORMS, 8L * cells.size());
 
         for (final Map.Entry<Long, Vector3d[]> entry : cells.entrySet()) {
             final BlockPos cell = BlockPos.of(entry.getKey());
@@ -238,6 +327,7 @@ public final class ContinuousCompartmentOcclusionRegion extends SimpleCulledRend
                 if (cells.containsKey(cell.relative(face.direction()).asLong())) {
                     continue;
                 }
+                ClientWaterDiagnostics.count(ClientWaterDiagnostics.Work.MESH_BOUNDARY_CANDIDATES, 1L);
                 final List<Vector3d> polygon = new ArrayList<>(4);
                 for (final int index : face.corners()) {
                     polygon.add(corners[index]);
@@ -247,10 +337,45 @@ public final class ContinuousCompartmentOcclusionRegion extends SimpleCulledRend
                     emitPolygon(positions, clipped, camera);
                 }
             }
-            if (above && below) {
+            if ((shaderPackActive || waterFraction > EPSILON) && above && below) {
+                ClientWaterDiagnostics.count(ClientWaterDiagnostics.Work.MESH_SURFACE_CELLS, 1L);
                 emitWaterlineCap(positions, corners, surfaceY, camera);
             }
         }
+    }
+
+    private static long[] roomMaskCells(final ClientSubLevel carrier,
+                                        final ClientCompartmentVisualCache.RoomSnapshot room) {
+        // Only the local outline grows. The liquid plane above is solved from the original
+        // water cells, so padding cannot change the water amount or world-horizontal waterline.
+        final long[] candidates = WaterOcclusionPassBridge.isShaderPackActive()
+                ? PlainWaterOcclusion.cells(room.cells(), false)
+                : PlainWaterOcclusion.paddedCells(carrier.getUniqueId(), room.id(),
+                        room.topologyRevision(), room.cells());
+        final long[] cells = PlainWaterOcclusion.withoutWater(candidates,
+                cell -> carrier.getLevel().getFluidState(cell).is(FluidTags.WATER));
+        ClientWaterDiagnostics.count(ClientWaterDiagnostics.Work.MESH_INPUT_CELLS, candidates.length);
+        ClientWaterDiagnostics.count(ClientWaterDiagnostics.Work.MESH_FILTERED_WATER,
+                candidates.length - cells.length);
+        return cells;
+    }
+
+    /** The depth clear must use the same padded, continuous volume as the depth mesh. */
+    static boolean containsCamera(final ClientSubLevel carrier,
+                                   final ClientCompartmentVisualCache.RoomSnapshot room,
+                                   final net.minecraft.world.phys.Vec3 position) {
+        final double fraction = room.waterCells().isEmpty() ? 0.0D : room.waterFraction();
+        if (fraction >= 1.0D - 1.0E-5D) return false;
+        if (fraction > EPSILON) {
+            final double surfaceY = ClientWaterDiagnostics.surfaceY(
+                    carrier.getUniqueId(), room.id(), room.topologyRevision(),
+                    carrier.renderPose(), room.waterCells(), room.bounds(), fraction);
+            if (position.y < surfaceY - EPSILON) return false;
+        }
+        final Vector3d local = carrier.renderPose().transformPositionInverse(
+                new Vector3d(position.x, position.y, position.z));
+        return PlainWaterOcclusion.containsCamera(roomMaskCells(carrier, room), local,
+                CAMERA_BOUNDARY_MARGIN);
     }
 
     /** Clips one outward-wound cube face to the dry half-space {@code worldY >= surfaceY}. */
@@ -327,6 +452,9 @@ public final class ContinuousCompartmentOcclusionRegion extends SimpleCulledRend
         if (polygon.size() < 3) {
             return;
         }
+        ClientWaterDiagnostics.count(ClientWaterDiagnostics.Work.MESH_OUTPUT_POLYGONS, 1L);
+        ClientWaterDiagnostics.count(ClientWaterDiagnostics.Work.MESH_OUTPUT_VERTICES,
+                3L * (polygon.size() - 2));
         final Vector3d first = polygon.getFirst();
         for (int index = 1; index + 1 < polygon.size(); index++) {
             vertex(positions, first, camera);

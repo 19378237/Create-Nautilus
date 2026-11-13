@@ -5,6 +5,7 @@ import dev.ryanhcode.sable.api.sublevel.SubLevelContainer;
 import dev.ryanhcode.sable.companion.math.BoundingBox3ic;
 import dev.ryanhcode.sable.sublevel.ClientSubLevel;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -14,6 +15,7 @@ import net.minecraft.world.level.block.LiquidBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.material.FluidState;
+import net.minecraft.world.level.material.FogType;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
@@ -119,10 +121,6 @@ final class ApertureEventCache {
             return new Frame(parentLevel, generation, cameraX, cameraY, cameraZ,
                     false, false, List.of());
         }
-        final ClientCompartmentVisualCache.CameraWaterState cameraState =
-                ClientCompartmentVisualCache.cameraWaterState(
-                        new Vec3(cameraX, cameraY, cameraZ));
-
         final SubLevelContainer container = SubLevelContainer.getContainer(parentLevel);
         final Map<UUID, List<ClientCompartmentVisualCache.RoomSnapshot>> snapshots =
                 ClientCompartmentVisualCache.shaderAtlasSnapshots();
@@ -130,7 +128,7 @@ final class ApertureEventCache {
             final boolean removed = removeStale(parentLevel, Set.of());
             if (removed) bumpGeneration();
             return new Frame(parentLevel, generation, cameraX, cameraY, cameraZ,
-                    cameraStartsInWater(parentLevel, cameraX, cameraY, cameraZ, cameraState),
+                    cameraStartsInWater(parentLevel),
                     removed, List.of());
         }
 
@@ -210,7 +208,7 @@ final class ApertureEventCache {
                         && Double.isFinite(boundaryRuntime.fraction())
                         && boundaryRuntime.fraction() > ROOM_EPSILON;
                 events.add(new Event(boundary.slot(), boundary.opticalCell(), boundary.axis(),
-                        boundary.outwardDirection(), floodedExteriorShell,
+                        boundary.outwardDirection(), boundary.faceCoordinate(), floodedExteriorShell,
                         new PlanePair(negative.plane(), positive.plane()), valid));
             }
 
@@ -236,7 +234,7 @@ final class ApertureEventCache {
                         value.cached().voxelSlots()))
                 .toList();
         final boolean cameraStartsInWater = cameraStartsInWater(
-                parentLevel, cameraX, cameraY, cameraZ, cameraState);
+                parentLevel);
         return new Frame(parentLevel, generation, cameraX, cameraY, cameraZ,
                 cameraStartsInWater, opticalLayoutChanged, carriers);
     }
@@ -301,6 +299,25 @@ final class ApertureEventCache {
             bumpGeneration();
         }
         return new Invalidation(removed || fluidInvalidated, removed);
+    }
+
+    /** Model-only updates never dirty real-fluid samples or rescan unwatched plot cells. */
+    static synchronized Invalidation notifyModelDataChanged(final ClientLevel changedLevel,
+                                                            final BlockPos changedPosition) {
+        if (changedLevel == null || changedPosition == null) return Invalidation.NONE;
+        boolean removed = false;
+        final var iterator = CACHE.entrySet().iterator();
+        while (iterator.hasNext()) {
+            final Map.Entry<CacheKey, CachedCarrier> entry = iterator.next();
+            final CachedCarrier cached = entry.getValue();
+            if ((entry.getKey().level() != changedLevel && cached.carrierLevel() != changedLevel)
+                    || !cached.geometryWatchCells().contains(changedPosition.asLong())) continue;
+            OpticalApertureProvider.invalidateAround(cached.carrier(), changedPosition);
+            iterator.remove();
+            removed = true;
+        }
+        if (removed) bumpGeneration();
+        return removed ? Invalidation.GEOMETRY : Invalidation.NONE;
     }
 
     static Invalidation onClientChunkLoad(final ChunkEvent.Load event) {
@@ -578,9 +595,6 @@ final class ApertureEventCache {
         int slot = 0;
         for (final BoundaryCandidate boundary : orderedBoundaries) {
             final int eventSlot = slot++;
-            boundaries.add(new CachedBoundary(eventSlot, boundary.opticalCell(),
-                    boundary.axis(), boundary.outwardDirection(),
-                    boundary.negative(), boundary.positive()));
             apertureCellBounds.add(new AABB(
                     boundary.opticalCell()).inflate(1.0E-4D));
             /*
@@ -593,6 +607,18 @@ final class ApertureEventCache {
                     == Direction.AxisDirection.POSITIVE;
             final OpticalApertureProvider.AtlasBatch fullFaceBatch =
                     boundary.fullCollisionBlock() ? opticalAxisBatch(boundary) : null;
+            // Store the same face plane that is actually emitted below. Keep it relative to
+            // the geometry origin before converting to float, including negative/large plots.
+            final double outwardFace = fullFaceBatch != null
+                    ? boundary.axis().choose(boundary.opticalCell().getX(),
+                            boundary.opticalCell().getY(), boundary.opticalCell().getZ())
+                            + (outwardPositive ? 1.0D : 0.0D)
+                    : extremeFaceCoordinate(boundary, outwardPositive);
+            final double relativeFace = outwardFace
+                    - boundary.axis().choose(originX, originY, originZ);
+            boundaries.add(new CachedBoundary(eventSlot, boundary.opticalCell(),
+                    boundary.axis(), boundary.outwardDirection(), relativeFace,
+                    boundary.negative(), boundary.positive()));
             if (fullFaceBatch != null) {
                 appendFullCellFace(meshes, fullFaceBatch, boundary.opticalCell(),
                         boundary.axis(), boundary.outwardDirection(), outwardPositive,
@@ -614,7 +640,6 @@ final class ApertureEventCache {
                 apertureMaxZ = Math.max(apertureMaxZ, placedCellZ + 1.0D);
             }
             // Thin/custom optical blocks keep only their outermost baked exterior surface.
-            final double outwardFace = extremeFaceCoordinate(boundary, outwardPositive);
             for (final OpticalApertureProvider.AtlasBatch source : boundary.batches()) {
                 final FloatMesh mesh = meshes.computeIfAbsent(
                         new BatchKey(source.atlas(), source.alphaCutoff(),
@@ -1089,7 +1114,7 @@ final class ApertureEventCache {
             final ShaderVoxelMaskAtlas.PreparedRoomWater atlasWater =
                     ShaderVoxelMaskAtlas.preparedRoomWater(
                             carrierId, room.id(), room.topologyRevision());
-            final double fraction = atlasWater == null
+            final double fraction = room.waterCells().isEmpty() ? 0.0D : atlasWater == null
                     ? Math.clamp(room.waterFraction(), 0.0D, 1.0D)
                     : Math.clamp(atlasWater.fraction(), 0.0D, 1.0D);
             final double surface;
@@ -1099,12 +1124,16 @@ final class ApertureEventCache {
                 surface = 0.0D;
             } else {
                 if (atlasWater != null) {
+                    ClientWaterDiagnostics.count(ClientWaterDiagnostics.Work.APERTURE_ATLAS_REUSED, 1L);
                     surface = atlasWater.surfaceY();
                 } else {
                     double candidate;
                     try {
+                        ClientWaterDiagnostics.count(ClientWaterDiagnostics.Work.APERTURE_FALLBACK, 1L);
+                        ClientWaterDiagnostics.observeSurface(carrierId, room.id(), room.topologyRevision(),
+                                room.waterCells(), fraction, pose);
                         candidate = WaterMediumClassifier.frozenRoomSurface(
-                                pose, room.cells(), room.bounds(), fraction);
+                                pose, room.waterCells(), room.bounds(), fraction);
                     } catch (final RuntimeException | LinkageError ignored) {
                         candidate = Double.NaN;
                     }
@@ -1308,24 +1337,13 @@ final class ApertureEventCache {
         return new Plane(x, y, z, w);
     }
 
-    private static boolean cameraStartsInWater(
-            final ClientLevel parentLevel,
-            final double cameraX,
-            final double cameraY,
-            final double cameraZ,
-            final ClientCompartmentVisualCache.CameraWaterState compartmentState) {
-        /*
-         * These optical events describe parent-ocean intervals, not the immersive camera state.
-         * WET now reports WATER to Iris, while this value remains false for tracked rooms. The
-         * decoder's eye/medium mismatch deliberately leaves wet-room fog to the pack's native
-         * underwater path instead of replacing it with a bounded glass-only interval. DRY still
-         * uses glass-entry compensation; OUTSIDE inherits the actual parent-world medium.
-         */
-        if (compartmentState != ClientCompartmentVisualCache.CameraWaterState.OUTSIDE) {
-            return false;
-        }
-        final Vector3d cameraWorld = new Vector3d(cameraX, cameraY, cameraZ);
-        return WaterMediumClassifier.parentWorldContains(parentLevel, cameraWorld);
+    private static boolean cameraStartsInWater(final ClientLevel parentLevel) {
+        // This is a render-frame consumer, never called by Camera's medium resolver. Read the
+        // final Camera/Iris medium instead of reinterpreting padded room state here: real water,
+        // near-plane non-water media and the virtual-fog option already have their proper priority.
+        final Minecraft minecraft = Minecraft.getInstance();
+        return parentLevel != null && minecraft.level == parentLevel
+                && minecraft.gameRenderer.getMainCamera().getFluidInCamera() == FogType.WATER;
     }
 
     /** One optical exterior boundary has exactly one room side. */
@@ -1630,7 +1648,7 @@ final class ApertureEventCache {
 
     /** Event slot, semantic face sign and outward sign referenced by each vertex. */
     record Event(int slot, BlockPos opticalCell, Direction.Axis axis,
-                 Direction outwardDirection, boolean floodedExteriorShell,
+                 Direction outwardDirection, double faceCoordinate, boolean floodedExteriorShell,
                  PlanePair planes, boolean valid) {
         Event {
             if (slot < 0) throw new IllegalArgumentException("negative event slot");
@@ -1830,6 +1848,7 @@ final class ApertureEventCache {
                                   BlockPos opticalCell,
                                   Direction.Axis axis,
                                   Direction outwardDirection,
+                                  double faceCoordinate,
                                   MediumRef negative,
                                   MediumRef positive) {
     }

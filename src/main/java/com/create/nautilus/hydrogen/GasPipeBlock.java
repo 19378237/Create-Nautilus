@@ -75,7 +75,7 @@ public final class GasPipeBlock extends PipeBlock
         }
         if (level instanceof Level realLevel) {
             realLevel.scheduleTick(pos, this, 1, TickPriority.HIGH);
-            return updateConnections(state, direction, realLevel, pos);
+            return updateConnections(state, isolatedDirection(state), realLevel, pos);
         }
         return state;
     }
@@ -83,7 +83,7 @@ public final class GasPipeBlock extends PipeBlock
     @Override
     protected void tick(final BlockState state, final net.minecraft.server.level.ServerLevel level,
                         final BlockPos pos, final RandomSource random) {
-        final BlockState updated = updateConnections(state, Direction.NORTH, level, pos);
+        final BlockState updated = updateConnections(state, isolatedDirection(state), level, pos);
         if (updated != state) {
             level.setBlock(pos, updated, Block.UPDATE_CLIENTS);
         }
@@ -113,6 +113,13 @@ public final class GasPipeBlock extends PipeBlock
             state = state.setValue(PROPERTY_BY_DIRECTION.get(soleConnection.getOpposite()), true);
         }
         return state;
+    }
+
+    private static Direction isolatedDirection(final BlockState state) {
+        for (final Direction direction : Direction.values()) {
+            if (state.getValue(PROPERTY_BY_DIRECTION.get(direction))) return direction;
+        }
+        return Direction.NORTH;
     }
 
     public static boolean canConnectTo(final BlockAndTintGetter level,

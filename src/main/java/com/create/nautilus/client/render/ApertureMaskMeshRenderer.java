@@ -81,7 +81,7 @@ final class ApertureMaskMeshRenderer {
                 float slot = floor(nautilusEventSlot + 0.5);
                 if (slot < 0.0 || EventPlaneTextureSize.x < 1.0
                         || EventPlaneTextureSize.y < 1.0) discard;
-                float first = EventPlaneBase + slot * 3.0;
+                float first = EventPlaneBase + slot * 4.0;
                 vec4 negativePlane = eventPlane(first);
                 vec4 positivePlane = eventPlane(first + 1.0);
                 vec4 metadata = eventPlane(first + 2.0);
@@ -440,10 +440,14 @@ final class ApertureMaskMeshRenderer {
     private static int link(final String vertexSource,
                             final String fragmentSource,
                             final boolean attributes) {
-        final int vertex = compile(GL20C.GL_VERTEX_SHADER, vertexSource);
-        final int fragment = compile(GL20C.GL_FRAGMENT_SHADER, fragmentSource);
-        final int program = GL20C.glCreateProgram();
+        int vertex = 0;
+        int fragment = 0;
+        int program = 0;
+        boolean linked = false;
         try {
+            vertex = compile(GL20C.GL_VERTEX_SHADER, vertexSource);
+            fragment = compile(GL20C.GL_FRAGMENT_SHADER, fragmentSource);
+            program = GL20C.glCreateProgram();
             GL20C.glAttachShader(program, vertex);
             GL20C.glAttachShader(program, fragment);
             if (attributes) {
@@ -458,26 +462,30 @@ final class ApertureMaskMeshRenderer {
                 throw new IllegalStateException("private aperture program link failed: "
                         + GL20C.glGetProgramInfoLog(program));
             }
+            linked = true;
             return program;
-        } catch (final RuntimeException exception) {
-            GL20C.glDeleteProgram(program);
-            throw exception;
         } finally {
-            GL20C.glDeleteShader(vertex);
-            GL20C.glDeleteShader(fragment);
+            if (!linked && program != 0) GL20C.glDeleteProgram(program);
+            if (vertex != 0) GL20C.glDeleteShader(vertex);
+            if (fragment != 0) GL20C.glDeleteShader(fragment);
         }
     }
 
     private static int compile(final int type, final String source) {
         final int shader = GL20C.glCreateShader(type);
-        GL20C.glShaderSource(shader, source);
-        GL20C.glCompileShader(shader);
-        if (GL20C.glGetShaderi(shader, GL20C.GL_COMPILE_STATUS) == GL11C.GL_FALSE) {
-            final String log = GL20C.glGetShaderInfoLog(shader);
-            GL20C.glDeleteShader(shader);
-            throw new IllegalStateException("private aperture shader compilation failed: " + log);
+        boolean compiled = false;
+        try {
+            GL20C.glShaderSource(shader, source);
+            GL20C.glCompileShader(shader);
+            if (GL20C.glGetShaderi(shader, GL20C.GL_COMPILE_STATUS) == GL11C.GL_FALSE) {
+                throw new IllegalStateException("private aperture shader compilation failed: "
+                        + GL20C.glGetShaderInfoLog(shader));
+            }
+            compiled = true;
+            return shader;
+        } finally {
+            if (!compiled && shader != 0) GL20C.glDeleteShader(shader);
         }
-        return shader;
     }
 
     private static int uniform(final int program, final String name) {

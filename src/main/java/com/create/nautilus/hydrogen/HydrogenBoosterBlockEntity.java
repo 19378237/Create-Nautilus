@@ -16,8 +16,10 @@ import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.neoforge.capabilities.RegisterCapabilitiesEvent;
 import net.neoforged.neoforge.fluids.capability.IFluidHandler;
+import dev.ryanhcode.sable.api.block.propeller.BlockEntityPropeller;
 
 import java.util.List;
+import java.util.Objects;
 
 /** Consumes low-pressure hydrogen while an adjacent propeller is rotating. */
 public final class HydrogenBoosterBlockEntity extends KineticBlockEntity {
@@ -29,6 +31,7 @@ public final class HydrogenBoosterBlockEntity extends KineticBlockEntity {
     private SmartFluidTankBehaviour hydrogen;
     private double consumptionRemainder;
     private boolean active;
+    private BlockPos activeTarget;
 
     public HydrogenBoosterBlockEntity(final BlockEntityType<?> type,
                                       final BlockPos pos, final BlockState state) {
@@ -40,6 +43,16 @@ public final class HydrogenBoosterBlockEntity extends KineticBlockEntity {
                 NautilusBlockEntityTypes.HYDROGEN_BOOSTER.get(),
                 (be, side) -> side != be.getBlockState().getValue(HydrogenBoosterBlock.FACING)
                         .getOpposite() ? GasHandlerView.of(be.hydrogen.getCapability()) : null);
+    }
+
+    /** Sided capability results (including null) depend on the current facing. */
+    @Override
+    public void setBlockState(final BlockState state) {
+        final BlockState previous = getBlockState();
+        super.setBlockState(state);
+        if (previous.getValue(HydrogenBoosterBlock.FACING) != state.getValue(HydrogenBoosterBlock.FACING)) {
+            invalidateCapabilities();
+        }
     }
 
     @Override
@@ -68,16 +81,17 @@ public final class HydrogenBoosterBlockEntity extends KineticBlockEntity {
             return;
         }
 
-        consumptionRemainder += NautilusConfig.HYDROGEN_BOOSTER_CONSUMPTION_RATE / 20.0D;
-        final int due = (int) Math.floor(consumptionRemainder);
+        final double accrued = consumptionRemainder
+                + NautilusConfig.HYDROGEN_BOOSTER_CONSUMPTION_RATE / 20.0D;
+        final int due = (int) Math.floor(accrued);
+        consumptionRemainder = accrued - due;
         if (due > 0) {
-            final int drained = hydrogen.getPrimaryHandler().drain(due,
-                    IFluidHandler.FluidAction.EXECUTE).getAmount();
-            consumptionRemainder -= drained;
-            if (drained < due) {
+            if (hydrogen.getPrimaryHandler().drain(due,
+                    IFluidHandler.FluidAction.SIMULATE).getAmount() < due) {
                 setActive(false, propeller);
                 return;
             }
+            hydrogen.getPrimaryHandler().drain(due, IFluidHandler.FluidAction.EXECUTE);
         }
         // Publish the result from the main block-entity tick. Propeller thrust
         // callbacks only read this lock-free snapshot and never traverse the
@@ -101,6 +115,7 @@ public final class HydrogenBoosterBlockEntity extends KineticBlockEntity {
                          final boolean clientPacket) {
         super.write(tag, registries, clientPacket);
         tag.putBoolean("Active", active);
+        if (activeTarget != null) tag.putLong("ActiveTarget", activeTarget.asLong());
         tag.putDouble("ConsumptionRemainder", consumptionRemainder);
     }
 
@@ -110,6 +125,7 @@ public final class HydrogenBoosterBlockEntity extends KineticBlockEntity {
                         final boolean clientPacket) {
         super.read(tag, registries, clientPacket);
         active = tag.getBoolean("Active");
+        activeTarget = tag.contains("ActiveTarget") ? BlockPos.of(tag.getLong("ActiveTarget")) : null;
         consumptionRemainder = tag.getDouble("ConsumptionRemainder");
     }
 
@@ -124,7 +140,7 @@ public final class HydrogenBoosterBlockEntity extends KineticBlockEntity {
                 if (propeller.getLevel().getBlockEntity(
                         propeller.getBlockPos().relative(direction))
                         instanceof HydrogenBoosterBlockEntity booster
-                        && booster.isActive()) {
+                        && booster.isActive() && propeller.getBlockPos().equals(booster.activeTarget)) {
                     return true;
                 }
             }
@@ -137,7 +153,9 @@ public final class HydrogenBoosterBlockEntity extends KineticBlockEntity {
         for (final Direction direction : Direction.values()) {
             final BlockEntity neighbour = level.getBlockEntity(worldPosition.relative(direction));
             if (neighbour instanceof KineticBlockEntity kinetic
-                    && PropellerEfficiency.isAeronauticsPropeller(kinetic)) {
+                    && PropellerEfficiency.isAeronauticsPropeller(kinetic)
+                    && Math.abs(kinetic.getSpeed()) >= 1.0F
+                    && kinetic instanceof BlockEntityPropeller propeller && propeller.isActive()) {
                 return kinetic;
             }
         }
@@ -149,18 +167,20 @@ public final class HydrogenBoosterBlockEntity extends KineticBlockEntity {
         if (next && propeller != null) {
             PropellerBoostRegistry.markActive(propeller, this);
         } else if (!next) {
-            PropellerBoostRegistry.markInactive(this);
+            PropellerBoostRegistry.removeSource(this);
         }
-        if (active == next) {
+        final BlockPos nextTarget = next && propeller != null ? propeller.getBlockPos().immutable() : null;
+        if (active == next && Objects.equals(activeTarget, nextTarget)) {
             return;
         }
         active = next;
+        activeTarget = nextTarget;
         notifyUpdate();
     }
 
     @Override
     public void remove() {
-        PropellerBoostRegistry.markInactive(this);
+        PropellerBoostRegistry.removeSource(this);
         super.remove();
     }
 

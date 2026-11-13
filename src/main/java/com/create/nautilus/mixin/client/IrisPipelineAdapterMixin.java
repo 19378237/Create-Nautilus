@@ -146,6 +146,13 @@ public abstract class IrisPipelineAdapterMixin {
         // linked GL program with the complete uniform set to be actually used before Ready=1.
         IrisCompositeShaderSource.finishShaderReload();
         createNautilus$adapterGeneration = IrisCompositeShaderSource.adapterGeneration();
+        IrisCompositeShaderSource.retainPipelineGeneration(createNautilus$adapterGeneration);
+    }
+
+    @Inject(method = "destroy", at = @At("HEAD"), require = 0)
+    private void createNautilus$releaseAdapterGeneration(final CallbackInfo callback) {
+        IrisCompositeShaderSource.releasePipelineGeneration(createNautilus$adapterGeneration);
+        createNautilus$adapterGeneration = 0;
     }
 
     /**

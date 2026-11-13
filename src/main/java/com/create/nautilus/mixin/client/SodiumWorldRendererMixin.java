@@ -52,7 +52,7 @@ public abstract class SodiumWorldRendererMixin {
                     cameraX, cameraY, cameraZ);
         } catch (final ReflectiveOperationException | RuntimeException | LinkageError exception) {
             WaterOcclusionPassBridge.disableUntilReload(
-                    "Sodium drawChunkLayer matrices no longer match the verified 0.8.12 API",
+                    "Sodium drawChunkLayer matrices no longer match the verified 0.8.13 API",
                     exception);
         }
     }
